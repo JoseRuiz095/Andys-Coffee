@@ -6,11 +6,22 @@ import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
 import { authStore } from '../../auth/store/auth.store'
 import type { AuthUser } from '../../auth/types/auth.types'
 import React from 'react'
+import { CoffeeIcon } from '../../../components/ui/coffee'
+import type { CoffeeIconHandle } from '../../../components/ui/coffee'
+import { SettingsIcon } from '../../../components/ui/settings'
+import { APP_ROUTES } from '../../../shared/constants/routes'
+
+function navigateTo(path: string) {
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
 
 export function DashboardPage() {
   const [isLoading] = React.useState(false)
   const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(authStore.getState().user)
+  const [hasUnreadNotifications, setHasUnreadNotifications] = React.useState(true)
+  const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
 
   React.useEffect(() => {
     const syncUser = () => setCurrentUser(authStore.getState().user)
@@ -20,6 +31,15 @@ export function DashboardPage() {
 
     return () => window.removeEventListener('auth:changed', syncUser)
   }, [])
+
+  React.useEffect(() => {
+    if (hasUnreadNotifications) {
+      coffeeIconRef.current?.startAnimation()
+      return
+    }
+
+    coffeeIconRef.current?.stopAnimation()
+  }, [hasUnreadNotifications])
 
   const displayName = currentUser?.name ?? 'Usuario'
   const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
@@ -34,14 +54,6 @@ export function DashboardPage() {
           : currentUser?.roleId
             ? 'Usuario'
             : 'Usuario'
-  const initials = displayName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'U'
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#f8fafc_45%,_#e2e8f0_100%)] px-6 py-6">
@@ -235,13 +247,37 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <button className="relative rounded-full border border-[#E7E3DC] bg-white p-2.5 text-lg shadow-sm">
-                  <span>🔔</span>
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#5A804F]" />
+                <button
+                  type="button"
+                  aria-label="Abrir notificaciones del proyecto"
+                  onClick={() => setHasUnreadNotifications(false)}
+                  className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
+                    hasUnreadNotifications
+                      ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
+                      : 'border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]'
+                  }`}
+                >
+                  {hasUnreadNotifications && (
+                    <>
+                      <span className="absolute inset-0 rounded-full border-2 border-[#C78234]/50 animate-ping" />
+                      <span className="absolute -inset-1.5 rounded-full border border-[#C78234]/30" />
+                    </>
+                  )}
+                  <CoffeeIcon ref={coffeeIconRef} className="relative z-10" size={23} aria-hidden="true" />
+                  {hasUnreadNotifications && (
+                    <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
+                      1
+                    </span>
+                  )}
                 </button>
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#5A804F] font-semibold text-white shadow-sm">
-                  {initials}
-                </div>
+                <button
+                  type="button"
+                  aria-label="Abrir configuracion del proyecto"
+                  onClick={() => navigateTo(APP_ROUTES.settings)}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E7E3DC] bg-white text-[#5A804F] shadow-sm transition hover:border-[#5A804F]/40 hover:bg-[#F2EFE8] focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25"
+                >
+                  <SettingsIcon size={22} aria-hidden="true" />
+                </button>
               </>
             )}
           </div>

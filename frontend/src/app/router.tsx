@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard'
+import { SettingsPage } from '../features/settings'
 import { authStore } from '../features/auth/store/auth.store'
 import { APP_ROUTES } from '../shared/constants/routes'
 
@@ -43,6 +44,10 @@ export function AppRouter() {
 
   if (pathname === APP_ROUTES.dashboard) {
     return <DashboardPage />
+  }
+
+  if (pathname === APP_ROUTES.settings) {
+    return <SettingsPage />
   }
 
   return <LoginPage />

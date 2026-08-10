@@ -140,12 +140,6 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
           >
             −
           </button>
-          <input
-            type="text"
-            value={quantity}
-            readOnly
-            className="flex-1 rounded-lg border border-[#E7E3DC] bg-[#F2EFE8] text-center text-sm text-[#2C211D]"
-          />
           <button
             onClick={handleAdd}
             disabled={product.available === 0}
