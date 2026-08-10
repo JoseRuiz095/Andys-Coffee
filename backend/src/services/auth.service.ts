@@ -9,15 +9,23 @@ export type AuthUser = {
   name: string;
   email: string;
   roleId: string;
+  roleName?: string;
   isActive: boolean;
 };
 
-function sanitizeUser(user: User): AuthUser {
+type UserWithRole = User & {
+  role?: {
+    name: string | null;
+  } | null;
+};
+
+function sanitizeUser(user: UserWithRole): AuthUser {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     roleId: user.roleId,
+    roleName: user.role?.name ?? undefined,
     isActive: user.isActive,
   };
 }
@@ -28,6 +36,7 @@ export async function authenticateUser(
 ): Promise<AuthUser | null> {
   const user = await prisma.user.findUnique({
     where: { email },
+    include: { role: { select: { name: true } } },
   });
 
   if (!user || !user.isActive) {
@@ -49,6 +58,7 @@ export function createJwtToken(user: AuthUser): string {
       sub: user.id,
       email: user.email,
       roleId: user.roleId,
+      roleName: user.roleName ?? undefined,
     },
     JWT_SECRET,
     {

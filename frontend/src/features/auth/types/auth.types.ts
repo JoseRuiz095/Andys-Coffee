@@ -5,8 +5,12 @@ export type LoginCredentials = {
 }
 
 export type AuthUser = {
+  id: string
   email: string
   name: string
+  roleId: string
+  roleName?: string
+  isActive: boolean
 }
 
 export type LoginResult = {

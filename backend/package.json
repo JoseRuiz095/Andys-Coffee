@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "tsx watch src/server.ts",
     "prisma:generate": "npx prisma generate",
     "prisma:seed": "npx prisma db seed",
     "prisma:migrate": "npx prisma migrate dev",
@@ -22,7 +23,9 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pino": "^9.1.0",
+    "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

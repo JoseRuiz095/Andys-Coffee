@@ -3,11 +3,11 @@ import type { LoginCredentials } from '../types/auth.types'
 export const loginSchema = {
   validate(credentials: LoginCredentials) {
     if (!credentials.email.trim()) {
-      return 'Email es requerido'
+      return 'El correo electrónico es obligatorio.'
     }
 
     if (!credentials.password.trim()) {
-      return 'Password es requerido'
+      return 'La contraseña es obligatoria.'
     }
 
     return null

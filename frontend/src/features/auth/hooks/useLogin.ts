@@ -4,6 +4,11 @@ import { authStore } from '../store/auth.store'
 import type { LoginCredentials } from '../types/auth.types'
 import { loginSchema } from '../validators/login.schema'
 
+function redirectToDashboard() {
+  window.history.pushState({}, '', '/dashboard')
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
 export function useLogin() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,6 +32,9 @@ export function useLogin() {
     try {
       const result = await login(credentials)
       authStore.setSession(result.token, result.user)
+      redirectToDashboard()
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'No se pudo iniciar sesión')
     } finally {
       setIsSubmitting(false)
     }

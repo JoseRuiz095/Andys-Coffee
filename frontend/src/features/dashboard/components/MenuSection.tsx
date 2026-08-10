@@ -30,7 +30,7 @@ export function MenuSection({
 }: MenuSectionProps) {
   if (isLoading) {
     return (
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="space-y-4 rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-6 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
         {/* Category Tabs */}
         <div className="mb-6 flex gap-4">
           {categories.map((cat) => (
@@ -64,17 +64,17 @@ export function MenuSection({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="space-y-4 rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-6 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
       {/* Category Tabs */}
       <div className="mb-6 flex gap-2 overflow-x-auto">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => onSelectCategory?.(cat)}
-            className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               selectedCategory === cat
-                ? 'bg-blue-500 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-[#5A804F] text-white'
+                : 'bg-[#F2EFE8] text-[#4B5563] hover:bg-[#E7E3DC]'
             }`}
           >
             {cat}
@@ -117,8 +117,8 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 transition-shadow hover:shadow-md">
-      <div className="relative h-40 overflow-hidden bg-slate-100">
+    <div className="overflow-hidden rounded-[1.25rem] border border-[#E7E3DC] bg-white transition-shadow hover:shadow-md">
+      <div className="relative h-40 overflow-hidden bg-[#F2EFE8]">
         <img
           src={product.image}
           alt={product.name}
@@ -126,17 +126,17 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
         />
       </div>
       <div className="p-3">
-        <h4 className="mb-1 font-medium text-slate-900">{product.name}</h4>
-        <p className="mb-3 line-clamp-2 text-xs text-slate-600">{product.description}</p>
+        <h4 className="mb-1 font-medium text-[#2C211D]">{product.name}</h4>
+        <p className="mb-3 line-clamp-2 text-xs text-[#6B7280]">{product.description}</p>
         <div className="mb-3 flex items-center justify-between">
-          <span className="font-semibold text-slate-900">${product.price.toFixed(2)}</span>
-          <span className="text-xs text-slate-500">{product.available} Available</span>
+          <span className="font-semibold text-[#2C211D]">${product.price.toFixed(2)}</span>
+          <span className="text-xs text-[#6B7280]">{product.available} disponibles</span>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleRemove}
             disabled={quantity === 0}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-[#E7E3DC] bg-white px-2 py-2 text-[#2C211D] hover:bg-[#F2EFE8] disabled:opacity-50"
           >
             −
           </button>
@@ -144,12 +144,12 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
             type="text"
             value={quantity}
             readOnly
-            className="flex-1 rounded-lg border border-slate-200 bg-slate-50 text-center text-sm"
+            className="flex-1 rounded-lg border border-[#E7E3DC] bg-[#F2EFE8] text-center text-sm text-[#2C211D]"
           />
           <button
             onClick={handleAdd}
             disabled={product.available === 0}
-            className="rounded-lg bg-blue-500 px-2 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+            className="rounded-lg bg-[#5A804F] px-2 py-2 text-white hover:bg-[#486B3E] disabled:opacity-50"
           >
             +
           </button>

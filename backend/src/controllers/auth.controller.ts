@@ -16,6 +16,13 @@ export async function login(req: Request, res: Response) {
 
   const token = createJwtToken(user);
 
+  res.cookie("token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 8 * 60 * 60 * 1000,
+  });
+
   return res.json({ token, user });
 }
 

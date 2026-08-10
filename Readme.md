@@ -61,19 +61,17 @@ Usa este documento como mapa antes de empezar cada nueva característica.
 2. Instala dependencias.
 3. Configura variables de entorno.
 4. Ejecuta migraciones.
-5. Levanta frontend y backend.
+5. Levanta backend y frontend por separado desde la raíz.
 
 Ejemplo:
 
-- `cd backend`
-- `npm install`
-- `cp .env.example .env`
-- `npm run migrate`
-- `npm run dev`
+- `npm run dev:backend`
+- `npm run dev:frontend`
 
-- `cd frontend`
-- `npm install`
-- `npm run dev`
+Si prefieres trabajar por carpetas:
+
+- `cd backend && npm run dev`
+- `cd frontend && npm run dev`
 
 ---
 

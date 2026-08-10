@@ -1,12 +1,46 @@
 import { Skeleton } from '../../../shared/components/Skeleton'
+import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { OrderListSection } from '../components/OrderListSection'
 import { MenuSection } from '../components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
+import { authStore } from '../../auth/store/auth.store'
+import type { AuthUser } from '../../auth/types/auth.types'
 import React from 'react'
 
 export function DashboardPage() {
-  const [isLoading] = React.useState(true)
+  const [isLoading] = React.useState(false)
   const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
+  const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(authStore.getState().user)
+
+  React.useEffect(() => {
+    const syncUser = () => setCurrentUser(authStore.getState().user)
+
+    syncUser()
+    window.addEventListener('auth:changed', syncUser)
+
+    return () => window.removeEventListener('auth:changed', syncUser)
+  }, [])
+
+  const displayName = currentUser?.name ?? 'Usuario'
+  const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
+  const roleLabel = rawRoleName.toUpperCase() === 'ADMIN'
+    ? 'Administrador'
+    : rawRoleName.toUpperCase() === 'CAJERO'
+      ? 'Cajero'
+      : rawRoleName.toUpperCase() === 'ADMINISTRADOR'
+        ? 'Administrador'
+        : rawRoleName.toUpperCase() === 'CAJERO'
+          ? 'Cajero'
+          : currentUser?.roleId
+            ? 'Usuario'
+            : 'Usuario'
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'U'
 
   if (isLoading) {
     return (
@@ -156,11 +190,10 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#FCF8EF_0%,_#F7F2E8_100%)]">
+      <header className="border-b border-[#E7E3DC] bg-[#FDFBF7]/95 px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             {isLoading ? (
               <>
                 <Skeleton className="h-8 w-8 rounded-full" />
@@ -168,20 +201,25 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <div className="h-8 w-8 rounded-full bg-amber-500" />
-                <span className="font-bold text-slate-900">Kopag</span>
+                <div className="flex h-15 w-15 items-center justify-center rounded-2xl border border-[#E7E3DC] bg-[#F3E8D6] p-2 shadow-sm">
+                  <img src={brandLogo} alt="Andys Coffee" className="h-8 w-auto object-contain" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[#2C211D]">{displayName}</div>
+                  <div className="text-xs text-[#6B7280]">{roleLabel}</div>
+                </div>
               </>
             )}
           </div>
 
-          <nav className="flex gap-6">
-            {['Dashboard', 'Order List', 'History', 'Bills'].map((item) =>
+          <nav className="flex flex-wrap items-center gap-2 rounded-full border border-[#E7E3DC] bg-white/80 px-3 py-2 shadow-sm">
+            {['Dashboard', 'Ordenes', 'Historial', 'Ventas'].map((item) =>
               isLoading ? (
                 <Skeleton key={item} className="h-4 w-20" />
               ) : (
                 <button
                   key={item}
-                  className="text-sm font-medium text-slate-600 hover:text-blue-500"
+                  className="rounded-full px-3 py-1.5 text-sm font-medium text-[#4B5563] transition hover:bg-[#F2EFE8] hover:text-[#5A804F]"
                 >
                   {item}
                 </button>
@@ -189,7 +227,7 @@ export function DashboardPage() {
             )}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {isLoading ? (
               <>
                 <Skeleton className="h-6 w-6" />
@@ -197,18 +235,32 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <button className="relative">
-                  <span className="text-xl">🔔</span>
-                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                <button className="relative rounded-full border border-[#E7E3DC] bg-white p-2.5 text-lg shadow-sm">
+                  <span>🔔</span>
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#5A804F]" />
                 </button>
-                <div className="h-10 w-10 rounded-full bg-slate-300" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#5A804F] font-semibold text-white shadow-sm">
+                  {initials}
+                </div>
               </>
             )}
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl p-6">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+        <div className="mb-6 rounded-[1.75rem] border border-[#E7E3DC] bg-[#FDFBF7] p-5 shadow-[0_20px_50px_rgba(45,33,29,0.06)] sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#5A804F]">Operación del día</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#2C211D]">Gestiona órdenes y productos con una vista más clara</h2>
+            </div>
+            <div className="rounded-full border border-[#E7E3DC] bg-[#F2EFE8] px-3 py-1.5 text-sm text-[#4B5563]">
+              {roleLabel}
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
           {/* LEFT: Order List */}
           <OrderListSection
