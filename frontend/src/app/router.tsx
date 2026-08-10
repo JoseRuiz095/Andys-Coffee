@@ -1,5 +1,5 @@
-import { LoginPage } from '../features/auth'
+import { DashboardPage } from '../features/dashboard'
 
 export function AppRouter() {
-  return <LoginPage />
+  return <DashboardPage />
 }

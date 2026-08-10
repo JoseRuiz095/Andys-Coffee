@@ -37,6 +37,11 @@ Usa este documento como mapa antes de empezar cada nueva característica.
 - PostgreSQL
 - JWT
 - Bcrypt
+- zod → validación de entradas.
+- helmet → headers de seguridad.
+- cors → configuración de acceso frontend/backend.
+- dotenv → variables de entorno, si tu configuración actual no lo resuelve.
+- Logger estructurado, por ejemplo pino.
 
 ---
 
