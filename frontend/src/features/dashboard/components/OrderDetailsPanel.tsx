@@ -1,11 +1,15 @@
 import { Skeleton } from '../../../shared/components/Skeleton'
-
 interface OrderItem {
   id: string
   productName: string
   quantity: number
   unitPrice: number
   image: string
+  // Example for modifications
+  modifications?: {
+    name: string
+    price: number
+  }[]
 }
 
 interface OrderDetailsPanelProps {
@@ -15,6 +19,8 @@ interface OrderDetailsPanelProps {
   tax?: number
   total?: number
   isLoading?: boolean
+  onClearOrder?: () => void
+  onUpdateQuantity?: (itemId: string, newQuantity: number) => void
   onProcessTransaction?: () => void
 }
 
@@ -25,6 +31,7 @@ export function OrderDetailsPanel({
   tax = 0,
   total = 0,
   isLoading = true,
+  onUpdateQuantity,
   onProcessTransaction,
 }: OrderDetailsPanelProps) {
   if (isLoading) {
@@ -93,10 +100,9 @@ export function OrderDetailsPanel({
           className="mb-3 w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#2C211D] placeholder-[#9CA3AF]"
         />
         <select className="w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#4B5563]">
-          <option>Select Table</option>
-          <option>Table 1</option>
-          <option>Table 2</option>
-          <option>Table 3</option>
+          <option>Seleccionar pago</option>
+          <option>Efectivo</option>
+          <option>Trasferencia</option>
         </select>
       </div>
 

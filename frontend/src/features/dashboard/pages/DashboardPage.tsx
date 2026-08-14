@@ -10,6 +10,8 @@ import { CoffeeIcon } from '../../../components/ui/coffee'
 import type { CoffeeIconHandle } from '../../../components/ui/coffee'
 import { SettingsIcon } from '../../../components/ui/settings'
 import { APP_ROUTES } from '../../../shared/constants/routes'
+import { allProducts, type Product } from '../mock-data'
+import type { OrderItem } from '../types/order.types'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -21,6 +23,9 @@ export function DashboardPage() {
   const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(authStore.getState().user)
   const [hasUnreadNotifications, setHasUnreadNotifications] = React.useState(true)
+  const [activeView, setActiveView] = React.useState('Venta')
+  const [selectedCategory, setSelectedCategory] = React.useState('Bebidas')
+  const [orderItems, setOrderItems] = React.useState<OrderItem[]>([])
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
 
   React.useEffect(() => {
@@ -40,6 +45,46 @@ export function DashboardPage() {
 
     coffeeIconRef.current?.stopAnimation()
   }, [hasUnreadNotifications])
+
+  const handleAddToOrder = (product: Product) => {
+    setOrderItems((prevItems) => {
+      const existingItem = prevItems.find((item) => item.id === product.id)
+      if (existingItem) {
+        return prevItems.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item,
+        )
+      }
+      return [
+        ...prevItems,
+        {
+          id: product.id,
+          productName: product.name,
+          quantity: 1,
+          unitPrice: product.price,
+          image: product.image,
+        },
+      ]
+    })
+  }
+
+  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
+    setOrderItems((prevItems) => {
+      if (newQuantity <= 0) {
+        return prevItems.filter((item) => item.id !== productId)
+      }
+      return prevItems.map((item) =>
+        item.id === productId ? { ...item, quantity: newQuantity } : item,
+      )
+    })
+  }
+
+  const handleClearOrder = () => {
+    setOrderItems([])
+  }
+
+  const subtotal = React.useMemo(() => orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), [orderItems])
+  const tax = subtotal * 0.16
+  const total = subtotal + tax
 
   const displayName = currentUser?.name ?? 'Usuario'
   const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
@@ -81,7 +126,7 @@ export function DashboardPage() {
 
               {/* Botones de navegacion */}
               <div className="hidden items-center gap-3 lg:flex">
-                {['Dashboard', 'Ordenes', 'Historial', 'Ventas'].map((item) => (
+                {['Venta', 'Ordenes', 'Inventario', 'Administracion'].map((item) => (
                   <Skeleton key={item} className="h-3.5 w-16 rounded-full" />
                 ))}
               </div>
@@ -224,14 +269,15 @@ export function DashboardPage() {
             )}
           </div>
 
-          <nav className="flex flex-wrap items-center gap-2 rounded-full border border-[#E7E3DC] bg-white/80 px-3 py-2 shadow-sm">
-            {['Dashboard', 'Ordenes', 'Historial', 'Ventas'].map((item) =>
+          <nav className="flex flex-wrap items-center gap-2 rounded-full border border-[#E7E3DC] bg-white/80 px-3 py-2 shadow-sm sm:gap-3">
+            {['Venta', 'Dashboard', 'Ordenes', 'Inventario', 'Administracion'].map((item) =>
               isLoading ? (
                 <Skeleton key={item} className="h-4 w-20" />
               ) : (
                 <button
                   key={item}
-                  className="rounded-full px-3 py-1.5 text-sm font-medium text-[#4B5563] transition hover:bg-[#F2EFE8] hover:text-[#5A804F]"
+                  onClick={() => setActiveView(item)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${activeView === item ? 'bg-[#5A804F] text-white shadow-sm' : 'text-[#4B5563] hover:bg-[#F2EFE8] hover:text-[#5A804F]'}`}
                 >
                   {item}
                 </button>
@@ -297,20 +343,40 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
-          {/* LEFT: Order List */}
-          <OrderListSection
-            isLoading={isLoading}
-            selectedOrderId={selectedOrderId}
-            onSelectOrder={setSelectedOrderId}
-          />
+        {activeView === 'Venta' ? (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]">
+            <MenuSection
+              isLoading={false}
+              products={allProducts.filter((p) => p.category === selectedCategory)}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+              onAddToOrder={handleAddToOrder}
+            />
+            <OrderDetailsPanel
+              isLoading={false}
+              items={orderItems}
+              subtotal={subtotal}
+              tax={tax}
+              total={total}
+              onUpdateQuantity={handleUpdateQuantity}
+              onClearOrder={handleClearOrder} />
+          </div>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
+            {/* LEFT: Order List */}
+            <OrderListSection
+              isLoading={isLoading}
+              selectedOrderId={selectedOrderId}
+              onSelectOrder={setSelectedOrderId}
+            />
 
-          {/* CENTER: Menu & Products */}
-          <MenuSection isLoading={isLoading} />
+            {/* CENTER: Menu & Products */}
+            <MenuSection isLoading={isLoading} />
 
-          {/* RIGHT: Order Details & Summary */}
-          <OrderDetailsPanel isLoading={isLoading} />
-        </div>
+            {/* RIGHT: Order Details & Summary */}
+            <OrderDetailsPanel isLoading={isLoading} />
+          </div>
+        )}
       </div>
     </div>
   )

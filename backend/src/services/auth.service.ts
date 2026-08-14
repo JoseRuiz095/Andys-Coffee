@@ -11,6 +11,7 @@ export type AuthUser = {
   roleId: string;
   roleName?: string;
   isActive: boolean;
+  permissions?: string[];
 };
 
 type UserWithRole = User & {
@@ -18,17 +19,6 @@ type UserWithRole = User & {
     name: string | null;
   } | null;
 };
-
-function sanitizeUser(user: UserWithRole): AuthUser {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    roleId: user.roleId,
-    roleName: user.role?.name ?? undefined,
-    isActive: user.isActive,
-  };
-}
 
 export async function authenticateUser(
   email: string,
@@ -49,7 +39,21 @@ export async function authenticateUser(
     return null;
   }
 
-  return sanitizeUser(user);
+  // Fetch permissions associated with the user's role to include in the response
+  const rolePermissions = await prisma.rolePermission.findMany({
+    where: { roleId: user.roleId },
+    select: { permission: { select: { name: true } } },
+  });
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    roleId: user.roleId,
+    roleName: user.role?.name ?? undefined,
+    isActive: user.isActive,
+    permissions: rolePermissions.map((rp) => rp.permission.name),
+  };
 }
 
 export function createJwtToken(user: AuthUser): string {
@@ -59,6 +63,7 @@ export function createJwtToken(user: AuthUser): string {
       email: user.email,
       roleId: user.roleId,
       roleName: user.roleName ?? undefined,
+      permissions: user.permissions,
     },
     JWT_SECRET,
     {

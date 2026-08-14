@@ -1,77 +1,60 @@
-import { api } from '../../../app/api'
+import { z } from 'zod'
+import axios from 'axios'
+import { apiClient } from '../../../app/api'
 import type { LoginCredentials, LoginResult } from '../types/auth.types'
 
 const DEFAULT_LOGIN_ERROR_MESSAGE = 'No se pudo iniciar sesión. Inténtalo de nuevo.'
 const NETWORK_LOGIN_ERROR_MESSAGE =
   'No pudimos conectar con el servidor. Verifica que la API esté activa e inténtalo otra vez.'
 
-function getLoginErrorMessage(status: number, data: { message?: string } | null): string {
-  if (status === 400) {
-    return data?.message ?? 'Revisa los datos enviados e inténtalo otra vez.'
-  }
+// Esquema Zod para validar la respuesta del login. Fuente de verdad de la API.
+const loginResponseSchema = z.object({
+  token: z.string(),
+  user: z.object({
+    id: z.string().uuid(),
+    email: z.string().email(),
+    name: z.string(),
+    roleId: z.string().uuid(),
+    roleName: z.string(),
+    isActive: z.boolean(),
+    // Se asume que los permisos vendrán en el login. Se marca como opcional para evitar errores si el backend aún no los envía.
+    permissions: z.array(z.string()).optional(),
+  }),
+})
 
-  if (status === 401) {
-    return data?.message ?? 'Correo o contraseña incorrectos.'
-  }
+function getLoginErrorMessage(error: unknown): string {
+  // Axios envuelve los errores de red o de respuesta en un objeto `error`
+  if (axios.isAxiosError(error)) {
+    if (error.response) {
+      // El servidor respondió con un código de estado fuera del rango 2xx
+      const status = error.response.status
+      const message = error.response.data?.message
 
-  if (status >= 500) {
-    return 'El servidor tuvo un problema. Intenta nuevamente en unos minutos.'
+      if (status === 401) {
+        return message ?? 'Correo o contraseña incorrectos.'
+      }
+      if (status >= 500) {
+        return 'El servidor tuvo un problema. Intenta nuevamente en unos minutos.'
+      }
+      return message ?? DEFAULT_LOGIN_ERROR_MESSAGE
+    } else if (error.request) {
+      // La solicitud fue hecha pero no se recibió respuesta
+      return NETWORK_LOGIN_ERROR_MESSAGE
+    }
   }
-
-  return data?.message ?? DEFAULT_LOGIN_ERROR_MESSAGE
+  // Error genérico
+  return error instanceof Error ? error.message : DEFAULT_LOGIN_ERROR_MESSAGE
 }
 
 export async function login(credentials: LoginCredentials): Promise<LoginResult> {
   try {
-    const response = await fetch(`${api.baseUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        email: credentials.email,
-        password: credentials.password,
-      }),
-    })
+    const response = await apiClient.post('/auth/login', credentials)
 
-    const data = (await response.json().catch(() => null)) as {
-      token?: string
-      user?: {
-        id?: string
-        email?: string
-        name?: string
-        roleId?: string
-        roleName?: string
-        isActive?: boolean
-      }
-      message?: string
-    } | null
-
-    if (!response.ok) {
-      throw new Error(getLoginErrorMessage(response.status, data))
-    }
-
-    if (!data?.token || !data.user) {
-      throw new Error('La respuesta del servidor no es válida.')
-    }
-
-    return {
-      token: data.token,
-      user: {
-        id: data.user.id ?? '',
-        email: data.user.email ?? credentials.email,
-        name: data.user.name ?? "Andy's Coffee",
-        roleId: data.user.roleId ?? '',
-        roleName: data.user.roleName ?? undefined,
-        isActive: data.user.isActive ?? true,
-      },
-    }
+    // Validamos la respuesta de la API. Si falla, lanza un error.
+    const validatedData = loginResponseSchema.parse(response.data)
+    return validatedData
   } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error(NETWORK_LOGIN_ERROR_MESSAGE)
-    }
-
-    throw error instanceof Error ? error : new Error(DEFAULT_LOGIN_ERROR_MESSAGE)
+    // Centralizamos el manejo de errores para devolver un mensaje claro.
+    throw new Error(getLoginErrorMessage(error), { cause: error })
   }
 }
