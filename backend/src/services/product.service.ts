@@ -1,6 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+
+import { Prisma, PrismaClient } from '@prisma/client';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { z } from 'zod';
+import { UploadService } from './upload.service';
 
 const prisma = new PrismaClient();
 
@@ -10,7 +12,7 @@ export const ProductService = {
     const limit = parseInt(query.limit);
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: Prisma.ProductWhereInput = {
       ...(query.category && { categoryId: query.category }),
       ...(query.isActive && { isActive: query.isActive === 'true' }),
       ...(query.search && {
@@ -73,10 +75,20 @@ export const ProductService = {
   },
 
   async remove(id: string) {
-    // Opcional: en lugar de borrar, podrías cambiar `isActive` a `false`.
-    // Esto depende de las reglas de negocio. Por ahora, lo borramos.
-    return prisma.product.delete({
+    // Primero, buscamos el producto para obtener la URL de la imagen.
+    const productToDelete = await prisma.product.findUnique({
+      where: { id },
+      select: { imageUrl: true },
+    });
+
+    // Luego, eliminamos el producto de la base de datos.
+    await prisma.product.delete({
       where: { id },
     });
+
+    // Finalmente, si el producto tenía una imagen, la eliminamos de Supabase Storage.
+    if (productToDelete?.imageUrl) {
+      await UploadService.deleteProductImage(productToDelete.imageUrl);
+    }
   },
 };

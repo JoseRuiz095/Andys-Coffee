@@ -77,6 +77,7 @@ model Category {
   createdAt    DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   products     Product[]
+  combos       Combo[]
 
   @@index([isActive, displayOrder], map: "categories_active_idx")
   @@map("categories")
@@ -87,7 +88,7 @@ model Product {
   categoryId   String?
   name         String
   description  String?
-  sku          String?        @unique(map: "products_sku_unique", where: raw("(sku IS NOT NULL)"))
+  sku          String         @unique
   imageUrl     String?
   price        Decimal        @default(0) @db.Decimal(12, 2)
   cost         Decimal        @default(0) @db.Decimal(12, 2)
@@ -132,23 +133,28 @@ model ProductExtra {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([productId, extraId])
-  @@map("productExtras")
+  @@map("product_extras")
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Combo {
   id          String      @id @default(dbgenerated("(gen_random_uuid())::text"))
+  categoryId  String?
   name        String
   description String?
   price       Decimal     @default(0) @db.Decimal(12, 2)
   cost        Decimal     @default(0) @db.Decimal(12, 2)
   imageUrl    String?
   isActive    Boolean     @default(true)
+  displayOrder Int        @default(0)
   createdAt   DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
   items       ComboItem[]
   orderItems  OrderItem[]
+  category    Category?   @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
 
+  @@index([isActive, displayOrder], map: "combos_active_idx")
+  @@index([categoryId], map: "combos_category_idx")
   @@map("combos")
 }
 
@@ -163,7 +169,7 @@ model ComboItem {
 
   @@unique([comboId, productId], map: "comboItems_unique")
   @@index([comboId], map: "comboItems_combo_idx")
-  @@map("comboItems")
+  @@map("combo_items")
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
@@ -174,7 +180,7 @@ model InventoryUnit {
   createdAt    DateTime     @default(now()) @db.Timestamptz(6)
   ingredients  Ingredient[]
 
-  @@map("inventoryUnits")
+  @@map("inventory_units")
 }
 
 model Ingredient {
@@ -224,7 +230,7 @@ model ExtraRecipe {
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onUpdate: NoAction)
 
   @@unique([extraId, ingredientId], map: "extraRecipes_unique")
-  @@map("extraRecipes")
+  @@map("extra_recipes")
 }
 
 model InventoryMovement {
@@ -243,7 +249,7 @@ model InventoryMovement {
 
   @@index([ingredientId, createdAt(sort: Desc)], map: "inventoryMovements_ingredient_idx")
   @@index([referenceType, referenceId], map: "inventoryMovements_reference_idx")
-  @@map("inventoryMovements")
+  @@map("inventory_movements")
 }
 
 model Supplier {
@@ -289,13 +295,13 @@ model PurchaseItem {
   ingredientId String
   quantity     Decimal    @db.Decimal(14, 4)
   unitCost     Decimal    @db.Decimal(14, 4)
-  total        Decimal?   @default(dbgenerated("round((quantity * \"unitCost\"), 2)")) @db.Decimal(14, 2)
+  total        Decimal?   @db.Decimal(14, 2)
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onUpdate: NoAction)
   purchase     Purchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([purchaseId], map: "purchaseItems_purchase_idx")
-  @@map("purchaseItems")
+  @@map("purchase_items")
 }
 
 model CashRegister {
@@ -307,7 +313,7 @@ model CashRegister {
   updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
   sessions    CashSession?
 
-  @@map("cashRegisters")
+  @@map("cash_registers")
 }
 
 model CashSession {
@@ -330,7 +336,7 @@ model CashSession {
   orders         Order[]
 
   @@index([openedAt(sort: Desc)])
-  @@map("cashSessions")
+  @@map("cash_sessions")
 }
 
 model CashMovement {
@@ -348,7 +354,7 @@ model CashMovement {
 
   @@index([referenceType, referenceId], map: "cashMovements_reference_idx")
   @@index([cashSessionId, createdAt], map: "cashMovements_session_idx")
-  @@map("cashMovements")
+  @@map("cash_movements")
 }
 
 model Expense {
@@ -394,7 +400,7 @@ model Order {
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@index([cashSessionId], map: "orders_cashSession_idx")
-  @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::text)"))
+  @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
   @@map("orders")
 }
 
@@ -419,7 +425,7 @@ model OrderItem {
   @@index([comboId], map: "orderItems_combo_idx")
   @@index([orderId], map: "orderItems_order_idx")
   @@index([productId], map: "orderItems_product_idx")
-  @@map("orderItems")
+  @@map("order_items")
 }
 
 model OrderItemExtra {
@@ -436,7 +442,7 @@ model OrderItemExtra {
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([orderItemId], map: "orderItemExtras_orderItem_idx")
-  @@map("orderItemExtras")
+  @@map("order_item_extras")
 }
 
 model Payment {
