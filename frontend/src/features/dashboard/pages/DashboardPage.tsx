@@ -27,6 +27,7 @@ export function DashboardPage() {
   const [activeView, setActiveView] = React.useState('Venta')
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = React.useState('')
+  const [customerName, setCustomerName] = React.useState('')
   const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
@@ -118,16 +119,66 @@ export function DashboardPage() {
   };
 
   const handleUpdateItemNote = (itemId: string, note: string) => {
-    setOrderItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === itemId ? { ...item, note } : item
-      )
-    );
+    setOrderItems((prevItems) => {
+      const itemIndex = prevItems.findIndex((item) => item.id === itemId);
+      if (itemIndex === -1) return prevItems;
+
+      const itemToUpdate = prevItems[itemIndex];
+
+      // If quantity is 1, just update the note.
+      if (itemToUpdate.quantity === 1) {
+        return prevItems.map((item) =>
+          item.id === itemId ? { ...item, note } : item
+        );
+      }
+
+      // If item already has the same note, do nothing to prevent splitting again.
+      if (itemToUpdate.note === note) {
+        return prevItems;
+      }
+
+      // If quantity > 1, split the item.
+      const updatedItems = [...prevItems];
+      // Decrease quantity of the original item
+      updatedItems[itemIndex] = {
+        ...itemToUpdate,
+        quantity: itemToUpdate.quantity - 1,
+      };
+
+      // Add a new item with the note
+      const newItemWithNote: OrderItem = {
+        ...itemToUpdate,
+        id: crypto.randomUUID(), // New unique ID
+        quantity: 1,
+        note,
+      };
+
+      // Check if an item with the same note already exists
+      const existingItemWithSameNote = prevItems.find(
+        (item) => item.productId === newItemWithNote.productId && item.note === note
+      );
+
+      if (existingItemWithSameNote) {
+        // If it exists, just increase its quantity
+        return updatedItems.map((item) =>
+          item.id === existingItemWithSameNote.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      } else {
+        // Otherwise, add the new item
+        return [...updatedItems, newItemWithNote];
+      }
+    });
   };
 
   const handleNotesChange = (notes: string) => {
     setOrderNotes(notes);
   };
+
+  const handleCustomerNameChange = (name: string) => {
+    setCustomerName(name)
+  }
 
   const handleClearOrder = () => {
     setOrderItems([])
@@ -273,7 +324,9 @@ export function DashboardPage() {
               tax={tax}
               total={total}
               orderNotes={orderNotes}
+              customerName={customerName}
               onNotesChange={handleNotesChange}
+              onCustomerNameChange={handleCustomerNameChange}
               onRemoveItem={handleRemoveItem}
               onClearOrder={handleClearOrder}
               onUpdateItemNote={handleUpdateItemNote} />

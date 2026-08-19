@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ interface OrderDetailsPanelProps {
   onUpdateItemNote?: (itemId: string, note: string) => void
   onProcessTransaction?: () => void
   onNotesChange?: (notes: string) => void
+  onCustomerNameChange?: (name: string) => void
 }
 
 export function OrderDetailsPanel({
@@ -39,6 +41,7 @@ export function OrderDetailsPanel({
   onUpdateItemNote,
   onProcessTransaction,
   onNotesChange,
+  onCustomerNameChange,
 }: OrderDetailsPanelProps) {
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null)
   const [note, setNote] = useState('')
@@ -126,6 +129,7 @@ export function OrderDetailsPanel({
             type="text"
             placeholder="Nombre del cliente"
             value={customerName || ''}
+            onChange={(e) => onCustomerNameChange?.(e.target.value)}
             className="mb-3 w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#2C211D] placeholder-[#9CA3AF]"
           />
           <textarea
@@ -157,7 +161,7 @@ export function OrderDetailsPanel({
                 >
                   <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[#D9E3D6]">
                     <img
-                      src={item.image}
+                      src={getSupabaseImageUrl(item.image, 'Img', 'public')}
                       alt={item.productName}
                       className="h-full w-full object-cover"
                     />
