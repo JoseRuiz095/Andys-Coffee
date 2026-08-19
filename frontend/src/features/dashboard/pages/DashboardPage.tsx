@@ -11,7 +11,7 @@ import type { CoffeeIconHandle } from '../../../components/ui/coffee'
 import { SettingsIcon } from '../../../components/ui/settings'
 import { APP_ROUTES } from '../../../shared/constants/routes'
 import type { OrderItem } from '../types/order.types'
-import type { MenuCategory, MenuItem } from '../../menu/types/menu.types'
+import type { MenuItem } from '../../menu/types/menu.types'
 import { useMenu } from '../../menu/hooks/useMenu'
 
 function navigateTo(path: string) {
@@ -26,7 +26,8 @@ export function DashboardPage() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = React.useState(true)
   const [activeView, setActiveView] = React.useState('Venta')
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
-  const [selectedCategory, setSelectedCategory] = React.useState<string>()
+  const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
+  const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
 
   const { data: menuData, isLoading: isMenuLoading, isError, error } = useMenu()
@@ -35,10 +36,9 @@ export function DashboardPage() {
 
   // Set the first category as selected by default when data loads
   React.useEffect(() => {
-    // Set the first category as the default selection only if no category is already selected.
-    // This prevents overriding a user's selection on data refetch.
-    if (categoryNames.length > 0) {
-      setSelectedCategory((current) => current ?? categoryNames[0])
+    if (!isInitialCategorySet.current && categoryNames.length > 0) {
+      setSelectedCategory(categoryNames[0])
+      isInitialCategorySet.current = true
     }
   }, [categoryNames])
 

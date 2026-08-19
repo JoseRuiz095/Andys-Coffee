@@ -9,3 +9,5 @@ export const getMenu = async (): Promise<MenuCategory[]> => {
   const { data } = await apiClient.get<MenuCategory[]>('/menu')
   return data
 }
+
+
