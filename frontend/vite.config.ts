@@ -21,4 +21,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 4173,
   },
+  define: {
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
+  },
 })
+

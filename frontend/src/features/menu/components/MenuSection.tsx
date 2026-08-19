@@ -1,6 +1,7 @@
 import React from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import type { MenuCategory, MenuItem } from '../types/menu.types'
+import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 
 interface MenuSectionProps {
   menu?: MenuCategory[]
@@ -93,14 +94,21 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onAddToOrder }: ProductCardProps) {
+  const imageUrl = product.imageUrl
+    ? getSupabaseImageUrl(product.imageUrl, 'Img', 'public')
+    : undefined;
+
+  // DEBUG: Ver el valor de la URL generada
+  console.log(`Producto: ${product.name}, URL Generada:`, imageUrl);
+
   return (
     <button
       onClick={() => onAddToOrder?.(product, 1)}
       className="group block overflow-hidden rounded-xl border border-[#E7E3DC] bg-white text-left transition-shadow hover:shadow-lg"
     >
       <div className="relative h-32 overflow-hidden bg-[#F2EFE8]">
-        {product.imageUrl && (
-          <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+        {imageUrl && (
+          <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
         )}
       </div>
       <div className="p-4">

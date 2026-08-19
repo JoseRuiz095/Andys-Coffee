@@ -26,6 +26,7 @@ export function DashboardPage() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = React.useState(true)
   const [activeView, setActiveView] = React.useState('Venta')
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
+  const [orderNotes, setOrderNotes] = React.useState('')
   const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
@@ -63,40 +64,74 @@ export function DashboardPage() {
 
   const handleAddToOrder = (product: MenuItem, quantity: number) => {
     setOrderItems((prevItems) => {
-      const existingItem = prevItems.find((item) => item.id === product.id)
-      if (existingItem) {
+      const existingItemWithoutNote = prevItems.find(
+        (item) => item.productId === product.id && !item.note,
+      );
+
+      if (existingItemWithoutNote) {
         return prevItems.map((item) =>
-          item.id === product.id
+          item.id === existingItemWithoutNote.id
             ? { ...item, quantity: item.quantity + quantity }
             : item,
-        )
+        );
       }
+
       return [
         ...prevItems,
         {
-          id: product.id,
+          id: crypto.randomUUID(),
+          productId: product.id,
           productName: product.name,
           quantity,
           unitPrice: product.price,
           image: product.imageUrl ?? brandLogo,
         },
-      ]
-    })
-  }
+      ];
+    });
+  };
 
-  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
+  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
     setOrderItems((prevItems) => {
       if (newQuantity <= 0) {
-        return prevItems.filter((item) => item.id !== productId)
+        return prevItems.filter((item) => item.id !== itemId)
       }
       return prevItems.map((item) =>
-        item.id === productId ? { ...item, quantity: newQuantity } : item,
+        item.id === itemId ? { ...item, quantity: newQuantity } : item,
       )
     })
   }
 
+  const handleRemoveItem = (itemId: string) => {
+    setOrderItems((prevItems) => {
+      return prevItems
+        .map((item) => {
+          if (item.id === itemId) {
+            if (item.quantity > 1) {
+              return { ...item, quantity: item.quantity - 1 };
+            }
+            return null; // Mark for removal
+          }
+          return item;
+        })
+        .filter(Boolean) as OrderItem[]; // Filter out nulls
+    });
+  };
+
+  const handleUpdateItemNote = (itemId: string, note: string) => {
+    setOrderItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId ? { ...item, note } : item
+      )
+    );
+  };
+
+  const handleNotesChange = (notes: string) => {
+    setOrderNotes(notes);
+  };
+
   const handleClearOrder = () => {
     setOrderItems([])
+    setOrderNotes('')
   }
 
   const subtotal = React.useMemo(() => orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), [orderItems])
@@ -237,8 +272,11 @@ export function DashboardPage() {
               subtotal={subtotal}
               tax={tax}
               total={total}
-              onUpdateQuantity={handleUpdateQuantity}
-              onClearOrder={handleClearOrder} />
+              orderNotes={orderNotes}
+              onNotesChange={handleNotesChange}
+              onRemoveItem={handleRemoveItem}
+              onClearOrder={handleClearOrder}
+              onUpdateItemNote={handleUpdateItemNote} />
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">

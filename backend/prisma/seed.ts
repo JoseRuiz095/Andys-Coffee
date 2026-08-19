@@ -12,7 +12,7 @@ if (!SUPABASE_URL) {
 }
 
 // URL de la imagen por defecto que debe estar en tu bucket de Supabase
-const DEFAULT_IMAGE_URL = `${SUPABASE_URL}/storage/v1/object/public/Img/public/LogoAndysVector.svg`;
+const DEFAULT_IMAGE_URL = `Menu/LogoAndysVector.svg`;
 
 // ============================================================
 // CATEGORÍAS
@@ -74,7 +74,7 @@ const products: SeedProduct[] = [
     cost: 14,
     category: "Bebidas",
     displayOrder: 1,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/espresso.png`, // Asegúrate de que esta imagen exista en tu bucket
+    imageUrl: `Menu/espresso.png`, // Asegúrate de que esta imagen exista en tu bucket
   },
   {
     sku: "BEV-002",
@@ -84,7 +84,7 @@ const products: SeedProduct[] = [
     cost: 15.23,
     category: "Bebidas",
     displayOrder: 2,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Andys.png`, // Asegúrate de que esta imagen exista en tu bucket
+    imageUrl: `Menu/Andys.png`, // Asegúrate de que esta imagen exista en tu bucket
   },
   {
     sku: "BEV-003",
@@ -103,7 +103,7 @@ const products: SeedProduct[] = [
     cost: 19.95,
     category: "Bebidas",
     displayOrder: 4,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Caramelo.png`
+    imageUrl: `Menu/Caramelo.png`
   },
   {
     sku: "BEV-005",
@@ -122,7 +122,7 @@ const products: SeedProduct[] = [
     cost: 26.74,
     category: "Bebidas",
     displayOrder: 6,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Biscoff.png`
+    imageUrl: `Menu/Biscoff.png`
   },
   {
     sku: "BEV-007",
@@ -132,7 +132,7 @@ const products: SeedProduct[] = [
     cost: 21.83,
     category: "Bebidas",
     displayOrder: 7,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Andys.png`
+    imageUrl: `Menu/Andys.png`
   },
   {
     sku: "BEV-008",
@@ -192,7 +192,7 @@ const products: SeedProduct[] = [
     cost: 20.26,
     category: "Bebidas",
     displayOrder: 13,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Caramelo.png`
+    imageUrl: `Menu/Caramelo.png`
   },
   {
     sku: "BEV-014",
@@ -203,7 +203,7 @@ const products: SeedProduct[] = [
     cost: 27.04,
     category: "Bebidas",
     displayOrder: 14,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Biscoff.png`
+    imageUrl: `Menu/Biscoff.png`
   },
   {
     sku: "BEV-015",
@@ -243,7 +243,7 @@ const products: SeedProduct[] = [
     cost: 16.19,
     category: "Bebidas",
     displayOrder: 18,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/CoffeeCream.png`
+    imageUrl: `Menu/CoffeeCream.png`
   },
   {
     sku: "BEV-019",
@@ -273,7 +273,7 @@ const products: SeedProduct[] = [
     cost: 11.27,
     category: "Bebidas",
     displayOrder: 21,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Limonada.png`
+    imageUrl: `Menu/Limonada.png`
   },
   {
     sku: "BEV-022",
@@ -284,7 +284,7 @@ const products: SeedProduct[] = [
     cost: 19.41,
     category: "Bebidas",
     displayOrder: 22,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Bloom.png`
+    imageUrl: `Menu/Bloom.png`
   },
   {
     sku: "BEV-023",
@@ -295,7 +295,7 @@ const products: SeedProduct[] = [
     cost: 13.25, // Revisar costos
     category: "Bebidas",
     displayOrder: 23,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Taro.png`
+    imageUrl: `Menu/Taro.png`
   },
     {
     sku: "BEV-024",
@@ -306,7 +306,7 @@ const products: SeedProduct[] = [
     cost: 13.25, // Revisar costos
     category: "Bebidas",
     displayOrder: 24,
-
+    imageUrl: `Menu/TaroFrio.png`
   },
 
 
@@ -323,7 +323,7 @@ const products: SeedProduct[] = [
     cost: 34.75,
     category: "Bagels",
     displayOrder: 1,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Campirano.png`
+    imageUrl: `Menu/Campirano.png`
   },
   {
     sku: "BAG-002",
@@ -334,7 +334,7 @@ const products: SeedProduct[] = [
     cost: 35.58,
     category: "Bagels",
     displayOrder: 2,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Pollo.png`
+    imageUrl: `Menu/Pollo.png`
   },
   {
     sku: "BAG-003",
@@ -355,7 +355,7 @@ const products: SeedProduct[] = [
     cost: 37.91,
     category: "Bagels",
     displayOrder: 4,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Carnivoro.png`
+    imageUrl: `Menu/Carnivoro.png`
   },
   {
     sku: "BAG-005",
@@ -366,7 +366,7 @@ const products: SeedProduct[] = [
     cost: 13.47,
     category: "Bagels",
     displayOrder: 5,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/MiniPhila.png`
+    imageUrl: `Menu/MiniPhila.png`
   },
 
   // =========================
@@ -462,7 +462,7 @@ const products: SeedProduct[] = [
     cost: 33.94,
     category: "Desayunos",
     displayOrder: 9,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Canadiense.png`
+    imageUrl: `Menu/Canadiense.png`
   },
   {
     sku: "DES-010",
@@ -473,7 +473,7 @@ const products: SeedProduct[] = [
     cost: 28.29,
     category: "Desayunos",
     displayOrder: 10,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Viajero.png`
+    imageUrl: `Menu/Viajero.png`
   },
   {
     sku: "DES-011",
@@ -484,7 +484,7 @@ const products: SeedProduct[] = [
     cost: 32.87,
     category: "Desayunos",
     displayOrder: 11,
-    imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Continental.png`
+    imageUrl: `Menu/Continental.png`
   },
 
   // =========================
