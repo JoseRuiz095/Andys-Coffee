@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { createCategorySchema, updateCategorySchema } from '../validators/category.validator';
-
-const prisma = new PrismaClient();
 
 export const CategoryService = {
   async findAll() {

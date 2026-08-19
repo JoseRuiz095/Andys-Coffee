@@ -5,9 +5,9 @@
 * [x] Verificar `OrderItemExtra.costSnapshot`
 * [x] Verificar tipos y nulabilidad de ambos campos
 * [x] Verificar migración de `costSnapshot`
-* [ ] Ejecutar `npx prisma validate`
-* [ ] Ejecutar `npx prisma generate`
-* [ ] Verificar que Prisma esté sincronizado con DB
+* [x] Ejecutar `npx prisma validate`
+* [x] Ejecutar `npx prisma generate`
+* [x] Verificar que Prisma esté sincronizado con DB
 * [ ] Revisar relaciones entre modelos
 * [ ] Revisar índices necesarios
 * [ ] Revisar constraints existentes
@@ -59,7 +59,7 @@
 * [ ] Actualizar pedido
 * [ ] Cancelar pedido
 * [x] Registrar `costSnapshot`
-* [x] Registrar `OrderItemExtra.costSnapshot`
+* [x] Registrar `OrderItemExtra.costSnapshot`F
 * [x] Verificar cálculo de costos
 * [x] Verificar totales
 * [x] Verificar transacciones

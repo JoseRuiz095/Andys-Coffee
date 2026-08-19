@@ -1,10 +1,8 @@
-
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { z } from 'zod';
 import { UploadService } from './upload.service';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 
 export const ProductService = {
   async findAll(query: z.infer<typeof filterQuerySchema>) {

@@ -3,6 +3,7 @@ import { MenuController } from '../controllers/menu.controller';
 
 const router = Router();
 
-router.get('/', MenuController.getMenuItems);
+// La ruta completa es /api/menu, definida al montar este router.
+router.get('/', MenuController.getMenu);
 
 export default router;

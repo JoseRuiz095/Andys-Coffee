@@ -1,12 +1,11 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
   orderItemExtraSchema,
   orderItemSchema,
 } from '../validators/order.validator';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 
 type CreateOrderInput = z.infer<typeof createOrderSchema>;
 type OrderItemInput = z.infer<typeof orderItemSchema>;

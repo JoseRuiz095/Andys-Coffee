@@ -1,37 +1,37 @@
+import React from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
-
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  image: string
-  available: number
-  category: string
-}
+import type { MenuCategory, MenuItem } from '../types/menu.types'
 
 interface MenuSectionProps {
-  products?: Product[]
-  categories?: string[]
+  menu?: MenuCategory[]
+  categoryNames?: string[]
   isLoading?: boolean
   selectedCategory?: string
   onSelectCategory?: (category: string) => void
-  onAddToOrder?: (product: Product, quantity: number) => void
+  onAddToOrder?: (product: MenuItem, quantity: number) => void
 }
 
 export function MenuSection({
-  products,
-  categories = ['Bebidas', 'Bagels', 'Desayunos', 'Promociones', 'Otros'],
+  menu,
+  categoryNames = ['Bebidas', 'Bagels', 'Desayunos', 'Promociones', 'Otros'],
   isLoading = true,
   selectedCategory,
   onSelectCategory,
   onAddToOrder,
 }: MenuSectionProps) {
+  // Find the products for the selected category
+  const productsToShow = React.useMemo(() => {
+    if (!menu || !selectedCategory) {
+      return []
+    }
+    return menu.find((category) => category.name === selectedCategory)?.items ?? []
+  }, [menu, selectedCategory])
+
   if (isLoading) {
     return (
       <div className="space-y-4 rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-6 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
-        <div className="mb-6 flex justify-center gap-10 border-b border-[#E7E3DC] pb-3" >
-          {categories.map((cat) => (
+        <div className="mb-6 flex justify-center gap-10 border-b border-[#E7E3DC] pb-3">
+          {categoryNames.map((cat) => (
             <Skeleton key={cat} className="h-10 w-24 rounded-lg" />
           ))}
         </div>
@@ -57,7 +57,7 @@ export function MenuSection({
     <div className="space-y-4 rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-6 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
       <div className="mb-4 border-b border-[#E7E3DC]">
         <div className="flex justify-center gap-4 overflow-x-auto">
-        {categories.map((cat) => (
+          {categoryNames.map((cat) => (
           <button
             key={cat}
             onClick={() => onSelectCategory?.(cat)}
@@ -73,13 +73,14 @@ export function MenuSection({
         </div>
       </div>
       {/* Products Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {products?.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onAddToOrder={onAddToOrder}
-          />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {productsToShow.length === 0 && !isLoading && (
+          <div className="col-span-full py-8 text-center text-gray-500">
+            No hay productos en esta categoría.
+          </div>
+        )}
+        {productsToShow.map((product) => (
+          <ProductCard key={product.id} product={product} onAddToOrder={onAddToOrder} />
         ))}
       </div>
     </div>
@@ -87,18 +88,20 @@ export function MenuSection({
 }
 
 interface ProductCardProps {
-  product: Product
-  onAddToOrder?: (product: Product, quantity: number) => void
+  product: MenuItem
+  onAddToOrder?: (product: MenuItem, quantity: number) => void
 }
 
 function ProductCard({ product, onAddToOrder }: ProductCardProps) {
   return (
     <button
       onClick={() => onAddToOrder?.(product, 1)}
-      className="group block overflow-hidden rounded-lg border border-[#E7E3DC] bg-white text-left transition-shadow hover:shadow-lg"
+      className="group block overflow-hidden rounded-xl border border-[#E7E3DC] bg-white text-left transition-shadow hover:shadow-lg"
     >
       <div className="relative h-32 overflow-hidden bg-[#F2EFE8]">
-        <img src={product.image} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+        {product.imageUrl && (
+          <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+        )}
       </div>
       <div className="p-4">
         <h4 className="mb-1 font-semibold text-[#2C211D]">{product.name}</h4>

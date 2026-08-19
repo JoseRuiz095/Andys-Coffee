@@ -79,14 +79,12 @@ const products: SeedProduct[] = [
   {
     sku: "BEV-002",
     name: "Latte regular",
-    description:
-      "Espresso con leche deslactosada y una fina capa de espuma.",
+    description: "Espresso con leche deslactosada y una fina capa de espuma.",
     price: 55,
     cost: 15.23,
     category: "Bebidas",
     displayOrder: 2,
     imageUrl: `${SUPABASE_URL}/storage/v1/object/public/Img/public/Andys.png`, // Asegúrate de que esta imagen exista en tu bucket
-
   },
   {
     sku: "BEV-003",
@@ -100,8 +98,7 @@ const products: SeedProduct[] = [
   {
     sku: "BEV-004",
     name: "Latte Caramel Macciato",
-    description:
-      "Espresso, leche deslactosada , vainilla y un toque de caramelo.",
+    description: "Espresso, leche deslactosada , vainilla y un toque de caramelo.",
     price: 65,
     cost: 19.95,
     category: "Bebidas",
@@ -111,8 +108,7 @@ const products: SeedProduct[] = [
   {
     sku: "BEV-005",
     name: "Latte Moka",
-    description:
-      "La combinación perfecta de espresso, chocolate y leche.",
+    description: "La combinación perfecta de espresso, chocolate y leche.",
     price: 65,
     cost: 18.69,
     category: "Bebidas",
@@ -121,8 +117,7 @@ const products: SeedProduct[] = [
   {
     sku: "BEV-006",
     name: "Latte Biscoff",
-    description:
-      "Un delicioso latte con el sabor único de la galleta Biscoff.",
+    description: "Un delicioso latte con el sabor único de la galleta Biscoff.",
     price: 70,
     cost: 26.74,
     category: "Bebidas",
@@ -733,10 +728,16 @@ async function main() {
 
   console.log("Creando usuario administrador...");
 
-  const passwordHash = await bcrypt.hash(
-    "CambiarEstaPassword123!",
-    12,
-  );
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
+  if (!adminPassword) {
+    console.warn(
+      "ADVERTENCIA: La variable de entorno ADMIN_SEED_PASSWORD no está definida. Usando una contraseña insegura por defecto. No uses esto en producción.",
+    );
+  }
+
+  const passwordToHash = adminPassword || "CambiarEstaPassword123!";
+
+  const passwordHash = await bcrypt.hash(passwordToHash, 12);
 
   await prisma.user.upsert({
     where: {

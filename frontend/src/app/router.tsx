@@ -32,6 +32,7 @@ export function AppRouter() {
 
     if (!isAuthenticated && pathname !== APP_ROUTES.login) {
       window.history.replaceState({}, '', APP_ROUTES.login)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPathname(APP_ROUTES.login)
       return
     }
