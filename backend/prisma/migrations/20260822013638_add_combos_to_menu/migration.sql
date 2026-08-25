@@ -279,8 +279,7 @@ CREATE TABLE "orders" (
 CREATE TABLE "order_items" (
     "id" TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
     "orderId" TEXT NOT NULL,
-    "productId" TEXT,
-    "comboId" TEXT,
+    "productId" TEXT NOT NULL,
     "productName" TEXT NOT NULL,
     "quantity" DECIMAL(12,3) NOT NULL,
     "unitPrice" DECIMAL(12,2) NOT NULL,
@@ -289,6 +288,7 @@ CREATE TABLE "order_items" (
     "notes" TEXT,
     "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "costSnapshot" DECIMAL(12,2),
+    "sourceComboId" TEXT,
 
     CONSTRAINT "order_items_pkey" PRIMARY KEY ("id")
 );
@@ -333,6 +333,25 @@ CREATE TABLE "tickets" (
 
     CONSTRAINT "tickets_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateTable
+CREATE TABLE "promotions" (
+    "id" TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "discountType" TEXT NOT NULL,
+    "discountValue" DECIMAL(10,2) NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3) NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "promotions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
 
 -- CreateIndex
 CREATE INDEX "categories_active_idx" ON "categories"("isActive", "displayOrder");
@@ -428,13 +447,13 @@ CREATE INDEX "orders_cashSession_idx" ON "orders"("cashSessionId");
 CREATE INDEX "orders_completed_date_idx" ON "orders"("createdAt") WHERE (status = 'completed'::"OrderStatus");
 
 -- CreateIndex
-CREATE INDEX "orderItems_combo_idx" ON "order_items"("comboId");
-
--- CreateIndex
 CREATE INDEX "orderItems_order_idx" ON "order_items"("orderId");
 
 -- CreateIndex
 CREATE INDEX "orderItems_product_idx" ON "order_items"("productId");
+
+-- CreateIndex
+CREATE INDEX "order_items_sourceComboId_idx" ON "order_items"("sourceComboId");
 
 -- CreateIndex
 CREATE INDEX "orderItemExtras_orderItem_idx" ON "order_item_extras"("orderItemId");
@@ -536,13 +555,13 @@ ALTER TABLE "orders" ADD CONSTRAINT "orders_cashSessionId_fkey" FOREIGN KEY ("ca
 ALTER TABLE "orders" ADD CONSTRAINT "orders_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "order_items" ADD CONSTRAINT "order_items_comboId_fkey" FOREIGN KEY ("comboId") REFERENCES "combos"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
-
--- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "order_items" ADD CONSTRAINT "order_items_sourceComboId_fkey" FOREIGN KEY ("sourceComboId") REFERENCES "combos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "order_item_extras" ADD CONSTRAINT "order_item_extras_extraId_fkey" FOREIGN KEY ("extraId") REFERENCES "extras"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;

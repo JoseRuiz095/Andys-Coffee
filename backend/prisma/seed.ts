@@ -1,4 +1,5 @@
 import { prisma } from "../src/config/prisma";
+import { PromotionType } from "@prisma/client";
 import bcrypt from "bcrypt";
 import dotenv from 'dotenv';
 
@@ -35,8 +36,8 @@ const categories = [
     displayOrder: 3,
   },
   {
-    name: "Promociones",
-    description: "Combos y ofertas especiales.",
+    name: "Combos",
+    description: "Paquetes especiales.",
     displayOrder: 4,
   },
   {
@@ -357,17 +358,7 @@ const products: SeedProduct[] = [
     displayOrder: 4,
     imageUrl: `Menu/Carnivoro.png`
   },
-  {
-    sku: "BAG-005",
-    name: "Mini bagel philadelphia",
-    description:
-      "Pequeño bagel con queso crema Philadelphia.",
-    price: 28,
-    cost: 13.47,
-    category: "Bagels",
-    displayOrder: 5,
-    imageUrl: `Menu/MiniPhila.png`
-  },
+
 
   // =========================
   // DESAYUNOS
@@ -487,59 +478,50 @@ const products: SeedProduct[] = [
     imageUrl: `Menu/Continental.png`
   },
 
-  // =========================
-  // PROMOCIONES *Revisar*
-  // =========================
-
+  // ============================================================
+  // Otros
+  // ============================================================
   {
-    sku: "PRO-001",
-    name: "Promo Latte Andy´s 2x1",
+    sku: "OTR-001",
+    name: "Croissant",
     description:
-      "Disfruta de dos Lattes Andy's al precio de uno.",
-    price: 65,
-    cost: 26,
-    category: "Promociones",
+      "Un delicioso pan estilo croissant.",
+    price: 28,
+    cost: 22,
+    category: "Otros",
     displayOrder: 1,
   },
   {
-    sku: "PRO-002",
-    name: "Promo BomDia",
+    sku: "OTR-002",
+    name: "Croissant salado",
     description:
-      "Café americano y croissant por un precio especial.",
-    price: 60,
-    cost: 20,
-    category: "Promociones",
+      "Un croissant relleno de jamón y queso.",
+    price: 65,
+    cost: 27.3,
+    category: "Otros",
     displayOrder: 2,
   },
   {
-    sku: "PRO-003",
-    name: "4to desayuno gratis (Viajero)",
+    sku: "OTR-003",
+    name: "Mini bagel philadelphia",
     description:
-      "Acumula 3 desayunos Viajero y el 4to es gratis.",
-    price: 0,
-    cost: 32,
-    category: "Promociones",
-    displayOrder: 3,
-  },
-  {
-    sku: "PRO-004",
-    name: "Promo mochilero",
-    description:
-      "Bagel americano y refresco a precio de paquete.",
-    price: 95,
-    cost: 35,
-    category: "Promociones",
-    displayOrder: 4,
-  },
-  {
-    sku: "PRO-005",
-    name: "Promo limonadas",
-    description:
-      "Dos limonadas por un precio especial.",
-    price: 70,
-    cost: 16,
-    category: "Promociones",
+      "Pequeño bagel con queso crema Philadelphia.",
+    price: 28,
+    cost: 13.47,
+    category: "Otros",
     displayOrder: 5,
+    imageUrl: `Menu/MiniPhila.png`
+  },
+    {
+    sku: "OTR-004",
+    name: "Papa Hashbrown",
+    description:
+      "Pieza de papa hashbrown",
+    price: 12,
+    cost: 6.25,
+    category: "Otros",
+    displayOrder: 5,
+    imageUrl: `Menu/Hash.png`
   },
 ];
 
@@ -563,62 +545,20 @@ const roles = [
 // ============================================================
 
 const permissions = [
-  {
-    name: "users.read",
-    description: "Consultar usuarios",
-  },
-  {
-    name: "users.create",
-    description: "Crear usuarios",
-  },
-  {
-    name: "users.update",
-    description: "Actualizar usuarios",
-  },
-  {
-    name: "users.delete",
-    description: "Eliminar usuarios",
-  },
-  {
-    name: "products.read",
-    description: "Consultar productos",
-  },
-  {
-    name: "products.create",
-    description: "Crear productos",
-  },
-  {
-    name: "products.update",
-    description: "Actualizar productos",
-  },
-  {
-    name: "products.delete",
-    description: "Eliminar productos",
-  },
-  {
-    name: "sales.read",
-    description: "Consultar ventas",
-  },
-  {
-    name: "sales.create",
-    description: "Crear ventas",
-  },
-  {
-    name: "sales.cancel",
-    description: "Cancelar ventas",
-  },
-  {
-    name: "cash.open",
-    description: "Abrir caja",
-  },
-  {
-    name: "cash.close",
-    description: "Cerrar caja",
-  },
-  {
-    name: "reports.read",
-    description: "Consultar reportes",
-  },
+  { name: "users.read", description: "Consultar usuarios" },
+  { name: "users.create", description: "Crear usuarios" },
+  { name: "users.update", description: "Actualizar usuarios" },
+  { name: "users.delete", description: "Eliminar usuarios" },
+  { name: "products.read", description: "Consultar productos" },
+  { name: "products.create", description: "Crear productos" },
+  { name: "products.update", description: "Actualizar productos" },
+  { name: "products.delete", description: "Eliminar productos" },
+  { name: "sales.read", description: "Consultar ventas" },
+  { name: "sales.create", description: "Crear ventas" },
+  { name: "sales.cancel", description: "Cancelar ventas" },
+  { name: "cash.open", description: "Abrir caja" },
+  { name: "cash.close", description: "Cerrar caja" },
+  { name: "reports.read", description: "Consultar reportes" },
 ];
 
 // ============================================================
@@ -635,29 +575,17 @@ async function main() {
   // ==========================================================
 
   console.log("\nCreando roles...");
-
   const roleMap = new Map<string, string>();
-
   for (const role of roles) {
     const result = await prisma.role.upsert({
-      where: {
-        name: role.name,
-      },
-      update: {
-        description: role.description,
-      },
-      create: {
-        name: role.name,
-        description: role.description,
-      },
+      where: { name: role.name },
+      update: { description: role.description },
+      create: role,
     });
-
     roleMap.set(role.name, result.id);
   }
-
   const adminRoleId = roleMap.get("ADMIN");
   const cashierRoleId = roleMap.get("CAJERO");
-
   if (!adminRoleId || !cashierRoleId) {
     throw new Error("No se pudieron crear los roles.");
   }
@@ -667,59 +595,27 @@ async function main() {
   // ==========================================================
 
   console.log("Creando permisos...");
-
-  for (const permission of permissions) {
-    await prisma.permission.upsert({
-      where: {
-        name: permission.name,
-      },
-      update: {
-        description: permission.description,
-      },
-      create: permission,
-    });
-  }
-
+  await prisma.permission.createMany({
+    data: permissions,
+    skipDuplicates: true,
+  });
   const allPermissions = await prisma.permission.findMany();
 
   // ==========================================================
-  // PERMISOS ADMIN
+  // ASIGNACIÓN DE PERMISOS
   // ==========================================================
 
-  console.log("Asignando permisos de administrador...");
-
+  console.log("Asignando permisos a roles...");
+  await prisma.rolePermission.deleteMany({ where: { roleId: { in: [adminRoleId, cashierRoleId] } } });
+  
   await prisma.rolePermission.createMany({
-    data: allPermissions.map((permission) => ({
-      roleId: adminRoleId,
-      permissionId: permission.id,
-    })),
-    skipDuplicates: true,
+    data: allPermissions.map((p) => ({ roleId: adminRoleId, permissionId: p.id })),
   });
 
-  // ==========================================================
-  // PERMISOS CAJERO
-  // ==========================================================
-
-  console.log("Asignando permisos de cajero...");
-
-  const cashierPermissionNames = [
-    "products.read",
-    "sales.read",
-    "sales.create",
-    "cash.open",
-    "cash.close",
-  ];
-
-  const cashierPermissions = allPermissions.filter((permission) =>
-    cashierPermissionNames.includes(permission.name),
-  );
-
+  const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close"];
+  const cashierPermissions = allPermissions.filter((p) => cashierPermissionNames.includes(p.name));
   await prisma.rolePermission.createMany({
-    data: cashierPermissions.map((permission) => ({
-      roleId: cashierRoleId,
-      permissionId: permission.id,
-    })),
-    skipDuplicates: true,
+    data: cashierPermissions.map((p) => ({ roleId: cashierRoleId, permissionId: p.id })),
   });
 
   // ==========================================================
@@ -727,25 +623,11 @@ async function main() {
   // ==========================================================
 
   console.log("Creando usuario administrador...");
-
-  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
-  if (!adminPassword) {
-    console.warn(
-      "ADVERTENCIA: La variable de entorno ADMIN_SEED_PASSWORD no está definida. Usando una contraseña insegura por defecto. No uses esto en producción.",
-    );
-  }
-
-  const passwordToHash = adminPassword || "CambiarEstaPassword123!";
-
-  const passwordHash = await bcrypt.hash(passwordToHash, 12);
-
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD || "CambiarEstaPassword123!";
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
   await prisma.user.upsert({
-    where: {
-      email: "admin@andyscoffee.local",
-    },
-    update: {
-      roleId: adminRoleId,
-    },
+    where: { email: "admin@andyscoffee.local" },
+    update: { roleId: adminRoleId, passwordHash },
     create: {
       name: "Administrador",
       email: "admin@andyscoffee.local",
@@ -759,34 +641,13 @@ async function main() {
   // ==========================================================
 
   console.log("Creando categorías...");
-
   const categoryMap = new Map<string, string>();
-
   for (const category of categories) {
-    let dbCategory = await prisma.category.findFirst({
+    const dbCategory = await prisma.category.upsert({
       where: { name: category.name },
+      update: category,
+      create: category,
     });
-
-    if (dbCategory) {
-      dbCategory = await prisma.category.update({
-        where: { id: dbCategory.id },
-        data: {
-          description: category.description,
-          displayOrder: category.displayOrder,
-          isActive: true,
-        },
-      });
-    } else {
-      dbCategory = await prisma.category.create({
-        data: {
-          name: category.name,
-          description: category.description,
-          displayOrder: category.displayOrder,
-          isActive: true,
-        },
-      });
-    }
-
     categoryMap.set(category.name, dbCategory.id);
   }
 
@@ -795,64 +656,198 @@ async function main() {
   // ==========================================================
 
   console.log(`Creando ${products.length} productos...`);
-
   for (const product of products) {
     const categoryId = categoryMap.get(product.category);
-
     if (!categoryId) {
-      throw new Error(
-        `No se encontró la categoría "${product.category}" para "${product.name}".`,
-      );
+      throw new Error(`No se encontró la categoría "${product.category}" para "${product.name}".`);
+    }
+    const imageUrl = product.imageUrl || DEFAULT_IMAGE_URL;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { category, ...productData } = product;
+    await prisma.product.upsert({
+      where: { sku: product.sku },
+      update: { ...productData, categoryId, imageUrl, isActive: true },
+      create: { ...productData, categoryId, imageUrl, isActive: true },
+    });
+  }
+
+  // ==========================================================
+  // COMBOS
+  // ==========================================================
+  console.log("Creando combos...");
+
+  const comboDefinitions = [
+    {
+      name: "Combo Matutino",
+      description: "Un latte regular + croissant clasico.",
+      price: 110,
+      category: "Combos",
+      imageUrl: "Menu/ComboMatutino.png",
+      activeOnDays: [], // Disponible todos los días
+      items: [
+        { sku: "BEV-011", quantity: 1 },
+        { sku: "OTR-002", quantity: 1 },
+      ],
+    },
+    {
+      name: "Combo de la casa",
+      description: "Un bagel carnivoro + latte andy's.",
+      price: 145,
+      category: "Combos",
+      imageUrl: "Menu/ComboCasa.png",
+      activeOnDays: [], // Disponible todos los días
+      items: [
+        { sku: "BAG-004", quantity: 1 },
+        { sku: "BEV-016", quantity: 1 },
+      ],
+    },
+    {
+      name: "Promo Jueves: 2 Viajeros por $170",
+      description: "Llévate dos desayunos viajeros por solo 170 pesos.",
+      price: 170,
+      category: "Combos",
+      imageUrl: "Menu/Viajero.png",
+      activeOnDays: [4], // Jueves
+      items: [{ sku: "DES-010", quantity: 2 }],
+    },
+  ];
+
+  for (const comboDef of comboDefinitions) {
+    const categoryId = categoryMap.get(comboDef.category);
+    if (!categoryId) throw new Error(`Categoría "${comboDef.category}" no encontrada.`);
+
+    let totalCost = 0;
+    const comboItemsData = [];
+    for (const itemDef of comboDef.items) {
+      const product = await prisma.product.findUnique({ where: { sku: itemDef.sku } });
+      if (!product) throw new Error(`Producto con SKU "${itemDef.sku}" no encontrado.`);
+      totalCost += Number(product.cost) * itemDef.quantity;
+      comboItemsData.push({ productId: product.id, quantity: itemDef.quantity });
     }
 
-    const imageUrl = product.imageUrl || DEFAULT_IMAGE_URL;
+    const comboData = {
+      name: comboDef.name,
+      description: comboDef.description,
+      price: comboDef.price,
+      cost: totalCost,
+      imageUrl: comboDef.imageUrl,
+      isActive: true,
+      activeOnDays: comboDef.activeOnDays,
+    };
+    
+    await prisma.combo.upsert({
+      where: { name: comboDef.name },
+      update: { 
+        ...comboData,
+        category: { connect: { id: categoryId } },
+        items: { deleteMany: {}, create: comboItemsData } 
+      },
+      create: { 
+        ...comboData,
+        category: { connect: { id: categoryId } },
+        items: { create: comboItemsData }
+      },
+    });
+  }
 
-    const productData = {
-      name: product.name,
-      description: product.description,
-      imageUrl: imageUrl,
-      price: product.price,
-      cost: product.cost,
-      categoryId,
-      displayOrder: product.displayOrder,
+  // ==========================================================
+  // PROMOCIONES
+  // ==========================================================
+  console.log("Creando promociones...");
+  await prisma.promotion.deleteMany({}); // Limpiar promociones viejas
+
+  const promotionDefinitions = [
+    {
+      name: "Promo Lunes: Latte Andy's 2x1",
+      description: "Disfruta de dos Lattes Andy's (caliente o frío) al precio de uno.",
+      type: PromotionType.BOGO,
+      discountValue: 100, // 100% de descuento en el segundo
+      buyQuantity: 1,
+      getQuantity: 1,
+      activeOnDays: [1], // Lunes
+      productSKUs: ["BEV-007", "BEV-016"],
+    },
+    {
+      name: "Promo Miércoles: Día del Bagel",
+      description: "Todos los bagels a solo $75.",
+      type: PromotionType.FIXED_PRICE,
+      discountValue: 75,
+      activeOnDays: [3], // Miércoles
+      categoryName: "Bagels",
+    },
+    {
+      name: "Promo Viernes: 2 Cafés de Sabor por $99",
+      description: "Disfruta de dos cafés de sabor (calientes o fríos) por un precio especial.",
+      type: PromotionType.MULTIBUY_FIXED_PRICE,
+      discountValue: 99,
+      buyQuantity: 2,
+      activeOnDays: [5], // Viernes
+      productSKUs: [
+        "BEV-003", "BEV-004", "BEV-005", "BEV-006",
+        "BEV-012", "BEV-013", "BEV-014", "BEV-015",
+      ],
+    },
+  ];
+
+  for (const promoDef of promotionDefinitions) {
+    const promoData = {
+      name: promoDef.name,
+      description: promoDef.description,
+      type: promoDef.type,
+      discountValue: promoDef.discountValue,
+      buyQuantity: promoDef.buyQuantity,
+      getQuantity: promoDef.getQuantity,
+      activeOnDays: promoDef.activeOnDays,
+      startDate: new Date("2024-01-01"),
+      endDate: new Date("2099-12-31"),
       isActive: true,
     };
 
-    const existingProduct = await prisma.product.findFirst({
-      where: { sku: product.sku },
-    });
-
-    if (existingProduct) {
-      await prisma.product.update({
-        where: { id: existingProduct.id },
-        data: productData,
-      });
-    } else {
-      await prisma.product.create({
-        data: {
-          ...productData,
-          sku: product.sku,
-        },
-      });
+    const productsToConnect = [];
+    if (promoDef.productSKUs) {
+      for (const sku of promoDef.productSKUs) {
+        const product = await prisma.product.findUnique({ where: { sku } });
+        if (product) productsToConnect.push({ productId: product.id });
+      }
     }
+    
+    const categoriesToConnect = [];
+    if (promoDef.categoryName) {
+      const categoryId = categoryMap.get(promoDef.categoryName);
+      if (categoryId) categoriesToConnect.push({ categoryId });
+    }
+
+    await prisma.promotion.create({
+      data: {
+        ...promoData,
+        products: { create: productsToConnect },
+        categories: { create: categoriesToConnect },
+      },
+    });
   }
 
   // ==========================================================
   // RESUMEN
   // ==========================================================
 
-  const categoryCount = await prisma.category.count();
-  const productCount = await prisma.product.count();
-  const roleCount = await prisma.role.count();
-  const permissionCount = await prisma.permission.count();
+  const counts = await prisma.$transaction([
+    prisma.category.count(),
+    prisma.product.count(),
+    prisma.combo.count(),
+    prisma.promotion.count(),
+    prisma.role.count(),
+    prisma.permission.count(),
+  ]);
 
   console.log("\n========================================");
   console.log("       SEED EJECUTADO CORRECTAMENTE");
   console.log("========================================");
-  console.log(`Categorías:   ${categoryCount}`);
-  console.log(`Productos:    ${productCount}`);
-  console.log(`Roles:        ${roleCount}`);
-  console.log(`Permisos:     ${permissionCount}`);
+  console.log(`Categorías:   ${counts[0]}`);
+  console.log(`Productos:    ${counts[1]}`);
+  console.log(`Combos:       ${counts[2]}`);
+  console.log(`Promociones:  ${counts[3]}`);
+  console.log(`Roles:        ${counts[4]}`);
+  console.log(`Permisos:     ${counts[5]}`);
   console.log("========================================");
 }
 

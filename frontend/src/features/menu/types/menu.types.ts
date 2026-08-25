@@ -7,6 +7,7 @@ export interface MenuItem {
   description: string | null;
   price: number;
   imageUrl: string | null; // Ruta relativa de la imagen en Supabase Storage, si existe.
+  type: 'product' | 'combo';
 }
 
 /**

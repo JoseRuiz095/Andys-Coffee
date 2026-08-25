@@ -98,9 +98,6 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
     ? getSupabaseImageUrl(product.imageUrl, 'Img', 'public')
     : undefined;
 
-  // DEBUG: Ver el valor de la URL generada
-  console.log(`Producto: ${product.name}, URL Generada:`, imageUrl);
-
   return (
     <button
       onClick={() => onAddToOrder?.(product, 1)}

@@ -13,6 +13,7 @@ import { APP_ROUTES } from '../../../shared/constants/routes'
 import type { OrderItem } from '../types/order.types'
 import type { MenuItem } from '../../menu/types/menu.types'
 import { useMenu } from '../../menu/hooks/useMenu'
+import { useCreateOrder } from '../hooks/useCreateOrder'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -28,11 +29,41 @@ export function DashboardPage() {
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
+  const [paymentMethod, setPaymentMethod] = React.useState('Efectivo')
   const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
 
   const { data: menuData, isLoading: isMenuLoading, isError, error } = useMenu()
+  const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
+
+  const handleProcessOrder = () => {
+    if (orderItems.length === 0) return;
+
+    const orderPayload = {
+      customerName: customerName || 'Cliente',
+      notes: orderNotes,
+      paymentMethod,
+      items: orderItems.map(({ productId, comboId, quantity, unitPrice, note, type }) => ({
+        productId: type === 'product' ? productId : undefined,
+        comboId: type === 'combo' ? comboId : undefined,
+        quantity,
+        unitPrice,
+        note,
+      })),
+    };
+
+    createOrder(orderPayload, {
+      onSuccess: () => {
+        handleClearOrder();
+        // TODO: show success toast
+      },
+      onError: () => {
+        // TODO: show error toast
+      },
+    });
+  };
+
   // The category names for the tabs can be derived from the fetched data
   const categoryNames = React.useMemo(() => menuData?.map((c) => c.name) ?? [], [menuData])
 
@@ -63,10 +94,11 @@ export function DashboardPage() {
     coffeeIconRef.current?.stopAnimation()
   }, [hasUnreadNotifications])
 
-  const handleAddToOrder = (product: MenuItem, quantity: number) => {
+  const handleAddToOrder = (menuItem: MenuItem, quantity: number) => {
     setOrderItems((prevItems) => {
+      const key = menuItem.type === 'product' ? 'productId' : 'comboId';
       const existingItemWithoutNote = prevItems.find(
-        (item) => item.productId === product.id && !item.note,
+        (item) => item[key] === menuItem.id && !item.note,
       );
 
       if (existingItemWithoutNote) {
@@ -77,30 +109,24 @@ export function DashboardPage() {
         );
       }
 
-      return [
-        ...prevItems,
-        {
-          id: crypto.randomUUID(),
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          unitPrice: product.price,
-          image: product.imageUrl ?? brandLogo,
-        },
-      ];
+      const newOrderItem: OrderItem = {
+        id: crypto.randomUUID(),
+        productName: menuItem.name,
+        quantity,
+        unitPrice: menuItem.price,
+        image: menuItem.imageUrl ?? brandLogo,
+        type: menuItem.type,
+      };
+
+      if (menuItem.type === 'product') {
+        newOrderItem.productId = menuItem.id;
+      } else {
+        newOrderItem.comboId = menuItem.id;
+      }
+
+      return [...prevItems, newOrderItem];
     });
   };
-
-  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
-    setOrderItems((prevItems) => {
-      if (newQuantity <= 0) {
-        return prevItems.filter((item) => item.id !== itemId)
-      }
-      return prevItems.map((item) =>
-        item.id === itemId ? { ...item, quantity: newQuantity } : item,
-      )
-    })
-  }
 
   const handleRemoveItem = (itemId: string) => {
     setOrderItems((prevItems) => {
@@ -180,9 +206,15 @@ export function DashboardPage() {
     setCustomerName(name)
   }
 
+  const handlePaymentMethodChange = (method: string) => {
+    setPaymentMethod(method)
+  }
+
   const handleClearOrder = () => {
     setOrderItems([])
     setOrderNotes('')
+    setCustomerName('')
+    setPaymentMethod('Efectivo')
   }
 
   const subtotal = React.useMemo(() => orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), [orderItems])
@@ -318,18 +350,21 @@ export function DashboardPage() {
               />
             )}
             <OrderDetailsPanel
-              isLoading={false}
+              isLoading={isCreatingOrder}
               items={orderItems}
               subtotal={subtotal}
               tax={tax}
               total={total}
               orderNotes={orderNotes}
               customerName={customerName}
+              paymentMethod={paymentMethod}
               onNotesChange={handleNotesChange}
               onCustomerNameChange={handleCustomerNameChange}
+              onPaymentMethodChange={handlePaymentMethodChange}
               onRemoveItem={handleRemoveItem}
               onClearOrder={handleClearOrder}
-              onUpdateItemNote={handleUpdateItemNote} />
+              onUpdateItemNote={handleUpdateItemNote}
+              onProcessTransaction={handleProcessOrder} />
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
@@ -351,7 +386,7 @@ export function DashboardPage() {
             />
 
             {/* RIGHT: Order Details & Summary */}
-            <OrderDetailsPanel isLoading={isLoading} />
+            <OrderDetailsPanel isLoading={isCreatingOrder} />
           </div>
         )}
       </div>

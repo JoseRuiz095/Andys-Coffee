@@ -68,39 +68,41 @@ model RolePermission {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Category {
-  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
-  name         String
-  description  String?
-  imageUrl     String?
-  displayOrder Int       @default(0)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  products     Product[]
-  combos       Combo[]
+  id                  String                @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name                String                @unique
+  description         String?
+  imageUrl            String?
+  displayOrder        Int                   @default(0)
+  isActive            Boolean               @default(true)
+  createdAt           DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  products            Product[]
+  combos              Combo[]
+  PromotionOnCategory PromotionOnCategory[]
 
   @@index([isActive, displayOrder], map: "categories_active_idx")
   @@map("categories")
 }
 
 model Product {
-  id           String         @id @default(dbgenerated("(gen_random_uuid())::text"))
-  categoryId   String?
-  name         String
-  description  String?
-  sku          String         @unique
-  imageUrl     String?
-  price        Decimal        @default(0) @db.Decimal(12, 2)
-  cost         Decimal        @default(0) @db.Decimal(12, 2)
-  isActive     Boolean        @default(true)
-  displayOrder Int            @default(0)
-  createdAt    DateTime       @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  comboItems   ComboItem[]
-  orderItems   OrderItem[]
-  extras       ProductExtra[]
-  category     Category?      @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
-  recipes      Recipe[]
+  id                 String               @id @default(dbgenerated("(gen_random_uuid())::text"))
+  categoryId         String?
+  name               String
+  description        String?
+  sku                String               @unique
+  imageUrl           String?
+  price              Decimal              @default(0) @db.Decimal(12, 2)
+  cost               Decimal              @default(0) @db.Decimal(12, 2)
+  isActive           Boolean              @default(true)
+  displayOrder       Int                  @default(0)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+  comboItems         ComboItem[]
+  orderItems         OrderItem[]
+  extras             ProductExtra[]
+  category           Category?            @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  recipes            Recipe[]
+  PromotionOnProduct PromotionOnProduct[]
 
   @@index([isActive, displayOrder], map: "products_active_idx")
   @@index([categoryId], map: "products_category_idx")
@@ -138,20 +140,21 @@ model ProductExtra {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Combo {
-  id          String      @id @default(dbgenerated("(gen_random_uuid())::text"))
-  categoryId  String?
-  name        String
-  description String?
-  price       Decimal     @default(0) @db.Decimal(12, 2)
-  cost        Decimal     @default(0) @db.Decimal(12, 2)
-  imageUrl    String?
-  isActive    Boolean     @default(true)
-  displayOrder Int        @default(0)
-  createdAt   DateTime    @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
-  items       ComboItem[]
-  orderItems  OrderItem[]
-  category    Category?   @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  id           String      @id @default(dbgenerated("(gen_random_uuid())::text"))
+  categoryId   String?
+  name         String      @unique
+  description  String?
+  price        Decimal     @default(0) @db.Decimal(12, 2)
+  cost         Decimal     @default(0) @db.Decimal(12, 2)
+  imageUrl     String?
+  isActive     Boolean     @default(true)
+  activeOnDays Int[]
+  displayOrder Int         @default(0)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+  items        ComboItem[]
+  soldAsItems  OrderItem[]
+  category     Category?   @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
 
   @@index([isActive, displayOrder], map: "combos_active_idx")
   @@index([categoryId], map: "combos_category_idx")
@@ -405,26 +408,26 @@ model Order {
 }
 
 model OrderItem {
-  id          String           @id @default(dbgenerated("(gen_random_uuid())::text"))
-  orderId     String
-  productId   String?
-  comboId     String?
-  productName String
-  quantity    Decimal          @db.Decimal(12, 3)
-  unitPrice   Decimal          @db.Decimal(12, 2)
-  discount    Decimal          @default(0) @db.Decimal(12, 2)
-  subtotal    Decimal          @default(0) @db.Decimal(12, 2)
-  notes       String?
-  createdAt   DateTime         @default(now()) @db.Timestamptz(6)
+  id           String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  orderId      String
+  productId    String
+  productName  String
+  quantity     Decimal          @db.Decimal(12, 3)
+  unitPrice    Decimal          @db.Decimal(12, 2)
+  discount     Decimal          @default(0) @db.Decimal(12, 2)
+  subtotal     Decimal          @default(0) @db.Decimal(12, 2)
+  notes        String?
+  createdAt    DateTime         @default(now()) @db.Timestamptz(6)
   costSnapshot Decimal?         @db.Decimal(12, 2)
-  extras      OrderItemExtra[]
-  combo       Combo?           @relation(fields: [comboId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  order       Order            @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  product     Product?         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  extras       OrderItemExtra[]
+  order        Order            @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product      Product          @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceComboId String?
+  sourceCombo  Combo?           @relation(fields: [sourceComboId], references: [id], onDelete: SetNull)
 
-  @@index([comboId], map: "orderItems_combo_idx")
   @@index([orderId], map: "orderItems_order_idx")
   @@index([productId], map: "orderItems_product_idx")
+  @@index([sourceComboId])
   @@map("order_items")
 }
 
@@ -480,4 +483,50 @@ enum OrderStatus {
   pending
   completed
   cancelled
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_DISCOUNT
+  FIXED_PRICE
+  BOGO
+  MULTIBUY_FIXED_PRICE
+}
+
+model Promotion {
+  id                   String                @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name                 String
+  description          String?
+  type                 PromotionType         @default(PERCENTAGE)
+  discountValue        Decimal               @db.Decimal(10, 2)
+  buyQuantity          Int?
+  getQuantity          Int?
+  startDate            DateTime
+  endDate              DateTime
+  activeOnDays         Int[]
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  products             PromotionOnProduct[]
+  categories           PromotionOnCategory[]
+
+  @@map("promotions")
+}
+
+model PromotionOnProduct {
+  promotionId String
+  productId   String
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@id([promotionId, productId])
+}
+
+model PromotionOnCategory {
+  promotionId String
+  categoryId  String
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+  category    Category  @relation(fields: [categoryId], references: [id])
+
+  @@id([promotionId, categoryId])
 }

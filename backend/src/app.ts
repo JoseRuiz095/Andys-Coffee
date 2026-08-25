@@ -3,9 +3,13 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import menuRoutes from "./routes/menu.routes";
 import productRoutes from "./routes/product.routes";
-// Por ejemplo, para activar las rutas de pedidos:
-// import orderRoutes from "./routes/order.routes";
+import orderRoutes from "./routes/order.routes";
 import { logger } from "./utils/logger";
+
+// Monkey-patch BigInt to allow JSON serialization
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 
 const app = express();
 
@@ -16,8 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/products", productRoutes);
-// Y luego registrarías el enrutador:
-// app.use("/api/orders", orderRoutes);
+app.use("/api/orders", orderRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
