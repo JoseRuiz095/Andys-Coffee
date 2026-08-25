@@ -21,12 +21,14 @@ interface OrderDetailsPanelProps {
   total?: number
   isLoading?: boolean
   orderNotes?: string
+  paymentMethod?: string
   onClearOrder?: () => void
   onRemoveItem?: (itemId: string) => void
   onUpdateItemNote?: (itemId: string, note: string) => void
   onProcessTransaction?: () => void
   onNotesChange?: (notes: string) => void
   onCustomerNameChange?: (name: string) => void
+  onPaymentMethodChange?: (method: string) => void
 }
 
 export function OrderDetailsPanel({
@@ -37,11 +39,13 @@ export function OrderDetailsPanel({
   total = 0,
   isLoading = true,
   orderNotes,
+  paymentMethod,
   onRemoveItem,
   onUpdateItemNote,
   onProcessTransaction,
   onNotesChange,
   onCustomerNameChange,
+  onPaymentMethodChange,
 }: OrderDetailsPanelProps) {
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null)
   const [note, setNote] = useState('')
@@ -139,10 +143,16 @@ export function OrderDetailsPanel({
             className="mb-3 w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#2C211D] placeholder-[#9CA3AF]"
             rows={3}
           />
-          <select className="w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#4B5563]">
-            <option>Seleccionar pago</option>
-            <option>Efectivo</option>
-            <option>Trasferencia</option>
+          <select
+            value={paymentMethod || ''}
+            onChange={(e) => onPaymentMethodChange?.(e.target.value)}
+            className="w-full rounded-xl border border-[#E7E3DC] bg-white px-3 py-2 text-[#4B5563]"
+          >
+            <option value="" disabled>
+              Seleccionar pago
+            </option>
+            <option value="Efectivo">Efectivo</option>
+            <option value="Transferencia">Transferencia</option>
           </select>
         </div>
 

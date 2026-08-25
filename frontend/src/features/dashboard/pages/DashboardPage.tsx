@@ -29,7 +29,7 @@ export function DashboardPage() {
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
-  const [paymentMethod, setPaymentMethod] = React.useState('Efectivo')
+  const [paymentMethod, setPaymentMethod] = React.useState<string>()
   const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
@@ -38,7 +38,15 @@ export function DashboardPage() {
   const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
 
   const handleProcessOrder = () => {
-    if (orderItems.length === 0) return;
+    if (orderItems.length === 0) {
+      alert('No hay productos en la orden.');
+      return;
+    }
+
+    if (!paymentMethod) {
+      alert('Por favor, seleccione un método de pago.');
+      return;
+    }
 
     const orderPayload = {
       customerName: customerName || 'Cliente',
@@ -214,7 +222,7 @@ export function DashboardPage() {
     setOrderItems([])
     setOrderNotes('')
     setCustomerName('')
-    setPaymentMethod('Efectivo')
+    setPaymentMethod(undefined)
   }
 
   const subtotal = React.useMemo(() => orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), [orderItems])
@@ -386,7 +394,11 @@ export function DashboardPage() {
             />
 
             {/* RIGHT: Order Details & Summary */}
-            <OrderDetailsPanel isLoading={isCreatingOrder} />
+            <OrderDetailsPanel
+              isLoading={isCreatingOrder}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={handlePaymentMethodChange}
+            />
           </div>
         )}
       </div>

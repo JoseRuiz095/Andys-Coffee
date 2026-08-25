@@ -140,8 +140,31 @@ export const OrderService = {
       let totalOrderCost = new Prisma.Decimal(0);
       let subtotal = new Prisma.Decimal(0);
 
+      // Handle customer name generation
+      let finalCustomerName = restOfOrder.customerName;
+      if (!finalCustomerName || finalCustomerName.trim().toLowerCase() === 'cliente') {
+        const lastCustomerOrder = await tx.order.findFirst({
+          where: { customerName: { startsWith: 'Cliente ' } },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        let nextCustomerNumber = 1;
+        if (lastCustomerOrder?.customerName) {
+          const match = lastCustomerOrder.customerName.match(/^Cliente (\d+)$/);
+          if (match) {
+            nextCustomerNumber = parseInt(match[1], 10) + 1;
+          }
+        }
+        finalCustomerName = `Cliente ${nextCustomerNumber}`;
+      }
+
       const order = await tx.order.create({
-        data: { ...restOfOrder, status: 'pending', createdById: userId },
+        data: {
+          ...restOfOrder,
+          customerName: finalCustomerName,
+          status: 'pending',
+          createdById: userId
+        },
       });
 
       const createdOrderItems = [];
