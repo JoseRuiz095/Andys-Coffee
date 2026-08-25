@@ -1,110 +1,134 @@
-import { Skeleton } from '../../../shared/components/Skeleton'
-import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
-import { OrderListSection } from '../components/OrderListSection'
-import { MenuSection } from '../../menu/components/MenuSection'
-import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
-import { authStore } from '../../auth/store/auth.store'
-import type { AuthUser } from '../../auth/types/auth.types'
-import React from 'react'
-import { CoffeeIcon } from '../../../components/ui/coffee'
-import type { CoffeeIconHandle } from '../../../components/ui/coffee'
-import { SettingsIcon } from '../../../components/ui/settings'
-import { APP_ROUTES } from '../../../shared/constants/routes'
-import type { OrderItem } from '../types/order.types'
-import type { MenuItem } from '../../menu/types/menu.types'
-import { useMenu } from '../../menu/hooks/useMenu'
-import { useCreateOrder } from '../hooks/useCreateOrder'
+import { sileo } from "sileo";
+import { Skeleton } from "../../../shared/components/Skeleton";
+import brandLogo from "../../../shared/assets/logo/LetraAndysVector.svg";
+import { OrderListSection } from "../components/OrderListSection";
+import { MenuSection } from "../../menu/components/MenuSection";
+import { OrderDetailsPanel } from "../components/OrderDetailsPanel";
+import { authStore } from "../../auth/store/auth.store";
+import type { AuthUser } from "../../auth/types/auth.types";
+import React from "react";
+import { CoffeeIcon } from "../../../components/ui/coffee";
+import type { CoffeeIconHandle } from "../../../components/ui/coffee";
+import { SettingsIcon } from "../../../components/ui/settings";
+import { APP_ROUTES } from "../../../shared/constants/routes";
+import type { OrderItem } from "../types/order.types";
+import type { MenuItem } from "../../menu/types/menu.types";
+import { useMenu } from "../../menu/hooks/useMenu";
+import { useCreateOrder } from "../hooks/useCreateOrder";
 
 function navigateTo(path: string) {
-  window.history.pushState({}, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 export function DashboardPage() {
-  const [isLoading] = React.useState(false) // Keep this if OrderListSection still uses it
-  const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
-  const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(authStore.getState().user)
-  const [hasUnreadNotifications, setHasUnreadNotifications] = React.useState(true)
-  const [activeView, setActiveView] = React.useState('Venta')
+  const [isLoading] = React.useState(false); // Keep this if OrderListSection still uses it
+  const [selectedOrderId, setSelectedOrderId] = React.useState<string>();
+  const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(
+    authStore.getState().user,
+  );
+  const [hasUnreadNotifications, setHasUnreadNotifications] =
+    React.useState(true);
+  const [activeView, setActiveView] = React.useState("Venta");
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([]);
-  const [orderNotes, setOrderNotes] = React.useState('')
-  const [customerName, setCustomerName] = React.useState('')
-  const [paymentMethod, setPaymentMethod] = React.useState<string>()
-  const [selectedCategory, setSelectedCategory] = React.useState<string | undefined>()
-  const isInitialCategorySet = React.useRef(false)
-  const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
+  const [orderNotes, setOrderNotes] = React.useState("");
+  const [customerName, setCustomerName] = React.useState("");
+  const [paymentMethod, setPaymentMethod] = React.useState<string>();
+  const [selectedCategory, setSelectedCategory] = React.useState<
+    string | undefined
+  >();
+  const isInitialCategorySet = React.useRef(false);
+  const coffeeIconRef = React.useRef<CoffeeIconHandle>(null);
 
-  const { data: menuData, isLoading: isMenuLoading, isError, error } = useMenu()
-  const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
+  const {
+    data: menuData,
+    isLoading: isMenuLoading,
+    isError,
+    error,
+  } = useMenu();
+  const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder();
 
   const handleProcessOrder = () => {
     if (orderItems.length === 0) {
-      alert('No hay productos en la orden.');
+      sileo.error({
+        title: "Algo salio mal",
+        description: "Intentalo mas tarde.",
+      });
       return;
     }
 
     if (!paymentMethod) {
-      alert('Por favor, seleccione un método de pago.');
+      sileo.error({
+        title: "Algo salio mal",
+        description: "Por favor, seleccione un método de pago.",
+      });
       return;
     }
 
     const orderPayload = {
-      customerName: customerName || 'Cliente',
+      customerName: customerName || "Cliente",
       notes: orderNotes,
       paymentMethod,
-      items: orderItems.map(({ productId, comboId, quantity, unitPrice, note, type }) => ({
-        productId: type === 'product' ? productId : undefined,
-        comboId: type === 'combo' ? comboId : undefined,
-        quantity,
-        unitPrice,
-        note,
-      })),
+      items: orderItems.map(
+        ({ productId, comboId, quantity, unitPrice, note, type }) => ({
+          productId: type === "product" ? productId : undefined,
+          comboId: type === "combo" ? comboId : undefined,
+          quantity,
+          unitPrice,
+          note,
+        }),
+      ),
     };
 
     createOrder(orderPayload, {
       onSuccess: () => {
         handleClearOrder();
-        // TODO: show success toast
+        sileo.success({ title: "Orden creada exitosamente.", duration: 3000 });
       },
-      onError: () => {
-        // TODO: show error toast
+      onError: (error) => {
+        sileo.error({
+          title: "Algo salio mal",
+          description: `Error al crear la orden: ${error.message}`,
+        });
       },
     });
   };
 
   // The category names for the tabs can be derived from the fetched data
-  const categoryNames = React.useMemo(() => menuData?.map((c) => c.name) ?? [], [menuData])
+  const categoryNames = React.useMemo(
+    () => menuData?.map((c) => c.name) ?? [],
+    [menuData],
+  );
 
   // Set the first category as selected by default when data loads
   React.useEffect(() => {
     if (!isInitialCategorySet.current && categoryNames.length > 0) {
-      setSelectedCategory(categoryNames[0])
-      isInitialCategorySet.current = true
+      setSelectedCategory(categoryNames[0]);
+      isInitialCategorySet.current = true;
     }
-  }, [categoryNames])
+  }, [categoryNames]);
 
   React.useEffect(() => {
+    const syncUser = () => setCurrentUser(authStore.getState().user);
 
-    const syncUser = () => setCurrentUser(authStore.getState().user)
+    syncUser();
+    window.addEventListener("auth:changed", syncUser);
 
-    syncUser()
-    window.addEventListener('auth:changed', syncUser)
-
-    return () => window.removeEventListener('auth:changed', syncUser)
-  }, [])
+    return () => window.removeEventListener("auth:changed", syncUser);
+  }, []);
 
   React.useEffect(() => {
     if (hasUnreadNotifications) {
-      coffeeIconRef.current?.startAnimation()
-      return
+      coffeeIconRef.current?.startAnimation();
+      return;
     }
 
-    coffeeIconRef.current?.stopAnimation()
-  }, [hasUnreadNotifications])
+    coffeeIconRef.current?.stopAnimation();
+  }, [hasUnreadNotifications]);
 
   const handleAddToOrder = (menuItem: MenuItem, quantity: number) => {
     setOrderItems((prevItems) => {
-      const key = menuItem.type === 'product' ? 'productId' : 'comboId';
+      const key = menuItem.type === "product" ? "productId" : "comboId";
       const existingItemWithoutNote = prevItems.find(
         (item) => item[key] === menuItem.id && !item.note,
       );
@@ -126,7 +150,7 @@ export function DashboardPage() {
         type: menuItem.type,
       };
 
-      if (menuItem.type === 'product') {
+      if (menuItem.type === "product") {
         newOrderItem.productId = menuItem.id;
       } else {
         newOrderItem.comboId = menuItem.id;
@@ -162,7 +186,7 @@ export function DashboardPage() {
       // If quantity is 1, just update the note.
       if (itemToUpdate.quantity === 1) {
         return prevItems.map((item) =>
-          item.id === itemId ? { ...item, note } : item
+          item.id === itemId ? { ...item, note } : item,
         );
       }
 
@@ -189,7 +213,8 @@ export function DashboardPage() {
 
       // Check if an item with the same note already exists
       const existingItemWithSameNote = prevItems.find(
-        (item) => item.productId === newItemWithNote.productId && item.note === note
+        (item) =>
+          item.productId === newItemWithNote.productId && item.note === note,
       );
 
       if (existingItemWithSameNote) {
@@ -197,7 +222,7 @@ export function DashboardPage() {
         return updatedItems.map((item) =>
           item.id === existingItemWithSameNote.id
             ? { ...item, quantity: item.quantity + 1 }
-            : item
+            : item,
         );
       } else {
         // Otherwise, add the new item
@@ -211,37 +236,42 @@ export function DashboardPage() {
   };
 
   const handleCustomerNameChange = (name: string) => {
-    setCustomerName(name)
-  }
+    setCustomerName(name);
+  };
 
   const handlePaymentMethodChange = (method: string) => {
-    setPaymentMethod(method)
-  }
+    setPaymentMethod(method);
+  };
 
   const handleClearOrder = () => {
-    setOrderItems([])
-    setOrderNotes('')
-    setCustomerName('')
-    setPaymentMethod(undefined)
-  }
+    setOrderItems([]);
+    setOrderNotes("");
+    setCustomerName("");
+    setPaymentMethod(undefined);
+  };
 
-  const subtotal = React.useMemo(() => orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), [orderItems])
-  const tax = subtotal * 0.16
-  const total = subtotal + tax
+  const subtotal = React.useMemo(
+    () =>
+      orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    [orderItems],
+  );
+  const tax = subtotal * 0.16;
+  const total = subtotal + tax;
 
-  const displayName = currentUser?.name ?? 'Usuario'
-  const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
-  const roleLabel = rawRoleName.toUpperCase() === 'ADMIN'
-    ? 'Administrador'
-    : rawRoleName.toUpperCase() === 'CAJERO'
-      ? 'Cajero'
-      : rawRoleName.toUpperCase() === 'ADMINISTRADOR'
-        ? 'Administrador'
-        : rawRoleName.toUpperCase() === 'CAJERO'
-          ? 'Cajero'
-          : currentUser?.roleId
-            ? 'Usuario'
-            : 'Usuario'
+  const displayName = currentUser?.name ?? "Usuario";
+  const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? "";
+  const roleLabel =
+    rawRoleName.toUpperCase() === "ADMIN"
+      ? "Administrador"
+      : rawRoleName.toUpperCase() === "CAJERO"
+        ? "Cajero"
+        : rawRoleName.toUpperCase() === "ADMINISTRADOR"
+          ? "Administrador"
+          : rawRoleName.toUpperCase() === "CAJERO"
+            ? "Cajero"
+            : currentUser?.roleId
+              ? "Usuario"
+              : "Usuario";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#FCF8EF_0%,_#F7F2E8_100%)]">
@@ -256,10 +286,16 @@ export function DashboardPage() {
             ) : (
               <>
                 <div className="flex h-15 w-15 items-center justify-center rounded-2xl border border-[#E7E3DC] bg-[#F3E8D6] p-2 shadow-sm">
-                  <img src={brandLogo} alt="Andys Coffee" className="h-8 w-auto object-contain" />
+                  <img
+                    src={brandLogo}
+                    alt="Andys Coffee"
+                    className="h-8 w-auto object-contain"
+                  />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-[#2C211D]">{displayName}</div>
+                  <div className="text-sm font-semibold text-[#2C211D]">
+                    {displayName}
+                  </div>
                   <div className="text-xs text-[#6B7280]">{roleLabel}</div>
                 </div>
               </>
@@ -267,14 +303,20 @@ export function DashboardPage() {
           </div>
 
           <nav className="flex flex-wrap items-center gap-2 rounded-full border border-[#E7E3DC] bg-white/80 px-3 py-2 shadow-sm sm:gap-3">
-            {['Venta', 'Dashboard', 'Ordenes', 'Inventario', 'Administracion'].map((item) =>
+            {[
+              "Venta",
+              "Dashboard",
+              "Ordenes",
+              "Inventario",
+              "Administracion",
+            ].map((item) =>
               isLoading ? (
                 <Skeleton key={item} className="h-4 w-20" />
               ) : (
                 <button
                   key={item}
                   onClick={() => setActiveView(item)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${activeView === item ? 'bg-[#5A804F] text-white shadow-sm' : 'text-[#4B5563] hover:bg-[#F2EFE8] hover:text-[#5A804F]'}`}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${activeView === item ? "bg-[#5A804F] text-white shadow-sm" : "text-[#4B5563] hover:bg-[#F2EFE8] hover:text-[#5A804F]"}`}
                 >
                   {item}
                 </button>
@@ -296,8 +338,8 @@ export function DashboardPage() {
                   onClick={() => setHasUnreadNotifications(false)}
                   className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
                     hasUnreadNotifications
-                      ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
-                      : 'border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]'
+                      ? "border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]"
+                      : "border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]"
                   }`}
                 >
                   {hasUnreadNotifications && (
@@ -306,7 +348,12 @@ export function DashboardPage() {
                       <span className="absolute -inset-1.5 rounded-full border border-[#C78234]/30" />
                     </>
                   )}
-                  <CoffeeIcon ref={coffeeIconRef} className="relative z-10" size={23} aria-hidden="true" />
+                  <CoffeeIcon
+                    ref={coffeeIconRef}
+                    className="relative z-10"
+                    size={23}
+                    aria-hidden="true"
+                  />
                   {hasUnreadNotifications && (
                     <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
                       1
@@ -331,8 +378,12 @@ export function DashboardPage() {
         <div className="mb-6 rounded-[1.75rem] border border-[#E7E3DC] bg-[#FDFBF7] p-5 shadow-[0_20px_50px_rgba(45,33,29,0.06)] sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#5A804F]">Operación del día</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#2C211D]">Gestiona órdenes y productos con una vista más clara</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#5A804F]">
+                Operación del día
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#2C211D]">
+                Gestiona órdenes y productos con una vista más clara
+              </h2>
             </div>
             <div className="rounded-full border border-[#E7E3DC] bg-[#F2EFE8] px-3 py-1.5 text-sm text-[#4B5563]">
               {roleLabel}
@@ -340,7 +391,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {activeView === 'Venta' ? (
+        {activeView === "Venta" ? (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]">
             {isError ? (
               <div className="rounded-lg border border-red-400 bg-red-100 p-8 text-center text-red-700">
@@ -372,7 +423,8 @@ export function DashboardPage() {
               onRemoveItem={handleRemoveItem}
               onClearOrder={handleClearOrder}
               onUpdateItemNote={handleUpdateItemNote}
-              onProcessTransaction={handleProcessOrder} />
+              onProcessTransaction={handleProcessOrder}
+            />
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
@@ -403,5 +455,5 @@ export function DashboardPage() {
         )}
       </div>
     </div>
-  )
+  );
 }
