@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
@@ -16,6 +17,7 @@ import type { MenuItem } from '../../menu/types/menu.types'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
+import { NotificationCenter } from '../components/NotificationCenter'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -30,6 +32,8 @@ export function DashboardPage() {
   )
   const [hasUnreadNotifications, setHasUnreadNotifications] =
     React.useState(true)
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] =
+    React.useState(false)
   const [activeView, setActiveView] = React.useState('Venta')
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([])
   const [orderNotes, setOrderNotes] = React.useState('')
@@ -274,6 +278,13 @@ export function DashboardPage() {
       ? 'Usuario'
       : 'Usuario'
 
+  const toggleNotificationCenter = () => {
+    setIsNotificationCenterOpen(!isNotificationCenterOpen)
+    if (hasUnreadNotifications) {
+      setHasUnreadNotifications(false)
+    }
+  }
+
   const renderContent = () => {
     if (activeView === 'Venta') {
       return (
@@ -412,7 +423,7 @@ export function DashboardPage() {
                 <button
                   type="button"
                   aria-label="Abrir notificaciones del proyecto"
-                  onClick={() => setHasUnreadNotifications(false)}
+                  onClick={toggleNotificationCenter}
                   className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
                     hasUnreadNotifications
                       ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
@@ -437,6 +448,9 @@ export function DashboardPage() {
                     </span>
                   )}
                 </button>
+                <AnimatePresence>
+                  {isNotificationCenterOpen && <NotificationCenter onClose={() => setIsNotificationCenterOpen(false)} />}
+                </AnimatePresence>
                 <button
                   type="button"
                   aria-label="Abrir configuracion del proyecto"

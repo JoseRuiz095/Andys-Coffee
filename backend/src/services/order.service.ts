@@ -1,9 +1,11 @@
-import { Prisma, Promotion, PromotionType } from '@prisma/client';
+import { OrderStatus, Prisma, Promotion, PromotionType } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
+  filterQuerySchema,
   orderItemExtraSchema,
   orderItemSchema,
+  updateOrderStatusSchema,
 } from '../validators/order.validator';
 import { prisma } from '../config/prisma';
 
@@ -105,6 +107,92 @@ async function applyPromotions(
 
 
 export const OrderService = {
+  async findAll(query: z.infer<typeof filterQuerySchema>) {
+    const page = parseInt(query.page);
+    const limit = parseInt(query.limit);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.OrderWhereInput = {
+      ...(query.status && { status: query.status }),
+      ...(query.search && {
+        OR: [
+          { customerName: { contains: query.search, mode: 'insensitive' } },
+          { id: { contains: query.search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    const [orders, total] = await prisma.$transaction([
+      prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          items: {
+            include: {
+              extras: true,
+            }
+          },
+          payments: true,
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    return {
+      data: orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
+  async findOne(id: string) {
+    return prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            extras: true,
+            product: true
+          }
+        },
+        payments: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+          }
+        }
+      },
+    });
+  },
+
+  async updateStatus(id: string, data: z.infer<typeof updateOrderStatusSchema>) {
+    const { status } = data;
+
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    const updateData: Prisma.OrderUpdateInput = { status };
+    if (status === OrderStatus.completed || status === OrderStatus.cancelled) {
+      updateData.completedAt = new Date();
+    }
+
+    return prisma.order.update({
+      where: { id },
+      data: updateData,
+    });
+  },
+
   async create(orderData: CreateOrderInput, userId: string) {
     const { items, paymentMethod, ...restOfOrder } = orderData;
     const today = new Date();

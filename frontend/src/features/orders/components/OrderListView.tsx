@@ -1,5 +1,6 @@
-import { Order, OrderStatus } from '../../types/orders.types'
+import { Order, OrderStatus, mapOrderStatusToFrontend } from '../types/orders.types'
 import { OrderActions } from './OrderActions'
+import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
 
 interface OrderListViewProps {
   orders: Order[]
@@ -11,7 +12,7 @@ const statusStyles: Record<OrderStatus, { text: string; bg: string; color: strin
   PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
   READY: { text: 'Lista para recoger', bg: 'bg-green-100', color: 'text-green-800' },
   COMPLETED: { text: 'Completada', bg: 'bg-gray-100', color: 'text-gray-800' },
-  REJECTED: { text: 'Rechazada', bg: 'bg-red-100', color: 'text-red-800' },
+  CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
 }
 
 export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
@@ -29,7 +30,8 @@ export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
         </thead>
         <tbody>
           {orders.map((order) => {
-            const { text, bg, color } = statusStyles[order.status]
+            const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
+            const { text, bg, color } = statusStyles[frontendStatus]
             const itemsSummary = order.items
               .map((item) => `${item.quantity}x ${item.productName}`)
               .join(', ')

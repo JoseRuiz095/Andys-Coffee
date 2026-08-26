@@ -1,48 +1,65 @@
-import { useState, useRef, useEffect } from 'react'
-import { orders as mockOrders } from '../mocks/orders.mock'
-import { OrdersHeader } from '../components/OrdersHeader'
-import type { Order, OrderStatus } from '../types/orders.types'
-import { OrdersGridView } from '../components/grid/OrdersGridView'
-import { OrderListView } from '../components/OrderListView'
-import { MaximizeIcon } from '../../../components/ui/MaximizeIcon'
+import { useState, useRef, useEffect } from 'react';
+import { OrdersHeader } from '../components/OrdersHeader';
+import { OrderStatus } from '../types/orders.types';
+import { OrdersGridView } from '../components/grid/OrdersGridView';
+import { OrderListView } from '../components/OrderListView';
+import { MaximizeIcon } from '../../../components/ui/MaximizeIcon';
+import { useOrders } from '../hooks/useOrders';
+import { Spinner } from '@/shared/components/Spinner';
 
-type ViewMode = 'grid' | 'list'
+type ViewMode = 'grid' | 'list';
 
 export function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(mockOrders)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [isFullScreen, setIsFullScreen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const {
+    orders,
+    pagination,
+    loading,
+    error,
+    setPage,
+    setStatus,
+    setSearch,
+    updateStatus,
+  } = useOrders();
+
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prevOrders) =>
-      prevOrders.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order,
-      ),
-    )
-  }
+    // The frontend status needs to be mapped to the backend status
+    // For now, let's assume a direct mapping is possible for 'cancelled'.
+    // A more robust solution would be a mapping function.
+    if (newStatus === 'CANCELLED') {
+      updateStatus(orderId, 'cancelled');
+    } else if (newStatus === 'COMPLETED') {
+      updateStatus(orderId, 'completed');
+    }
+    // For 'PENDING', 'PREPARING', 'READY' we might not have a direct backend equivalent to change to
+    // or the logic is more complex (e.g. can't go back from completed to pending)
+    // For now, we only handle 'cancelled' and 'completed'
+  };
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen()
+      containerRef.current?.requestFullscreen();
     } else {
-      document.exitFullscreen()
+      document.exitFullscreen();
     }
-  }
+  };
 
   useEffect(() => {
     const handleFullScreenChange = () => {
-      setIsFullScreen(!!document.fullscreenElement)
-    }
-    document.addEventListener('fullscreenchange', handleFullScreenChange)
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullScreenChange)
-    }
-  }, [])
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    };
+  }, []);
 
   const pendingOrders = orders.filter(
-    (order) => order.status === 'PENDING',
-  ).length
+    (order) => order.status === 'pending'
+  ).length;
 
   return (
     <div
@@ -84,12 +101,18 @@ export function OrdersPage() {
         </button>
       </div>
 
-      {viewMode === 'grid' ? (
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Spinner />
+        </div>
+      ) : error ? (
+        <div className="text-red-500 text-center">{error}</div>
+      ) : viewMode === 'grid' ? (
         <OrdersGridView orders={orders} onStatusChange={handleStatusChange} />
       ) : (
         <OrderListView orders={orders} onStatusChange={handleStatusChange} />
       )}
     </div>
-  )
+  );
 }
 

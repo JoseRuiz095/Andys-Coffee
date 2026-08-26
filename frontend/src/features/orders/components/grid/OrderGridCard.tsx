@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { Order, OrderStatus } from '../../types/orders.types';
 import { OrderActions } from '../OrderActions';
+import { mapOrderStatusToFrontend } from '../../types/orders.types';
+import { OrderStatus as BackendOrderStatus } from '../../types/backend.types';
 
 interface OrderGridCardProps {
   order: Order;
@@ -12,8 +14,8 @@ const statusStyles: Record<OrderStatus, { text: string; bg: string; color: strin
   PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
   READY: { text: 'Lista para recoger', bg: 'bg-green-100', color: 'text-green-800' },
   COMPLETED: { text: 'Completada', bg: 'bg-gray-100', color: 'text-gray-800' },
-  REJECTED: { text: 'Rechazada', bg: 'bg-red-100', color: 'text-red-800' },
-}
+  CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
+};
 
 function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
@@ -37,16 +39,18 @@ export function OrderGridCard({ order, onStatusChange }: OrderGridCardProps) {
   }, [order.createdAt]);
 
   const timeColor = elapsedSeconds > 300 ? 'text-red-500' : 'text-gray-900';
-  const { text, bg, color } = statusStyles[order.status];
+  
+  const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
+  const { text, bg, color } = statusStyles[frontendStatus];
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-[#E7E3DC] bg-white p-4 shadow-md">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-lg font-bold text-[#2C211D]">
           Orden #{order.orderNumber}
-          {order.customer?.name && (
+          {order.customerName && (
             <span className="ml-2 text-base font-medium text-[#6B7280]">
-              ({order.customer.name})
+              ({order.customerName})
             </span>
           )}
         </h3>

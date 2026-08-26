@@ -1,4 +1,7 @@
 import type { Order, OrderStatus } from '../types/orders.types'
+import { mapOrderStatusToFrontend } from '../types/orders.types'
+import { OrderStatus as BackendOrderStatus } from '../types/backend.types'
+
 
 interface OrderActionsProps {
   order: Order
@@ -15,32 +18,18 @@ const Button = ({ onClick, className, children }: { onClick: () => void; classNa
 )
 
 export function OrderActions({ order, onStatusChange }: OrderActionsProps) {
-  if (order.status === 'PENDING') {
+  const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
+
+  if (frontendStatus === 'PENDING') {
     return (
       <div className="flex gap-3">
-        <Button onClick={() => onStatusChange('REJECTED')} className="bg-red-500 text-white hover:bg-red-600">
-          Rechazar
+        <Button onClick={() => onStatusChange('CANCELLED')} className="bg-red-500 text-white hover:bg-red-600">
+          Cancelar
         </Button>
-        <Button onClick={() => onStatusChange('PREPARING')} className="bg-green-500 text-white hover:bg-green-600">
-          Aceptar
+        <Button onClick={() => onStatusChange('COMPLETED')} className="bg-green-500 text-white hover:bg-green-600">
+          Completar
         </Button>
       </div>
-    )
-  }
-
-  if (order.status === 'PREPARING') {
-    return (
-      <Button onClick={() => onStatusChange('READY')} className="bg-blue-500 text-white hover:bg-blue-600">
-        Marcar como lista
-      </Button>
-    )
-  }
-
-  if (order.status === 'READY') {
-    return (
-      <Button onClick={() => onStatusChange('COMPLETED')} className="bg-gray-500 text-white hover:bg-gray-600">
-        Marcar como entregada
-      </Button>
     )
   }
 
