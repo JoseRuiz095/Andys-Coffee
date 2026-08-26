@@ -1,10 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["partialIndexes"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DIRECT_URL")
 }
 
 model User {
@@ -189,7 +189,8 @@ model InventoryUnit {
 model Ingredient {
   id            String              @id @default(dbgenerated("(gen_random_uuid())::text"))
   name          String
-  sku           String?             @unique(map: "ingredients_sku_unique", where: raw("(sku IS NOT NULL)"))
+  // sku           String?             @unique(map: "ingredients_sku_unique", where: raw("(sku IS NOT NULL)"))
+  sku           String?
   unitId        String
   currentStock  Decimal             @default(0) @db.Decimal(14, 4)
   minimumStock  Decimal             @default(0) @db.Decimal(14, 4)
@@ -204,7 +205,7 @@ model Ingredient {
   recipes       Recipe[]
 
   @@index([isActive], map: "ingredients_active_idx")
-  @@index([currentStock, minimumStock], map: "inventory_low_stock_idx", where: raw("(\"isActive\" = true)"))
+  // @@index([currentStock, minimumStock], map: "inventory_low_stock_idx", where: raw("(\"isActive\" = true)"))
   @@map("ingredients")
 }
 
@@ -321,7 +322,8 @@ model CashRegister {
 
 model CashSession {
   id             String         @id @default(dbgenerated("(gen_random_uuid())::text"))
-  cashRegisterId String         @unique(map: "cashSessions_one_open_per_register", where: raw("(status = 'open'::text)"))
+  // cashRegisterId String         @unique(map: "cashSessions_one_open_per_register", where: raw("(status = 'open'::text)"))
+  cashRegisterId String         @unique
   openedById     String
   closedById     String?
   openingAmount  Decimal        @default(0) @db.Decimal(12, 2)
@@ -403,7 +405,7 @@ model Order {
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@index([cashSessionId], map: "orders_cashSession_idx")
-  @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
+  // @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
   @@map("orders")
 }
 
@@ -464,7 +466,7 @@ model Payment {
   @@index([method])
   @@index([paidAt(sort: Desc)])
   @@index([orderId], map: "payments_order_idx")
-  @@index([paidAt], map: "payments_paid_date_idx", where: raw("(status = 'paid'::text)"))
+  // @@index([paidAt], map: "payments_paid_date_idx", where: raw("(status = 'paid'::text)"))
   @@map("payments")
 }
 

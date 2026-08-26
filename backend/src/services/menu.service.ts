@@ -10,22 +10,22 @@ export const MenuService = {
     const today = new Date();
     const currentDay = today.getDay(); // Domingo = 0, Lunes = 1, ...
 
-    // 1. Obtener promociones activas para el día de hoy
-    const activePromotions = await prisma.promotion.findMany({
+    // 1. Obtener promociones activas por fecha. El filtro por día se hace en la aplicación para evitar timeouts.
+    const promotionsByDate = await prisma.promotion.findMany({
       where: {
         isActive: true,
         startDate: { lte: today },
         endDate: { gte: today },
-        OR: [
-          { activeOnDays: { isEmpty: true } },
-          { activeOnDays: { has: currentDay } },
-        ],
       },
       include: {
         products: { select: { productId: true } },
         categories: { select: { categoryId: true } },
       },
     });
+
+    const activePromotions = promotionsByDate.filter(promo => 
+      promo.activeOnDays.length === 0 || promo.activeOnDays.includes(currentDay)
+    );
 
     // 2. Crear mapas para búsqueda rápida de promociones
     const promotionsByProduct = new Map<string, Promotion>();
@@ -35,7 +35,7 @@ export const MenuService = {
       promo.categories.forEach(c => promotionsByCategory.set(c.categoryId, promo));
     }
 
-    // 3. Obtener categorías con sus productos y combos filtrados por día
+    // 3. Obtener categorías con sus productos y combos. El filtro de combos por día se hace en la app.
     const categories = await prisma.category.findMany({
       where: {
         isActive: true,
@@ -51,10 +51,6 @@ export const MenuService = {
         combos: {
           where: {
             isActive: true,
-            OR: [
-              { activeOnDays: { isEmpty: true } },
-              { activeOnDays: { has: currentDay } },
-            ],
           },
           orderBy: { displayOrder: 'asc' },
         },
@@ -90,8 +86,12 @@ export const MenuService = {
         };
       });
 
-      // Mapear y transformar combos
-      const combos = category.combos.map(combo => ({
+      // Filtrar y mapear combos activos para el día actual
+      const activeCombos = category.combos.filter(
+        combo => combo.activeOnDays.length === 0 || combo.activeOnDays.includes(currentDay)
+      );
+
+      const combos = activeCombos.map(combo => ({
         ...combo,
         price: combo.price.toNumber(),
         activeOnDays: combo.activeOnDays,
