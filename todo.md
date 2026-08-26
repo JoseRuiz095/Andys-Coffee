@@ -8,9 +8,9 @@
 * [x] Ejecutar `npx prisma validate`
 * [x] Ejecutar `npx prisma generate`
 * [x] Verificar que Prisma esté sincronizado con DB
-* [ ] Revisar relaciones entre modelos
-* [ ] Revisar índices necesarios
-* [ ] Revisar constraints existentes
+* [x] Revisar relaciones entre modelos
+* [x] Revisar índices necesarios
+* [x] Revisar constraints existentes
 
 ### 3. Backend — Arquitectura
 
@@ -44,7 +44,6 @@
 * [x] Categorías
 * [x] Extras (patrón definido)
 * [x] Combos (patrón definido)
-* [ ] Ingredientes
 * [x] Relaciones producto ↔ categoría
 * [x] Relaciones producto ↔ extras
 * [x] Relaciones combo ↔ productos
@@ -67,8 +66,8 @@
 
 ### 7. Backend — Compras
 
-* [ ] Obtener compras
-* [ ] Crear compra
+* [x] Obtener compras
+* [x] Crear compra
 * [ ] Obtener detalle
 * [ ] Actualizar compra
 * [ ] Recepción de compra

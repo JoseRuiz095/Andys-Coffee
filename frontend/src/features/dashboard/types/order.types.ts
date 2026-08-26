@@ -57,4 +57,6 @@ export interface OrderItem {
     name: string
     price: number
   }[]
-}
+  }
+
+  export const _ = {};

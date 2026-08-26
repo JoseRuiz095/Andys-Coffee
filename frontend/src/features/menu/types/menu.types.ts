@@ -18,3 +18,5 @@ export interface MenuCategory {
   name: string;
   items: MenuItem[];
 }
+
+export const _ = {};

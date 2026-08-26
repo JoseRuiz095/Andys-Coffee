@@ -17,3 +17,5 @@ export type LoginResult = {
   token: string
   user: AuthUser
 }
+
+export const _ = {};

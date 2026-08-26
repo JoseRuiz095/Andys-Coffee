@@ -38,7 +38,7 @@
     "@types/multer": "^2.2.0",
     "@types/uuid": "^10.0.0",
     "dotenv": "^17.4.2",
-    "prisma": "^7.9.1",
+    "prisma": "^6.12.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.11",
     "typescript": "^5.9.3"
