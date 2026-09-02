@@ -1,4 +1,4 @@
-import { OrderStatus, Prisma, Promotion, PromotionType } from '@prisma/client';
+import { OrderStatus, Prisma, Promotion, PromotionType, NotificationType } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
@@ -8,6 +8,7 @@ import {
   updateOrderStatusSchema,
 } from '../validators/order.validator';
 import { prisma } from '../config/prisma';
+import { NotificationService } from './notification.service';
 
 type CreateOrderInput = z.infer<typeof createOrderSchema>;
 type OrderItemInput = z.infer<typeof orderItemSchema>;
@@ -368,6 +369,33 @@ export const OrderService = {
             createdById: userId,
           },
         });
+      }
+
+      // Notify relevant users
+      const usersToNotify = await tx.user.findMany({
+        where: {
+          isActive: true,
+          role: {
+            name: {
+              in: ['ADMIN', 'CAJERO'],
+              mode: 'insensitive',
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (usersToNotify.length > 0) {
+        await NotificationService.createNotification(
+          {
+            title: 'Nuevo Pedido',
+            message: `Se ha creado un nuevo pedido: #${order.orderNumber.toString()} por ${finalCustomerName}.`,
+            type: 'NEW_ORDER',
+            referenceId: updatedOrder.id,
+          },
+          usersToNotify.map((user) => user.id),
+          tx
+        );
       }
 
       return updatedOrder;

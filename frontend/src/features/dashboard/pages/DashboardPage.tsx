@@ -16,6 +16,7 @@ import type { OrderItem } from '../types/order.types'
 import type { MenuItem } from '../../menu/types/menu.types'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
+import { useNotifications } from '../hooks/useNotifications'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
 import { NotificationCenter } from '../components/NotificationCenter'
 
@@ -30,8 +31,6 @@ export function DashboardPage() {
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(
     authStore.getState().user,
   )
-  const [hasUnreadNotifications, setHasUnreadNotifications] =
-    React.useState(true)
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] =
     React.useState(false)
   const [activeView, setActiveView] = React.useState('Venta')
@@ -52,6 +51,8 @@ export function DashboardPage() {
     error,
   } = useMenu()
   const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
+  const { unreadCount } = useNotifications()
+  const hasUnreadNotifications = unreadCount > 0
 
   const handleProcessOrder = () => {
     if (orderItems.length === 0) {
@@ -279,10 +280,7 @@ export function DashboardPage() {
       : 'Usuario'
 
   const toggleNotificationCenter = () => {
-    setIsNotificationCenterOpen(!isNotificationCenterOpen)
-    if (hasUnreadNotifications) {
-      setHasUnreadNotifications(false)
-    }
+    setIsNotificationCenterOpen((isOpen) => !isOpen)
   }
 
   const renderContent = () => {
@@ -444,7 +442,7 @@ export function DashboardPage() {
                   />
                   {hasUnreadNotifications && (
                     <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
-                      1
+                      {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
                 </button>

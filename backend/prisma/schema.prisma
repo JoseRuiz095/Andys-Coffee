@@ -25,6 +25,7 @@ model User {
   createdPayments      Payment[]
   createdPurchases     Purchase[]
   role                 Role                @relation(fields: [roleId], references: [id])
+  notifications        NotificationRecipient[]
 
   @@index([roleId])
   @@index([isActive])
@@ -531,4 +532,35 @@ model PromotionOnCategory {
   category    Category  @relation(fields: [categoryId], references: [id])
 
   @@id([promotionId, categoryId])
+}
+
+enum NotificationType {
+  GENERAL
+  NEW_ORDER
+  LOW_STOCK
+}
+
+model Notification {
+  id          String                  @id @default(uuid())
+  title       String
+  message     String
+  type        NotificationType        @default(GENERAL)
+  referenceId String? // e.g., orderId, inventoryId
+  createdAt   DateTime                @default(now())
+  recipients  NotificationRecipient[]
+
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  notificationId String
+  userId         String
+  readAt         DateTime?
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
 }
