@@ -19,7 +19,7 @@ export async function login(req: Request, res: Response) {
   res.cookie("token", token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     maxAge: 8 * 60 * 60 * 1000,
   });
 
@@ -32,4 +32,8 @@ export async function getCurrentUser(req: Request, res: Response) {
   }
 
   return res.json({ user: req.user });
+}
+
+export function getCsrfToken(req: Request, res: Response) {
+  return res.json({ token: req.csrfToken() });
 }

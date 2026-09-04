@@ -36,13 +36,13 @@ export async function requireAuth(
 
   try {
     const payload = verifyJwtToken(token);
-
     const userId = typeof payload.sub === "string" ? payload.sub : null;
 
     if (!userId) {
       return res.status(401).json({ message: "Token inválido." });
     }
 
+    // Lightweight DB check to ensure user exists and is active
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -51,7 +51,14 @@ export async function requireAuth(
         email: true,
         roleId: true,
         isActive: true,
-        role: { select: { name: true } },
+        role: {
+          select: {
+            name: true,
+            permissions: {
+              select: { permission: { select: { name: true } } },
+            },
+          },
+        },
       },
     });
 
@@ -59,13 +66,16 @@ export async function requireAuth(
       return res.status(401).json({ message: "Sesión inválida o usuario inactivo." });
     }
 
+    const permissions = user.role?.permissions.map(({ permission }) => permission.name) ?? [];
+
     req.user = {
       id: user.id,
       name: user.name,
       email: user.email,
       roleId: user.roleId,
-      roleName: user.role?.name ?? undefined,
+      roleName: user.role?.name ?? "",
       isActive: user.isActive,
+      permissions: permissions,
     };
     next();
   } catch {

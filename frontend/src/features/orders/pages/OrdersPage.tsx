@@ -12,12 +12,8 @@ type ViewMode = 'grid' | 'list';
 export function OrdersPage() {
   const {
     orders,
-    pagination,
     loading,
     error,
-    setPage,
-    setStatus,
-    setSearch,
     updateStatus,
   } = useOrders();
 

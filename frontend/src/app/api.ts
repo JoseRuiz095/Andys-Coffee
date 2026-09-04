@@ -15,4 +15,14 @@ import axios from 'axios';
  */
 export const apiClient = axios.create({
   baseURL: '/api',
+  withCredentials: true,
+});
+
+apiClient.interceptors.request.use(async (config) => {
+  const method = config.method?.toUpperCase();
+  if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const { data } = await apiClient.get<{ token: string }>('/auth/csrf');
+    config.headers.set('X-CSRF-TOKEN', data.token);
+  }
+  return config;
 });

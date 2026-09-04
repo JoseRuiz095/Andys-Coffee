@@ -27,6 +27,7 @@ pids
 .env
 .env.*
 !.env.example
+certs/*
 
 # ===========================
 # Build outputs

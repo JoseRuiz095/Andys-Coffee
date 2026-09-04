@@ -1,10 +1,27 @@
 # TODO de remediación técnica y de seguridad
 
-Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas permanecen pendientes hasta contar con pruebas y evidencia de cierre.
+Basado en `AUDIT_REPORT.md` y actualizado tras revisar la rama `fix/security-p0-remediation` el 2026-09-03. Ordenado por severidad y prioridad. Los cambios P0 están implementados en distinto grado, pero permanecen pendientes hasta contar con lint limpio, pruebas automatizadas y evidencia operativa.
 
 ## P0 — Inmediato
 
+### Estado actual de P0
+
+| ID | Estado | Bloqueador principal |
+|---|---|---|
+| SEC-001 | Parcial | Validación de secreto implementada; falta demostrar rotación e invalidación operativa. |
+| SEC-002 | Parcial | TLS y `sslmode` seguro exigidos; falta probar certificado y conexión PostgreSQL real. |
+| SEC-003 | Parcial | Allowlist y CSRF implementados; falta prueba end-to-end con navegador/HTTPS. |
+| SEC-004 | Parcial | CRUD protegido, permisos en servicio y auditoría básica; faltan pruebas 401/403/404. |
+| SEC-005 | Parcial | Alcance, transiciones y errores implementados; faltan pruebas de IDOR y auditoría verificable. |
+| SEC-008 | Parcial avanzado | Transacción, idempotencia, stock, caja y pago implementados; faltan pruebas de concurrencia, conciliación y reversión. |
+
 ### [ ] SEC-001 — Eliminar el fallback del secreto JWT
+
+**Estado de revisión:** Parcialmente implementado, no marcar como completo.
+
+- Ya se rechaza `JWT_SECRET` ausente, corto o igual al fallback conocido.
+- Ya se validan entropía mínima, algoritmo (`HS256`), emisor y audiencia en `verifyJwtToken`.
+- La rotación se realiza cambiando `JWT_SECRET`; como no se aceptan claves anteriores, los tokens firmados con la clave anterior quedan inválidos. Falta ejecutar esta comprobación en el entorno desplegado.
 
 - **Problema:** `backend/src/config/security.ts` firma tokens con un secreto conocido cuando falta `JWT_SECRET`.
 - **Solución:** hacer que la aplicación falle al iniciar si falta el secreto; exigir longitud y entropía mínimas; validar algoritmo, emisor, audiencia y expiración; rotar cualquier secreto que haya sido expuesto.
@@ -13,12 +30,24 @@ Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas perm
 
 ### [ ] SEC-002 — Restaurar TLS seguro para PostgreSQL
 
+**Estado de revisión:** Parcialmente implementado, no marcar como completo.
+
+- Ya no se fuerza `NODE_TLS_REJECT_UNAUTHORIZED=0`, no se convierte `sslmode=require` a `disable` y se eliminó `ssl:false`.
+- Ahora se exige un parámetro `sslmode` distinto de `disable` en todos los entornos y ya no se fuerza TLS inseguro.
+- `npx prisma validate` pasa con el schema actual.
+- Falta probar la conexión real con certificado válido e inválido en el entorno desplegado.
+
 - **Problema:** `backend/src/config/prisma.ts` desactiva TLS globalmente y convierte `sslmode=require` en `sslmode=disable`.
 - **Solución:** eliminar `NODE_TLS_REJECT_UNAUTHORIZED=0`, mantener TLS habilitado y validar el certificado/CA del proveedor; separar correctamente URL directa y URL de pool.
 - **Archivos:** `backend/src/config/prisma.ts`, configuración del entorno.
 - **Criterio de cierre:** conexión cifrada y validada en producción; conexión rechazada ante certificado inválido; ninguna degradación automática de `sslmode`.
 
 ### [ ] SEC-003 — Restringir CORS y proteger mutaciones con cookie
+
+**Estado de revisión:** Parcialmente implementado, no marcar como completo.
+
+- La allowlist CORS, `cookieParser`, endpoint `/api/auth/csrf`, middleware CSRF y envío del header desde Axios están activos.
+- Falta prueba end-to-end de login y mutaciones con/sin token, y verificar HTTPS en producción.
 
 - **Problema:** `backend/src/app.ts` usa `origin: true` junto con `credentials: true`.
 - **Solución:** utilizar una allowlist explícita por entorno; rechazar orígenes desconocidos; usar HTTPS y `secure: true`; añadir protección CSRF para operaciones autenticadas mediante cookie.
@@ -27,6 +56,13 @@ Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas perm
 
 ### [ ] SEC-004 — Proteger el CRUD de productos
 
+**Estado de revisión:** Parcialmente implementado, no marcar como completo.
+
+- Las tres mutaciones ahora incluyen `requireAuth` y `checkPermission('manage:products')`.
+- `requireAuth` ahora adjunta los permisos incluidos en el JWT y las mutaciones también verifican permiso dentro de `ProductService`; se añadió logging básico de actor y cambios.
+- El backend ya compila con `npx tsc --noEmit`.
+- Falta ejecutar pruebas 401/403/404 contra una base de datos con roles reales.
+
 - **Problema:** `POST`, `PATCH` y `DELETE /api/products` son públicos.
 - **Solución:** añadir `requireAuth` y permisos específicos de catálogo; aplicar la autorización también dentro del servicio; registrar quién cambió precio, coste, stock lógico, estado o imagen.
 - **Archivos:** `backend/src/routes/product.routes.ts`, `backend/src/services/product.service.ts`, middleware de autorización y logger.
@@ -34,12 +70,28 @@ Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas perm
 
 ### [ ] SEC-005 — Corregir IDOR y autorización de pedidos
 
+**Estado de revisión:** Parcialmente implementado, no marcar como completo.
+
+- Se añadieron comprobaciones de permisos, propiedad y transiciones en el servicio.
+- `requireAuth` ahora carga los permisos actuales del rol desde la BD y el servicio comprueba permisos y transiciones.
+- Las rutas de lectura exigen `view:orders`; debe confirmarse si un usuario propietario debe poder consultar su pedido sin ese permiso y ajustar la política si corresponde.
+- `req.params.id` ya se normaliza y `AuthorizationError` se mapea a 403 en el handler de aplicación.
+- Falta ejecutar pruebas 401/403/404/409 contra una base de datos y verificar los eventos en el agregador de logs.
+
 - **Problema:** cualquier usuario autenticado puede listar todos los pedidos, consultar cualquier ID y cambiar estados sin permiso ni transición válida.
 - **Solución:** definir permisos por operación y visibilidad; aplicar autorización en rutas y servicios; imponer transiciones válidas (`pending` a estados permitidos); registrar estado anterior y nuevo.
 - **Archivos:** `backend/src/routes/order.routes.ts`, `backend/src/controllers/order.controller.ts`, `backend/src/services/order.service.ts`.
 - **Criterio de cierre:** cada endpoint tiene una política verificable; no se puede leer o modificar un pedido fuera del alcance del usuario; se rechazan transiciones inválidas con 409.
 
 ### [ ] SEC-008 — Hacer íntegra la operación venta-pago-caja-inventario
+
+**Estado de revisión:** Parcialmente implementado; falta evidencia E2E, de concurrencia y de reglas financieras.
+
+- `OrderService.create` vuelve a crear líneas, combos, extras, totales, promociones y pagos dentro de una transacción.
+- La transacción exige una caja abierta, descuenta ingredientes de recetas con control atómico de stock, registra movimientos de inventario/caja y actualiza `inventoryProcessed`.
+- `X-Idempotency-Key`, la restricción única por usuario y la recuperación de conflictos reducen duplicados en reintentos; el aislamiento serializable se reintenta ante conflictos concurrentes.
+- El frontend genera la clave automáticamente; la selección explícita de caja queda soportada mediante `cashSessionId` opcional.
+- Falta ejecutar pruebas de importe/método de pago, rollback por stock/caja, cancelación con reversión y concurrencia contra PostgreSQL real.
 
 - **Problema:** crear un pedido no descuenta inventario ni genera movimiento de caja, no exige caja abierta y no valida completamente pagos.
 - **Solución:** diseñar un caso de uso transaccional que valide precios y activos, reserve/descuente stock con control de concurrencia, registre pago y movimiento de caja, y actualice `inventoryProcessed`; añadir idempotency key para reintentos.
@@ -175,13 +227,26 @@ Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas perm
 
 ### [ ] Ejecutar la validación de seguridad
 
-- `npm run lint` en frontend.
-- `npm run build` en frontend.
-- `npx prisma validate` y `npx prisma generate` en backend.
+- [ ] `npm run lint` en frontend.
+- [x] `npm run build` en frontend.
+- [x] `npx tsc --noEmit` en backend.
+- [x] `npx prisma validate` en backend.
+- [ ] `npx prisma generate` en backend.
 - Tests unitarios, integración y E2E críticos.
 - Verificación de CORS, cookies, JWT, autorización, uploads, errores y límites HTTP.
 - Revisión de secretos en archivos, historial y artefactos de build.
 - Revisión de consultas críticas, transacciones, stock, caja y pagos.
+
+**Resultado de la última revisión (2026-09-03):**
+
+La implementación P0 ya cubre en código el rechazo de secretos inseguros, TLS obligatorio, allowlist CORS/CSRF, autorización de productos y pedidos, y el flujo transaccional de venta con stock, caja, pago e idempotencia. Esto no equivale todavía al cierre de auditoría: faltan pruebas de comportamiento y validación contra servicios reales.
+
+- `npx tsc --noEmit` en backend: pasa.
+- `npx prisma validate` en backend: pasa.
+- `npm run build` en frontend: pasa, con warning de bundle grande.
+- `npm run lint` en frontend: falla por un `any` explícito en `frontend/src/features/dashboard/hooks/useCreateOrder.ts`.
+- `npm test` en backend: no pasa; el script continúa siendo un placeholder sin suite de pruebas.
+- Pruebas end-to-end de CORS, CSRF, TLS, autorización, concurrencia, rollback e idempotencia: pendientes.
 
 ### [ ] Criterio global de terminado
 
@@ -190,4 +255,4 @@ Basado en `AUDIT_REPORT.md`. Ordenado por severidad y prioridad. Las tareas perm
 - Secretos reales no aparecen en el repositorio, navegador, logs ni respuestas API.
 - Catálogo, pedidos, pagos, caja e inventario tienen autorización e integridad transaccional.
 - Los contratos frontend/backend están alineados.
-- Build, lint, Prisma y pruebas críticas pasan en CI.
+- Build, Prisma y compilación backend pasan; lint frontend, tests críticos y pruebas end-to-end aún deben pasar en CI.

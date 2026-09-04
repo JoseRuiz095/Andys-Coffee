@@ -68,12 +68,18 @@ export function createJwtToken(user: AuthUser): string {
     JWT_SECRET,
     {
       expiresIn: "8h",
+      issuer: "Andys-Coffee-API",
+      audience: "Andys-Coffee-Client",
     }
   );
 }
 
 export function verifyJwtToken(token: string): jwt.JwtPayload {
-  const decoded = jwt.verify(token, JWT_SECRET);
+  const decoded = jwt.verify(token, JWT_SECRET, {
+    issuer: "Andys-Coffee-API",
+    audience: "Andys-Coffee-Client",
+    algorithms: ["HS256"],
+  });
 
   if (typeof decoded === "string") {
     throw new Error("Invalid token payload");

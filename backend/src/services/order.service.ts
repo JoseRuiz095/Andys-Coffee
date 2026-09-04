@@ -1,114 +1,103 @@
-import { OrderStatus, Prisma, Promotion, PromotionType, NotificationType } from '@prisma/client';
+import { OrderStatus, Prisma, PromotionType } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
   filterQuerySchema,
-  orderItemExtraSchema,
-  orderItemSchema,
   updateOrderStatusSchema,
 } from '../validators/order.validator';
 import { prisma } from '../config/prisma';
 import { NotificationService } from './notification.service';
+import { AuthUser } from './auth.service';
+import { logger } from '../utils/logger';
 
-type CreateOrderInput = z.infer<typeof createOrderSchema>;
-type OrderItemInput = z.infer<typeof orderItemSchema>;
-type OrderItemExtraInput = z.infer<typeof orderItemExtraSchema>;
+// --- Custom Errors for Service Layer ---
 
-// Helper function to apply promotions
+class AuthorizationError extends Error {
+  constructor(message = 'El usuario no tiene permiso para realizar esta acción.') {
+    super(message);
+    this.name = 'AuthorizationError';
+  }
+}
+
+class StateTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StateTransitionError';
+  }
+}
+
+class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
-  promotions: (Prisma.PromotionGetPayload<{ include: { products: true, categories: true } }>)[],
+  promotions: (Prisma.PromotionGetPayload<{ include: { products: true; categories: true } }>)[],
 ) {
   const discounts: { orderItemId: string; amount: Prisma.Decimal }[] = [];
-  const processedQuantities = new Map<string, number>(); // Tracks processed quantity per orderItem.id
+  const processedQuantities = new Map<string, number>();
 
-  for (const promo of promotions) {
-    const eligiblePromoItems = orderItems
-      .filter(item => {
-        if (!item.productId || item.sourceComboId) return false; // Must be a product, not from a combo
-        const isProductMatch = promo.products.some(p => p.productId === item.productId);
-        const isCategoryMatch = item.product && promo.categories.some(c => c.categoryId === item.product.categoryId);
-        return isProductMatch || isCategoryMatch;
-      });
-
-    let availableIndividualItems = eligiblePromoItems.flatMap(item => {
-      const processedQty = processedQuantities.get(item.id) ?? 0;
-      const availableQty = item.quantity.toNumber() - processedQty;
-      return Array(availableQty > 0 ? availableQty : 0).fill(item);
+  for (const promotion of promotions) {
+    const eligibleItems = orderItems.filter((item) => {
+      if (item.sourceComboId) return false;
+      return promotion.products.some((entry) => entry.productId === item.productId)
+        || Boolean(item.product?.categoryId && promotion.categories.some(
+          (entry) => entry.categoryId === item.product?.categoryId,
+        ));
     });
-    
-    availableIndividualItems.sort((a, b) => b.unitPrice.comparedTo(a.unitPrice));
+    const availableItems = eligibleItems.flatMap((item) => {
+      const processed = processedQuantities.get(item.id) ?? 0;
+      const available = Math.max(0, item.quantity.toNumber() - processed);
+      return Array.from({ length: available }, () => item);
+    });
+    availableItems.sort((left, right) => right.unitPrice.comparedTo(left.unitPrice));
 
-    switch (promo.type) {
-      case PromotionType.FIXED_PRICE:
-        for (const item of availableIndividualItems) {
-          const originalPrice = item.unitPrice;
-          const promotionalPrice = promo.discountValue;
-          if (originalPrice.gt(promotionalPrice)) {
-            const discountAmount = originalPrice.sub(promotionalPrice);
-            discounts.push({ orderItemId: item.id, amount: discountAmount });
-            
-            const processed = processedQuantities.get(item.id) ?? 0;
-            processedQuantities.set(item.id, processed + 1);
+    if (promotion.type === PromotionType.FIXED_PRICE) {
+      for (const item of availableItems) {
+        if (item.unitPrice.gt(promotion.discountValue)) {
+          discounts.push({ orderItemId: item.id, amount: item.unitPrice.sub(promotion.discountValue) });
+          processedQuantities.set(item.id, (processedQuantities.get(item.id) ?? 0) + 1);
+        }
+      }
+    }
+
+    if (promotion.type === PromotionType.BOGO || promotion.type === PromotionType.MULTIBUY_FIXED_PRICE) {
+      const buyQuantity = promotion.buyQuantity ?? 1;
+      const getQuantity = promotion.type === PromotionType.BOGO ? (promotion.getQuantity ?? 1) : 0;
+      const groupSize = promotion.type === PromotionType.BOGO ? buyQuantity + getQuantity : buyQuantity;
+      if (groupSize <= 0) continue;
+      while (availableItems.length >= groupSize) {
+        const group = availableItems.splice(0, groupSize);
+        group.forEach((item) => processedQuantities.set(item.id, (processedQuantities.get(item.id) ?? 0) + 1));
+        if (promotion.type === PromotionType.BOGO) {
+          for (const item of group.slice(-getQuantity)) {
+            discounts.push({ orderItemId: item.id, amount: item.unitPrice.mul(promotion.discountValue).div(100) });
+          }
+        } else {
+          const groupPrice = group.reduce((sum, item) => sum.add(item.unitPrice), new Prisma.Decimal(0));
+          if (groupPrice.gt(promotion.discountValue)) {
+            discounts.push({ orderItemId: group[group.length - 1].id, amount: groupPrice.sub(promotion.discountValue) });
           }
         }
-        break;
-
-      case PromotionType.BOGO:
-      case PromotionType.MULTIBUY_FIXED_PRICE: {
-        const buyQty = promo.buyQuantity ?? 1;
-        const getQty = promo.type === PromotionType.BOGO ? (promo.getQuantity ?? 1) : 0;
-        const groupSize = promo.type === PromotionType.BOGO ? buyQty + getQty : buyQty;
-        
-        if (groupSize <= 0) continue;
-
-        while (availableIndividualItems.length >= groupSize) {
-          const group = availableIndividualItems.splice(0, groupSize);
-
-          group.forEach(item => {
-            const processed = processedQuantities.get(item.id) ?? 0;
-            processedQuantities.set(item.id, processed + 1);
-          });
-
-          if (promo.type === PromotionType.BOGO) {
-            const itemsToDiscount = group.slice(-getQty);
-            for (const itemToDiscount of itemsToDiscount) {
-              const discountPercentage = promo.discountValue.div(100);
-              const discountAmount = itemToDiscount.unitPrice.mul(discountPercentage);
-              discounts.push({ orderItemId: itemToDiscount.id, amount: discountAmount });
-            }
-          } else if (promo.type === PromotionType.MULTIBUY_FIXED_PRICE) {
-            const groupOriginalPrice = group.reduce((sum, item) => sum.add(item.unitPrice), new Prisma.Decimal(0));
-            const groupPromotionalPrice = promo.discountValue;
-
-            if (groupOriginalPrice.gt(groupPromotionalPrice)) {
-              const totalGroupDiscount = groupOriginalPrice.sub(groupPromotionalPrice);
-              const lastItem = group[group.length - 1];
-              discounts.push({ orderItemId: lastItem.id, amount: totalGroupDiscount });
-            }
-          }
-        }
-        break;
       }
     }
   }
 
-  // Aggregate discounts per order item id
-  const aggregatedDiscounts = new Map<string, Prisma.Decimal>();
+  const aggregated = new Map<string, Prisma.Decimal>();
   for (const discount of discounts) {
-    const existing = aggregatedDiscounts.get(discount.orderItemId) ?? new Prisma.Decimal(0);
-    aggregatedDiscounts.set(discount.orderItemId, existing.add(discount.amount));
+    aggregated.set(discount.orderItemId, (aggregated.get(discount.orderItemId) ?? new Prisma.Decimal(0)).add(discount.amount));
   }
-
-  return Array.from(aggregatedDiscounts.entries()).map(([orderItemId, amount]) => ({
-    orderItemId,
-    amount,
-  }));
+  return Array.from(aggregated, ([orderItemId, amount]) => ({ orderItemId, amount }));
 }
 
 
+// --- Main Service Logic ---
+
 export const OrderService = {
-  async findAll(query: z.infer<typeof filterQuerySchema>) {
+  async findAll(query: z.infer<typeof filterQuerySchema>, user: AuthUser) {
     const page = parseInt(query.page);
     const limit = parseInt(query.limit);
     const skip = (page - 1) * limit;
@@ -122,6 +111,11 @@ export const OrderService = {
         ],
       }),
     };
+
+    // Authorization Check: Admins/Cashiers can see all orders, others only their own.
+    if (!user.permissions?.includes('view:orders')) {
+      where.createdById = user.id;
+    }
 
     const [orders, total] = await prisma.$transaction([
       prisma.order.findMany({
@@ -154,8 +148,8 @@ export const OrderService = {
     };
   },
 
-  async findOne(id: string) {
-    return prisma.order.findUnique({
+  async findOne(id: string, user: AuthUser) {
+    const order = await prisma.order.findUnique({
       where: { id },
       include: {
         items: {
@@ -173,14 +167,43 @@ export const OrderService = {
         }
       },
     });
+
+    if (!order) {
+      return null; // Not found
+    }
+
+    // Authorization Check: Allow if user owns the order or has general view permissions.
+    if (order.createdById !== user.id && !user.permissions?.includes('view:orders')) {
+      // To prevent IDOR, we return null, which the controller will treat as a 404.
+      return null;
+    }
+
+    return order;
   },
 
-  async updateStatus(id: string, data: z.infer<typeof updateOrderStatusSchema>) {
+  async updateStatus(id: string, data: z.infer<typeof updateOrderStatusSchema>, user: AuthUser) {
     const { status } = data;
 
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { payments: true, cashSession: true },
+    });
     if (!order) {
-      throw new Error('Order not found');
+      throw new NotFoundError('Pedido no encontrado.');
+    }
+
+    // Authorization Check
+    if (!user.permissions?.includes('manage:orders')) {
+      throw new AuthorizationError('No tienes permiso para modificar este pedido.');
+    }
+
+    // State Machine Logic
+    const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+      [OrderStatus.pending]: [OrderStatus.completed, OrderStatus.cancelled],
+    };
+
+    if (!validTransitions[order.status]?.includes(status)) {
+      throw new StateTransitionError(`No se puede cambiar el estado de '${order.status}' a '${status}'.`);
     }
 
     const updateData: Prisma.OrderUpdateInput = { status };
@@ -188,14 +211,73 @@ export const OrderService = {
       updateData.completedAt = new Date();
     }
 
-    return prisma.order.update({
-      where: { id },
-      data: updateData,
-    });
+    return prisma.$transaction(async (tx) => {
+      if (status === OrderStatus.cancelled && order.inventoryProcessed) {
+        const inventoryMovements = await tx.inventoryMovement.findMany({
+          where: { referenceType: 'order', referenceId: order.id, type: 'sale' },
+        });
+
+        for (const movement of inventoryMovements) {
+          await tx.ingredient.update({
+            where: { id: movement.ingredientId },
+            data: { currentStock: { increment: movement.quantity.negated() } },
+          });
+          await tx.inventoryMovement.create({
+            data: {
+              ingredientId: movement.ingredientId,
+              type: 'sale_reversal',
+              quantity: movement.quantity.negated(),
+              referenceType: 'order_cancellation',
+              referenceId: order.id,
+              createdById: user.id,
+            },
+          });
+        }
+
+        const saleMovements = await tx.cashMovement.findMany({
+          where: { cashSessionId: order.cashSessionId ?? undefined, referenceType: 'order', referenceId: order.id, type: 'sale' },
+        });
+        for (const movement of saleMovements) {
+          await tx.cashMovement.create({
+            data: {
+              cashSessionId: movement.cashSessionId,
+              type: 'sale_reversal',
+              amount: movement.amount.negated(),
+              referenceType: 'order_cancellation',
+              referenceId: order.id,
+              description: `Cancelación de venta #${order.orderNumber.toString()}`,
+              createdById: user.id,
+            },
+          });
+          await tx.cashSession.update({
+            where: { id: movement.cashSessionId },
+            data: { expectedAmount: { decrement: movement.amount } },
+          });
+        }
+
+        await tx.payment.updateMany({
+          where: { orderId: order.id, status: 'paid' },
+          data: { status: 'cancelled' },
+        });
+        updateData.inventoryProcessed = false;
+      }
+
+      const updatedOrder = await tx.order.update({
+        where: { id },
+        data: updateData,
+      });
+      logger.info({
+        actor: { id: user.id, name: user.name },
+        orderId: id,
+        previousStatus: order.status,
+        newStatus: status,
+      }, 'Order status changed');
+      return updatedOrder;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
-  async create(orderData: CreateOrderInput, userId: string) {
-    const { items, paymentMethod, ...restOfOrder } = orderData;
+  async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
+    const { items, paymentMethod, cashSessionId, ...restOfOrder } = orderData;
     const today = new Date();
     const currentDay = today.getDay();
 
@@ -204,12 +286,17 @@ export const OrderService = {
     const extraIds = items.flatMap(item => item.extras?.map(e => e.extraId) || []).filter(Boolean);
 
     const [dbProducts, dbCombosWithItems, dbExtras, activePromotions] = await Promise.all([
-      prisma.product.findMany({ where: { id: { in: productIds } } }),
+      prisma.product.findMany({ where: { id: { in: productIds }, isActive: true } }),
       prisma.combo.findMany({
-        where: { id: { in: comboIds }, isActive: true, OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }] },
+        where: {
+          id: { in: comboIds },
+          isActive: true,
+          items: { every: { product: { isActive: true } } },
+          OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
+        },
         include: { items: { include: { product: true } } },
       }),
-      prisma.extra.findMany({ where: { id: { in: extraIds } } }),
+      prisma.extra.findMany({ where: { id: { in: extraIds }, isActive: true } }),
       prisma.promotion.findMany({
         where: {
           isActive: true,
@@ -225,7 +312,24 @@ export const OrderService = {
     const combosMap = new Map(dbCombosWithItems.map(c => [c.id, c]));
     const extrasMap = new Map(dbExtras.map(e => [e.id, e]));
 
-    return prisma.$transaction(async (tx) => {
+    try {
+      return await prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.order.findFirst({
+        where: { createdById: userId, idempotencyKey },
+        include: { items: { include: { extras: true } }, payments: true },
+      });
+      if (existingOrder) return existingOrder;
+
+      const openCashSession = await tx.cashSession.findFirst({
+        where: { status: 'open', ...(cashSessionId ? { id: cashSessionId } : {}) },
+        orderBy: { openedAt: 'desc' },
+      });
+      if (!openCashSession) {
+        const error = new Error('No hay una caja abierta para registrar la venta.');
+        error.name = 'BusinessRuleError';
+        throw error;
+      }
+
       let totalOrderCost = new Prisma.Decimal(0);
       let subtotal = new Prisma.Decimal(0);
 
@@ -252,124 +356,124 @@ export const OrderService = {
           ...restOfOrder,
           customerName: finalCustomerName,
           status: 'pending',
-          createdById: userId
+          createdById: userId,
+          cashSessionId: openCashSession.id,
+          idempotencyKey,
         },
       });
 
-      const createdOrderItems = [];
+      const createdOrderItems: Prisma.OrderItemGetPayload<{ include: { product: true } }>[] = [];
 
       for (const item of items) {
         if (item.productId) {
-          const dbProduct = productsMap.get(item.productId);
-          if (!dbProduct) throw new Error(`Producto con ID ${item.productId} no encontrado.`);
-
-          const itemSubtotal = dbProduct.price.mul(item.quantity);
-          const itemCost = (dbProduct.cost ?? new Prisma.Decimal(0)).mul(item.quantity);
+          const product = productsMap.get(item.productId);
+          if (!product) throw new Error(`Producto con ID ${item.productId} no encontrado o inactivo.`);
+          const itemSubtotal = product.price.mul(item.quantity);
+          const itemCost = product.cost.mul(item.quantity);
           subtotal = subtotal.add(itemSubtotal);
           totalOrderCost = totalOrderCost.add(itemCost);
-
           const orderItem = await tx.orderItem.create({
-            data: {
-              orderId: order.id,
-              productId: dbProduct.id,
-              productName: dbProduct.name,
-              quantity: item.quantity,
-              unitPrice: dbProduct.price,
-              subtotal: itemSubtotal,
-              costSnapshot: itemCost,
-              notes: item.note,
-            },
-            include: { product: true }
+            data: { orderId: order.id, productId: product.id, productName: product.name, quantity: item.quantity, unitPrice: product.price, subtotal: itemSubtotal, costSnapshot: itemCost, notes: item.note },
+            include: { product: true },
           });
           createdOrderItems.push(orderItem);
-
-          if (item.extras) {
-            for (const extraData of item.extras) {
-              const dbExtra = extrasMap.get(extraData.extraId);
-              if (!dbExtra) throw new Error(`Extra con ID ${extraData.extraId} no encontrado.`);
-              const extraSubtotal = dbExtra.price.mul(extraData.quantity);
-              subtotal = subtotal.add(extraSubtotal);
-              totalOrderCost = totalOrderCost.add((dbExtra.cost ?? new Prisma.Decimal(0)).mul(extraData.quantity));
-              await tx.orderItemExtra.create({
-                data: {
-                  orderItemId: orderItem.id,
-                  extraId: extraData.extraId,
-                  extraName: dbExtra.name,
-                  quantity: extraData.quantity,
-                  unitPrice: dbExtra.price,
-                  subtotal: extraSubtotal,
-                },
-              });
-            }
+          for (const extraData of item.extras ?? []) {
+            const extra = extrasMap.get(extraData.extraId);
+            if (!extra) throw new Error(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
+            const relation = await tx.productExtra.findUnique({ where: { productId_extraId: { productId: product.id, extraId: extra.id } } });
+            if (!relation) throw new Error(`El extra ${extra.id} no pertenece al producto ${product.id}.`);
+            const extraSubtotal = extra.price.mul(extraData.quantity);
+            subtotal = subtotal.add(extraSubtotal);
+            totalOrderCost = totalOrderCost.add(extra.cost.mul(extraData.quantity));
+            await tx.orderItemExtra.create({ data: { orderItemId: orderItem.id, extraId: extra.id, extraName: extra.name, quantity: extraData.quantity, unitPrice: extra.price, subtotal: extraSubtotal, costSnapshot: extra.cost } });
           }
         } else if (item.comboId) {
-          const dbCombo = combosMap.get(item.comboId);
-          if (!dbCombo) throw new Error(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
-          
-          subtotal = subtotal.add(dbCombo.price.mul(item.quantity));
-
-          for (const comboItem of dbCombo.items) {
-            const productCost = (comboItem.product.cost ?? new Prisma.Decimal(0)).mul(comboItem.quantity).mul(item.quantity);
-            totalOrderCost = totalOrderCost.add(productCost);
-            const orderItem = await tx.orderItem.create({
-              data: {
-                orderId: order.id,
-                productId: comboItem.productId,
-                productName: `${comboItem.product.name} (Combo: ${dbCombo.name})`,
-                quantity: new Prisma.Decimal(comboItem.quantity).mul(item.quantity),
-                unitPrice: 0,
-                subtotal: 0,
-                costSnapshot: productCost,
-                sourceComboId: dbCombo.id,
-                notes: item.note,
-              },
-              include: { product: true }
-            });
-            createdOrderItems.push(orderItem);
+          const combo = combosMap.get(item.comboId);
+          if (!combo) throw new Error(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
+          subtotal = subtotal.add(combo.price.mul(item.quantity));
+          for (const comboItem of combo.items) {
+            const quantity = comboItem.quantity.mul(item.quantity);
+            const itemCost = comboItem.product.cost.mul(quantity);
+            totalOrderCost = totalOrderCost.add(itemCost);
+            createdOrderItems.push(await tx.orderItem.create({
+              data: { orderId: order.id, productId: comboItem.productId, productName: `${comboItem.product.name} (Combo: ${combo.name})`, quantity, unitPrice: 0, subtotal: 0, costSnapshot: itemCost, sourceComboId: combo.id, notes: item.note },
+              include: { product: true },
+            }));
           }
         }
       }
 
-      // Apply promotions
       const itemDiscounts = await applyPromotions(createdOrderItems, activePromotions);
       let totalDiscount = new Prisma.Decimal(0);
-
       for (const discount of itemDiscounts) {
         totalDiscount = totalDiscount.add(discount.amount);
-        await tx.orderItem.update({
-          where: { id: discount.orderItemId },
-          data: {
-            discount: discount.amount,
-            subtotal: {
-              decrement: discount.amount,
-            },
-          },
-        });
+        await tx.orderItem.update({ where: { id: discount.orderItemId }, data: { discount: discount.amount, subtotal: { decrement: discount.amount } } });
       }
+      const finalTotal = Prisma.Decimal.max(new Prisma.Decimal(0), subtotal.sub(totalDiscount));
 
-      const finalTotal = subtotal.sub(totalDiscount);
-
-      const updatedOrder = await tx.order.update({
-        where: { id: order.id },
-        data: {
-          subtotal: subtotal,
-          discount: totalDiscount,
-          total: finalTotal,
-          totalCost: totalOrderCost,
-        },
-        include: { items: { include: { extras: true } } },
-      });
-
-      if (paymentMethod) {
-        await tx.payment.create({
+      const productQuantities = new Map<string, Prisma.Decimal>();
+      for (const item of createdOrderItems) {
+        productQuantities.set(item.productId, (productQuantities.get(item.productId) ?? new Prisma.Decimal(0)).add(item.quantity));
+      }
+      const [recipes, extraRecipes] = await Promise.all([
+        tx.recipe.findMany({ where: { productId: { in: Array.from(productQuantities.keys()) } } }),
+        tx.extraRecipe.findMany({ where: { extraId: { in: extraIds } } }),
+      ]);
+      const ingredientRequirements = new Map<string, Prisma.Decimal>();
+      for (const recipe of recipes) {
+        const productQuantity = productQuantities.get(recipe.productId) ?? new Prisma.Decimal(0);
+        ingredientRequirements.set(recipe.ingredientId, (ingredientRequirements.get(recipe.ingredientId) ?? new Prisma.Decimal(0)).add(recipe.quantity.mul(productQuantity)));
+      }
+      for (const item of items) {
+        for (const extra of item.extras ?? []) {
+          for (const recipe of extraRecipes.filter((entry) => entry.extraId === extra.extraId)) {
+            ingredientRequirements.set(recipe.ingredientId, (ingredientRequirements.get(recipe.ingredientId) ?? new Prisma.Decimal(0)).add(recipe.quantity.mul(extra.quantity)));
+          }
+        }
+      }
+      for (const [ingredientId, quantity] of ingredientRequirements) {
+        const updated = await tx.ingredient.updateMany({
+          where: { id: ingredientId, isActive: true, currentStock: { gte: quantity } },
+          data: { currentStock: { decrement: quantity } },
+        });
+        if (updated.count !== 1) {
+          const error = new Error('Stock insuficiente para completar la venta.');
+          error.name = 'BusinessRuleError';
+          throw error;
+        }
+        await tx.inventoryMovement.create({
           data: {
-            orderId: order.id,
-            method: paymentMethod,
-            amount: finalTotal,
+            ingredientId,
+            type: 'sale',
+            quantity: quantity.negated(),
+            referenceType: 'order',
+            referenceId: order.id,
             createdById: userId,
           },
         });
       }
+
+      const updatedOrder = await tx.order.update({
+        where: { id: order.id },
+        data: { subtotal, discount: totalDiscount, total: finalTotal, totalCost: totalOrderCost, inventoryProcessed: true },
+        include: { items: { include: { extras: true } } },
+      });
+      await tx.payment.create({ data: { orderId: order.id, method: paymentMethod, amount: finalTotal, createdById: userId } });
+      await tx.cashMovement.create({
+        data: {
+          cashSessionId: openCashSession.id,
+          type: 'sale',
+          amount: finalTotal,
+          referenceType: 'order',
+          referenceId: order.id,
+          description: `Venta #${order.orderNumber.toString()}`,
+          createdById: userId,
+        },
+      });
+      await tx.cashSession.update({
+        where: { id: openCashSession.id },
+        data: { expectedAmount: { increment: finalTotal } },
+      });
 
       // Notify relevant users
       const usersToNotify = await tx.user.findMany({
@@ -398,7 +502,24 @@ export const OrderService = {
         );
       }
 
-      return updatedOrder;
-    });
-  },
+        return updatedOrder;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) {
+        return OrderService.create(orderData, userId, idempotencyKey, attempt + 1);
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        for (let lookupAttempt = 0; lookupAttempt < 3; lookupAttempt += 1) {
+          const existingOrder = await prisma.order.findFirst({
+            where: { createdById: userId, idempotencyKey },
+            include: { items: { include: { extras: true } }, payments: true },
+          });
+          if (existingOrder) return existingOrder;
+        }
+      }
+      throw error;
+    }
+  }
 };
+
+type CreateOrderInput = z.infer<typeof createOrderSchema>;

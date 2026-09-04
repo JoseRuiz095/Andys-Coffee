@@ -1,19 +1,40 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller';
 import multer from 'multer';
+import { requireAuth } from '../middleware/auth.middleware';
+import { checkPermission } from '../middleware/authorization';
 
 const router = Router();
 
 // Configuramos multer para que guarde los archivos en memoria como un buffer.
-// Esto es eficiente porque no necesitamos guardarlos en el disco del servidor.
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Public routes for anyone to see products
 router.get('/', ProductController.findAll);
 router.get('/:id', ProductController.findOne);
 
-// Usamos `upload.single('image')` para indicar que esperamos un solo archivo en el campo 'image'.
-router.post('/', upload.single('image'), ProductController.create);
-router.patch('/:id', upload.single('image'), ProductController.update);
-router.delete('/:id', ProductController.remove);
+// Protected routes for administrators with 'manage:products' permission
+router.post(
+  '/',
+  requireAuth,
+  checkPermission('manage:products'),
+  upload.single('image'),
+  ProductController.create
+);
+
+router.patch(
+  '/:id',
+  requireAuth,
+  checkPermission('manage:products'),
+  upload.single('image'),
+  ProductController.update
+);
+
+router.delete(
+  '/:id',
+  requireAuth,
+  checkPermission('manage:products'),
+  ProductController.remove
+);
 
 export default router;

@@ -1,4 +1,5 @@
 import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils';
+import { mapOrderStatusToFrontend } from '../types/orders.types'
 import type { Order, OrderStatus } from '../types/orders.types'
 import { OrderActions } from './OrderActions'
 
@@ -13,11 +14,11 @@ const statusStyles: Record<OrderStatus, { text: string; bg: string; color: strin
   PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
   READY: { text: 'Lista para recoger', bg: 'bg-green-100', color: 'text-green-800' },
   COMPLETED: { text: 'Completada', bg: 'bg-gray-100', color: 'text-gray-800' },
-  REJECTED: { text: 'Rechazada', bg: 'bg-red-100', color: 'text-red-800' },
+  CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
 }
 
 export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
-  const { text, bg, color } = statusStyles[order.status]
+  const { text, bg, color } = statusStyles[mapOrderStatusToFrontend(order.status)]
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#E7E3DC] bg-white shadow-md transition-shadow hover:shadow-lg">
@@ -50,9 +51,9 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
           {order.items.map((item) => (
             <div key={item.id} className="flex items-start gap-4">
               <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[#F2EFE8]">
-                {item.image && (
+                {item.product?.imageUrl && (
                   <img
-                    src={getSupabaseImageUrl(item.image, 'Img', 'public')}
+                    src={getSupabaseImageUrl(item.product.imageUrl, 'Img', 'public')}
                     alt={item.productName}
                     className="h-full w-full object-cover"
                   />

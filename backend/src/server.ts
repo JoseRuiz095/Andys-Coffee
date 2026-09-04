@@ -4,10 +4,10 @@ import { logger } from "./utils/logger";
 
 const port = Number(process.env.PORT || 4000);
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   logger.info({ port, healthCheck: `http://localhost:${port}/health` }, "Backend listo");
 });
 
-app.on("error", (error) => {
+server.on("error", (error) => {
   logger.error({ err: error }, "Error del servidor");
 });
