@@ -1,6 +1,7 @@
 import React from 'react'
 import { APP_ROUTES } from '../../../shared/constants/routes'
 import { authStore } from '../../auth/store/auth.store'
+import { closeCashSession } from '../../dashboard/services/cash.service'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { SettingsIcon } from '../../../components/ui/settings'
@@ -124,9 +125,15 @@ export function SettingsPage() {
     },
   ]
 
-  const handleLogout = () => {
-    authStore.clearSession()
-    navigateTo(APP_ROUTES.login)
+  const handleLogout = async () => {
+    try {
+      await closeCashSession()
+    } catch {
+      // Logout must still complete if the session was already closed or unavailable.
+    } finally {
+      authStore.clearSession()
+      navigateTo(APP_ROUTES.login)
+    }
   }
 
   const updateUserRole = (userId: string, role: ManagedUser['role']) => {

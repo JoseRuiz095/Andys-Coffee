@@ -18,11 +18,54 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
+const csrfClient = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+});
+
+let csrfQueue = Promise.resolve();
+const releaseByConfig = new WeakMap<object, () => void>();
+
 apiClient.interceptors.request.use(async (config) => {
   const method = config.method?.toUpperCase();
   if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const { data } = await apiClient.get<{ token: string }>('/auth/csrf');
-    config.headers.set('X-CSRF-TOKEN', data.token);
+    let release!: () => void;
+    const previousRequest = csrfQueue;
+    csrfQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previousRequest;
+    releaseByConfig.set(config, release);
+
+    try {
+      const { data } = await csrfClient.get<{ token: string }>('/auth/csrf');
+      config.headers.set('X-CSRF-TOKEN', data.token);
+    } catch (error) {
+      release();
+      releaseByConfig.delete(config);
+      throw error;
+    }
   }
   return config;
 });
+
+function releaseCsrfRequest(config?: object) {
+  if (!config) return;
+  const release = releaseByConfig.get(config);
+  if (release) {
+    release();
+    releaseByConfig.delete(config);
+  }
+}
+
+apiClient.interceptors.response.use(
+  (response) => {
+    releaseCsrfRequest(response.config);
+    return response;
+  },
+  (error) => {
+    releaseCsrfRequest(error.config);
+    return Promise.reject(error);
+  },
+);

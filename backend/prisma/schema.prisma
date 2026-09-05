@@ -316,15 +316,14 @@ model CashRegister {
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
-  sessions    CashSession?
+  sessions    CashSession[]
 
   @@map("cash_registers")
 }
 
 model CashSession {
   id             String         @id @default(dbgenerated("(gen_random_uuid())::text"))
-  // cashRegisterId String         @unique(map: "cashSessions_one_open_per_register", where: raw("(status = 'open'::text)"))
-  cashRegisterId String         @unique
+  cashRegisterId String
   openedById     String
   closedById     String?
   openingAmount  Decimal        @default(0) @db.Decimal(12, 2)
@@ -350,6 +349,8 @@ model CashMovement {
   cashSessionId String
   type          String
   amount        Decimal     @db.Decimal(12, 2)
+  receivedAmount Decimal?   @db.Decimal(12, 2)
+  changeAmount   Decimal?   @db.Decimal(12, 2)
   referenceType String?
   referenceId   String?
   description   String?

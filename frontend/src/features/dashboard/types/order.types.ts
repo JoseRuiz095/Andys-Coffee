@@ -16,6 +16,7 @@ export interface CreateOrderPayload {
   notes?: string | null;
   items: CreateOrderItem[];
   paymentMethod: string;
+  cashReceived?: number;
 }
 
 export interface Order {

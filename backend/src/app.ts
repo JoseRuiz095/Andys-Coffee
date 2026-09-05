@@ -8,6 +8,7 @@ import menuRoutes from "./routes/menu.routes";
 import productRoutes from "./routes/product.routes";
 import orderRoutes from "./routes/order.routes";
 import notificationRoutes from "./routes/notification.routes";
+import cashRoutes from "./routes/cash.routes";
 import { logger } from "./utils/logger";
 import { CSRF_SECRET } from "./config/csrf";
 
@@ -57,6 +58,7 @@ app.use((_req, res, next) => {
     if (name === "csrfToken") {
       options = {
         ...options,
+        path: "/",
         secure: isProduction,
         httpOnly: true,
         sameSite: "strict",
@@ -68,8 +70,11 @@ app.use((_req, res, next) => {
 });
 app.use((req, _res, next) => {
   const csrfHeader = req.get("X-CSRF-TOKEN");
-  if (csrfHeader && req.body && typeof req.body === "object") {
-    req.body._csrf = csrfHeader;
+  if (csrfHeader) {
+    req.body = {
+      ...(req.body && typeof req.body === "object" ? req.body : {}),
+      _csrf: csrfHeader,
+    };
   }
   next();
 });
@@ -82,6 +87,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/cash-register", cashRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

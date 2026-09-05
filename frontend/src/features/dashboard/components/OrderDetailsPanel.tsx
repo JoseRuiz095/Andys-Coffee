@@ -17,7 +17,6 @@ interface OrderDetailsPanelProps {
   customerName?: string
   items?: OrderItem[]
   subtotal?: number
-  tax?: number
   total?: number
   isLoading?: boolean
   orderNotes?: string
@@ -35,7 +34,6 @@ export function OrderDetailsPanel({
   customerName,
   items,
   subtotal = 0,
-  tax = 0,
   total = 0,
   isLoading = true,
   orderNotes,
@@ -224,10 +222,6 @@ export function OrderDetailsPanel({
             <div className="flex justify-between text-sm text-[#4B5563]">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-[#4B5563]">
-              <span>Impuestos (10%)</span>
-              <span>${tax.toFixed(2)}</span>
             </div>
             <div className="my-3 border-t border-[#E7E3DC]" />
             <div className="flex justify-between text-base font-semibold text-[#2C211D]">

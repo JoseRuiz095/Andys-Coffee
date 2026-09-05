@@ -193,7 +193,7 @@ export const OrderService = {
     }
 
     // Authorization Check
-    if (!user.permissions?.includes('manage:orders')) {
+    if (!user.permissions?.includes('sales.cancel')) {
       throw new AuthorizationError('No tienes permiso para modificar este pedido.');
     }
 
@@ -277,7 +277,7 @@ export const OrderService = {
   },
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
-    const { items, paymentMethod, cashSessionId, ...restOfOrder } = orderData;
+    const { items, paymentMethod, cashSessionId, cashReceived, ...restOfOrder } = orderData;
     const today = new Date();
     const currentDay = today.getDay();
 
@@ -353,8 +353,8 @@ export const OrderService = {
 
       const order = await tx.order.create({
         data: {
-          ...restOfOrder,
           customerName: finalCustomerName,
+          notes: restOfOrder.notes,
           status: 'pending',
           createdById: userId,
           cashSessionId: openCashSession.id,
@@ -410,6 +410,16 @@ export const OrderService = {
         await tx.orderItem.update({ where: { id: discount.orderItemId }, data: { discount: discount.amount, subtotal: { decrement: discount.amount } } });
       }
       const finalTotal = Prisma.Decimal.max(new Prisma.Decimal(0), subtotal.sub(totalDiscount));
+      const isCashPayment = paymentMethod === 'Efectivo' || paymentMethod === 'cash';
+      const receivedAmount = isCashPayment
+        ? new Prisma.Decimal(cashReceived ?? 0)
+        : null;
+      if (isCashPayment && (!receivedAmount || receivedAmount.lt(finalTotal))) {
+        const error = new Error('El monto recibido debe cubrir el total de la venta.');
+        error.name = 'BusinessRuleError';
+        throw error;
+      }
+      const changeAmount = receivedAmount ? receivedAmount.sub(finalTotal) : null;
 
       const productQuantities = new Map<string, Prisma.Decimal>();
       for (const item of createdOrderItems) {
@@ -464,6 +474,8 @@ export const OrderService = {
           cashSessionId: openCashSession.id,
           type: 'sale',
           amount: finalTotal,
+          receivedAmount,
+          changeAmount,
           referenceType: 'order',
           referenceId: order.id,
           description: `Venta #${order.orderNumber.toString()}`,

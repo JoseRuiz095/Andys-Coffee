@@ -19,6 +19,9 @@ import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useNotifications } from '../hooks/useNotifications'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
 import { NotificationCenter } from '../components/NotificationCenter'
+import { CashOpeningPanel } from '../components/CashOpeningPanel'
+import { CashPaymentDialog } from '../components/CashPaymentDialog'
+import { useCashSession } from '../hooks/useCashSession'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -38,6 +41,7 @@ export function DashboardPage() {
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
   const [paymentMethod, setPaymentMethod] = React.useState<string>()
+  const [isCashPaymentOpen, setIsCashPaymentOpen] = React.useState(false)
   const [selectedCategory, setSelectedCategory] = React.useState<
     string | undefined
   >()
@@ -51,8 +55,47 @@ export function DashboardPage() {
     error,
   } = useMenu()
   const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
+  const {
+    data: cashSession,
+    isLoading: isCashSessionLoading,
+    error: cashSessionError,
+    openSession,
+    closeSession,
+  } = useCashSession()
   const { unreadCount } = useNotifications()
   const hasUnreadNotifications = unreadCount > 0
+
+  const submitOrder = (cashReceived?: number) => {
+    const orderPayload = {
+      customerName: customerName || 'Cliente',
+      notes: orderNotes,
+      paymentMethod: paymentMethod!,
+      cashReceived,
+      items: orderItems.map(
+        ({ productId, comboId, quantity, unitPrice, note, type }) => ({
+          productId: type === 'product' ? productId : undefined,
+          comboId: type === 'combo' ? comboId : undefined,
+          quantity,
+          unitPrice,
+          note,
+        }),
+      ),
+    }
+
+    createOrder(orderPayload, {
+      onSuccess: () => {
+        setIsCashPaymentOpen(false)
+        handleClearOrder()
+        sileo.success({ title: 'Orden creada exitosamente.', duration: 3000 })
+      },
+      onError: (error) => {
+        sileo.error({
+          title: 'Algo salio mal',
+          description: `Error al crear la orden: ${error.message}`,
+        })
+      },
+    })
+  }
 
   const handleProcessOrder = () => {
     if (orderItems.length === 0) {
@@ -71,33 +114,12 @@ export function DashboardPage() {
       return
     }
 
-    const orderPayload = {
-      customerName: customerName || 'Cliente',
-      notes: orderNotes,
-      paymentMethod,
-      items: orderItems.map(
-        ({ productId, comboId, quantity, unitPrice, note, type }) => ({
-          productId: type === 'product' ? productId : undefined,
-          comboId: type === 'combo' ? comboId : undefined,
-          quantity,
-          unitPrice,
-          note,
-        }),
-      ),
+    if (paymentMethod === 'Efectivo' || paymentMethod === 'cash') {
+      setIsCashPaymentOpen(true)
+      return
     }
 
-    createOrder(orderPayload, {
-      onSuccess: () => {
-        handleClearOrder()
-        sileo.success({ title: 'Orden creada exitosamente.', duration: 3000 })
-      },
-      onError: (error) => {
-        sileo.error({
-          title: 'Algo salio mal',
-          description: `Error al crear la orden: ${error.message}`,
-        })
-      },
-    })
+    submitOrder()
   }
 
   // The category names for the tabs can be derived from the fetched data
@@ -261,8 +283,7 @@ export function DashboardPage() {
       orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
     [orderItems],
   )
-  const tax = subtotal * 0.16
-  const total = subtotal + tax
+  const total = subtotal
 
   const displayName = currentUser?.name ?? 'Usuario'
   const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
@@ -283,8 +304,39 @@ export function DashboardPage() {
     setIsNotificationCenterOpen((isOpen) => !isOpen)
   }
 
+  const handleCloseCashSession = () => {
+    closeSession.mutate(undefined, {
+      onSuccess: () => sileo.success({ title: 'Caja cerrada correctamente.', duration: 3000 }),
+      onError: (error) => sileo.error({ title: 'No se pudo cerrar la caja', description: error.message }),
+    })
+  }
+
   const renderContent = () => {
     if (activeView === 'Venta') {
+      if (!cashSession || cashSession.status !== 'open') {
+        return (
+          <CashOpeningPanel
+            session={cashSession}
+            isLoading={isCashSessionLoading}
+            error={cashSessionError as Error | null}
+            isOpening={openSession.isPending}
+            onOpen={(openingAmount) => {
+              openSession.mutate(openingAmount, {
+                onSuccess: () => {
+                  sileo.success({ title: 'Caja abierta correctamente.', duration: 3000 })
+                },
+                onError: (error) => {
+                  sileo.error({
+                    title: 'No se pudo abrir la caja',
+                    description: error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+                  })
+                },
+              })
+            }}
+          />
+        )
+      }
+
       return (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]">
           {isError ? (
@@ -306,7 +358,6 @@ export function DashboardPage() {
             isLoading={isCreatingOrder}
             items={orderItems}
             subtotal={subtotal}
-            tax={tax}
             total={total}
             orderNotes={orderNotes}
             customerName={customerName}
@@ -318,6 +369,13 @@ export function DashboardPage() {
             onClearOrder={handleClearOrder}
             onUpdateItemNote={handleUpdateItemNote}
             onProcessTransaction={handleProcessOrder}
+          />
+          <CashPaymentDialog
+            open={isCashPaymentOpen}
+            total={total}
+            isLoading={isCreatingOrder}
+            onClose={() => setIsCashPaymentOpen(false)}
+            onConfirm={(cashReceived) => submitOrder(cashReceived)}
           />
         </div>
       )
@@ -411,6 +469,16 @@ export function DashboardPage() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {cashSession && (
+              <button
+                type="button"
+                onClick={handleCloseCashSession}
+                disabled={closeSession.isPending}
+                className="rounded-full border border-[#E7C7C2] bg-[#FFF7F5] px-4 py-2 text-sm font-semibold text-[#8D3B32] shadow-sm transition hover:bg-[#FDEDEA] disabled:opacity-60"
+              >
+                {closeSession.isPending ? 'Cerrando...' : 'Cerrar caja'}
+              </button>
+            )}
             {isLoading ? (
               <>
                 <Skeleton className="h-6 w-6" />

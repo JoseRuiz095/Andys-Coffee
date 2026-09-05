@@ -27,6 +27,7 @@ export const createOrderSchema = z.object({
   customerName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   cashSessionId: z.string().uuid().optional(),
+  cashReceived: z.number().finite().nonnegative().max(999999999.99).optional(),
   items: z.array(orderItemSchema).min(1, 'El pedido debe tener al menos un producto.'),
   paymentMethod: z.enum(['Efectivo', 'Transferencia', 'Tarjeta', 'cash', 'transfer', 'card']),
   // cashSessionId y createdById se obtendrán del request/sesión, no del body.
