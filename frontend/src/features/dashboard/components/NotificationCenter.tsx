@@ -25,7 +25,7 @@ const formatTimeAgo = (dateString: string) => {
 
 const NotificationIcon = ({ type }: { type: string }) => {
   const icon = type === 'NEW_ORDER' ? (
-    <CoffeeIcon className="h-5 w-5 text-[#5A804F]" />
+    <CoffeeIcon className="flex h-5 w-5 items-center justify-center text-[#5A804F]" size={18} />
   ) : (
     <span className="text-sm font-bold text-[#8A4E18]">!</span>
   );

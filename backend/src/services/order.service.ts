@@ -469,23 +469,25 @@ export const OrderService = {
         include: { items: { include: { extras: true } } },
       });
       await tx.payment.create({ data: { orderId: order.id, method: paymentMethod, amount: finalTotal, createdById: userId } });
-      await tx.cashMovement.create({
-        data: {
-          cashSessionId: openCashSession.id,
-          type: 'sale',
-          amount: finalTotal,
-          receivedAmount,
-          changeAmount,
-          referenceType: 'order',
-          referenceId: order.id,
-          description: `Venta #${order.orderNumber.toString()}`,
-          createdById: userId,
-        },
-      });
-      await tx.cashSession.update({
-        where: { id: openCashSession.id },
-        data: { expectedAmount: { increment: finalTotal } },
-      });
+      if (isCashPayment) {
+        await tx.cashMovement.create({
+          data: {
+            cashSessionId: openCashSession.id,
+            type: 'sale',
+            amount: finalTotal,
+            receivedAmount,
+            changeAmount,
+            referenceType: 'order',
+            referenceId: order.id,
+            description: `Venta #${order.orderNumber.toString()}`,
+            createdById: userId,
+          },
+        });
+        await tx.cashSession.update({
+          where: { id: openCashSession.id },
+          data: { expectedAmount: { increment: finalTotal } },
+        });
+      }
 
       // Notify relevant users
       const usersToNotify = await tx.user.findMany({

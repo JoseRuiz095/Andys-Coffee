@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  id                   String              @id @default(uuid())
+  id                   String                  @id @default(uuid())
   name                 String
-  email                String              @unique
+  email                String                  @unique
   passwordHash         String
-  isActive             Boolean             @default(true)
+  isActive             Boolean                 @default(true)
   roleId               String
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
   createdCashMovements CashMovement[]
-  closedCashSessions   CashSession[]       @relation("CashSessionClosedBy")
-  openedCashSessions   CashSession[]       @relation("CashSessionOpenedBy")
+  closedCashSessions   CashSession[]           @relation("CashSessionClosedBy")
+  openedCashSessions   CashSession[]           @relation("CashSessionOpenedBy")
   createdExpenses      Expense[]
   inventoryMovements   InventoryMovement[]
   createdOrders        Order[]
   createdPayments      Payment[]
   createdPurchases     Purchase[]
-  role                 Role                @relation(fields: [roleId], references: [id])
+  role                 Role                    @relation(fields: [roleId], references: [id])
   notifications        NotificationRecipient[]
+  auditLogs            AuditLog[]
 
   @@index([roleId])
   @@index([isActive])
@@ -310,12 +311,12 @@ model PurchaseItem {
 }
 
 model CashRegister {
-  id          String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String        @id @default(dbgenerated("(gen_random_uuid())::text"))
   name        String
   description String?
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
   sessions    CashSession[]
 
   @@map("cash_registers")
@@ -333,31 +334,34 @@ model CashSession {
   status         String         @default("open")
   openedAt       DateTime       @default(now()) @db.Timestamptz(6)
   closedAt       DateTime?      @db.Timestamptz(6)
+  closingReason  String?
+  closingComment String?
   movements      CashMovement[]
   cashRegister   CashRegister   @relation(fields: [cashRegisterId], references: [id], onUpdate: NoAction)
   closedBy       User?          @relation("CashSessionClosedBy", fields: [closedById], references: [id], onUpdate: NoAction)
   openedBy       User           @relation("CashSessionOpenedBy", fields: [openedById], references: [id], onUpdate: NoAction)
   expenses       Expense[]
   orders         Order[]
+  auditLogs      AuditLog[]
 
   @@index([openedAt(sort: Desc)])
   @@map("cash_sessions")
 }
 
 model CashMovement {
-  id            String      @id @default(dbgenerated("(gen_random_uuid())::text"))
-  cashSessionId String
-  type          String
-  amount        Decimal     @db.Decimal(12, 2)
-  receivedAmount Decimal?   @db.Decimal(12, 2)
-  changeAmount   Decimal?   @db.Decimal(12, 2)
-  referenceType String?
-  referenceId   String?
-  description   String?
-  createdById   String?
-  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
-  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
-  createdBy     User?       @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+  id             String      @id @default(dbgenerated("(gen_random_uuid())::text"))
+  cashSessionId  String
+  type           String
+  amount         Decimal     @db.Decimal(12, 2)
+  receivedAmount Decimal?    @db.Decimal(12, 2)
+  changeAmount   Decimal?    @db.Decimal(12, 2)
+  referenceType  String?
+  referenceId    String?
+  description    String?
+  createdById    String?
+  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
+  cashSession    CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
+  createdBy      User?       @relation(fields: [createdById], references: [id], onUpdate: NoAction)
 
   @@index([referenceType, referenceId], map: "cashMovements_reference_idx")
   @@index([cashSessionId, createdAt], map: "cashMovements_session_idx")
@@ -379,6 +383,21 @@ model Expense {
   @@index([category])
   @@index([expenseDate(sort: Desc)], map: "expenses_date_idx")
   @@map("expenses")
+}
+
+model AuditLog {
+  id            String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId        String
+  action        String
+  cashSessionId String?
+  metadata      Json?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+
+  @@index([cashSessionId, createdAt], map: "auditLogs_cashSession_idx")
+  @@index([userId, createdAt], map: "auditLogs_user_idx")
+  @@map("audit_logs")
 }
 
 model Order {
@@ -405,31 +424,31 @@ model Order {
   payments           Payment[]
   ticket             Ticket?
 
+  @@unique([createdById, idempotencyKey], map: "orders_createdBy_idempotencyKey_unique")
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@index([cashSessionId], map: "orders_cashSession_idx")
-  @@unique([createdById, idempotencyKey], map: "orders_createdBy_idempotencyKey_unique")
   // @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
   @@map("orders")
 }
 
 model OrderItem {
-  id           String           @id @default(dbgenerated("(gen_random_uuid())::text"))
-  orderId      String
-  productId    String
-  productName  String
-  quantity     Decimal          @db.Decimal(12, 3)
-  unitPrice    Decimal          @db.Decimal(12, 2)
-  discount     Decimal          @default(0) @db.Decimal(12, 2)
-  subtotal     Decimal          @default(0) @db.Decimal(12, 2)
-  notes        String?
-  createdAt    DateTime         @default(now()) @db.Timestamptz(6)
-  costSnapshot Decimal?         @db.Decimal(12, 2)
-  extras       OrderItemExtra[]
-  order        Order            @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  product      Product          @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id            String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  orderId       String
+  productId     String
+  productName   String
+  quantity      Decimal          @db.Decimal(12, 3)
+  unitPrice     Decimal          @db.Decimal(12, 2)
+  discount      Decimal          @default(0) @db.Decimal(12, 2)
+  subtotal      Decimal          @default(0) @db.Decimal(12, 2)
+  notes         String?
+  createdAt     DateTime         @default(now()) @db.Timestamptz(6)
+  costSnapshot  Decimal?         @db.Decimal(12, 2)
+  extras        OrderItemExtra[]
+  order         Order            @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product       Product          @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   sourceComboId String?
-  sourceCombo  Combo?           @relation(fields: [sourceComboId], references: [id], onDelete: SetNull)
+  sourceCombo   Combo?           @relation(fields: [sourceComboId], references: [id], onDelete: SetNull)
 
   @@index([orderId], map: "orderItems_order_idx")
   @@index([productId], map: "orderItems_product_idx")
@@ -438,17 +457,17 @@ model OrderItem {
 }
 
 model OrderItemExtra {
-  id          String    @id @default(dbgenerated("(gen_random_uuid())::text"))
-  orderItemId String
-  extraId     String?
-  extraName   String
-  quantity    Decimal   @default(1) @db.Decimal(12, 3)
-  unitPrice   Decimal   @db.Decimal(12, 2)
-  subtotal    Decimal   @db.Decimal(12, 2)
-  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  orderItemId  String
+  extraId      String?
+  extraName    String
+  quantity     Decimal   @default(1) @db.Decimal(12, 3)
+  unitPrice    Decimal   @db.Decimal(12, 2)
+  subtotal     Decimal   @db.Decimal(12, 2)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
   costSnapshot Decimal?  @db.Decimal(12, 2)
-  extra       Extra?    @relation(fields: [extraId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  extra        Extra?    @relation(fields: [extraId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([orderItemId], map: "orderItemExtras_orderItem_idx")
   @@map("order_item_extras")
@@ -500,21 +519,21 @@ enum PromotionType {
 }
 
 model Promotion {
-  id                   String                @id @default(dbgenerated("(gen_random_uuid())::text"))
-  name                 String
-  description          String?
-  type                 PromotionType         @default(PERCENTAGE)
-  discountValue        Decimal               @db.Decimal(10, 2)
-  buyQuantity          Int?
-  getQuantity          Int?
-  startDate            DateTime
-  endDate              DateTime
-  activeOnDays         Int[]
-  isActive             Boolean               @default(true)
-  createdAt            DateTime              @default(now()) @db.Timestamptz(6)
-  updatedAt            DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
-  products             PromotionOnProduct[]
-  categories           PromotionOnCategory[]
+  id            String                @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name          String
+  description   String?
+  type          PromotionType         @default(PERCENTAGE)
+  discountValue Decimal               @db.Decimal(10, 2)
+  buyQuantity   Int?
+  getQuantity   Int?
+  startDate     DateTime
+  endDate       DateTime
+  activeOnDays  Int[]
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  products      PromotionOnProduct[]
+  categories    PromotionOnCategory[]
 
   @@map("promotions")
 }

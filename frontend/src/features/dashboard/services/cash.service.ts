@@ -31,9 +31,10 @@ export async function openCashSession(openingAmount: number): Promise<CashSessio
   return data.session
 }
 
-export async function closeCashSession(): Promise<CashSession | null> {
+export async function closeCashSession(input: { closingAmount: number; reason?: string; comment?: string }): Promise<CashSession | null> {
   const { data } = await apiClient.post<{ session: CashSession | null }>(
     '/cash-register/sessions/close',
+    input,
   )
   return data.session
 }

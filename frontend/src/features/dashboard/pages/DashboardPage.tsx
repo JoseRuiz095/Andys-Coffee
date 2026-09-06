@@ -21,7 +21,16 @@ import { OrdersPage } from '../../orders/pages/OrdersPage'
 import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
+import { CashClosingDialog } from '../components/CashClosingDialog'
 import { useCashSession } from '../hooks/useCashSession'
+import axios from 'axios'
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message ?? error.message
+  }
+  return error instanceof Error ? error.message : fallback
+}
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -42,11 +51,14 @@ export function DashboardPage() {
   const [customerName, setCustomerName] = React.useState('')
   const [paymentMethod, setPaymentMethod] = React.useState<string>()
   const [isCashPaymentOpen, setIsCashPaymentOpen] = React.useState(false)
+  const [isCashClosingOpen, setIsCashClosingOpen] = React.useState(false)
+  const [closingExpectedAmount, setClosingExpectedAmount] = React.useState(0)
   const [selectedCategory, setSelectedCategory] = React.useState<
     string | undefined
   >()
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
+  const notificationContainerRef = React.useRef<HTMLDivElement>(null)
 
   const {
     data: menuData,
@@ -59,6 +71,7 @@ export function DashboardPage() {
     data: cashSession,
     isLoading: isCashSessionLoading,
     error: cashSessionError,
+    refetch: refetchCashSession,
     openSession,
     closeSession,
   } = useCashSession()
@@ -69,6 +82,7 @@ export function DashboardPage() {
     const orderPayload = {
       customerName: customerName || 'Cliente',
       notes: orderNotes,
+      cashSessionId: cashSession?.id,
       paymentMethod: paymentMethod!,
       cashReceived,
       items: orderItems.map(
@@ -91,7 +105,7 @@ export function DashboardPage() {
       onError: (error) => {
         sileo.error({
           title: 'Algo salio mal',
-          description: `Error al crear la orden: ${error.message}`,
+          description: getApiErrorMessage(error, 'No se pudo registrar la venta.'),
         })
       },
     })
@@ -153,6 +167,19 @@ export function DashboardPage() {
 
     coffeeIconRef.current?.stopAnimation()
   }, [hasUnreadNotifications])
+
+  React.useEffect(() => {
+    if (!isNotificationCenterOpen) return
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (!notificationContainerRef.current?.contains(event.target as Node)) {
+        setIsNotificationCenterOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown)
+  }, [isNotificationCenterOpen])
 
   const handleAddToOrder = (menuItem: MenuItem, quantity: number) => {
     setOrderItems((prevItems) => {
@@ -305,10 +332,16 @@ export function DashboardPage() {
   }
 
   const handleCloseCashSession = () => {
-    closeSession.mutate(undefined, {
-      onSuccess: () => sileo.success({ title: 'Caja cerrada correctamente.', duration: 3000 }),
-      onError: (error) => sileo.error({ title: 'No se pudo cerrar la caja', description: error.message }),
-    })
+    if (closeSession.isPending || isCashClosingOpen) return
+    void (async () => {
+      const result = await refetchCashSession()
+      if (!result.data) {
+        sileo.error({ title: 'La caja ya no está abierta', description: 'Actualiza la pantalla para continuar.' })
+        return
+      }
+      setClosingExpectedAmount(Number(result.data.expectedAmount))
+      setIsCashClosingOpen(true)
+    })()
   }
 
   const renderContent = () => {
@@ -328,7 +361,7 @@ export function DashboardPage() {
                 onError: (error) => {
                   sileo.error({
                     title: 'No se pudo abrir la caja',
-                    description: error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+                    description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
                   })
                 },
               })
@@ -371,6 +404,7 @@ export function DashboardPage() {
             onProcessTransaction={handleProcessOrder}
           />
           <CashPaymentDialog
+            key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
             open={isCashPaymentOpen}
             total={total}
             isLoading={isCreatingOrder}
@@ -486,37 +520,40 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <button
-                  type="button"
-                  aria-label="Abrir notificaciones del proyecto"
-                  onClick={toggleNotificationCenter}
-                  className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
-                    hasUnreadNotifications
-                      ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
-                      : 'border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]'
-                  }`}
-                >
-                  {hasUnreadNotifications && (
-                    <>
-                      <span className="absolute inset-0 rounded-full border-2 border-[#C78234]/50 animate-ping" />
-                      <span className="absolute -inset-1.5 rounded-full border border-[#C78234]/30" />
-                    </>
-                  )}
-                  <CoffeeIcon
-                    ref={coffeeIconRef}
-                    className="relative z-10"
-                    size={23}
-                    aria-hidden="true"
-                  />
-                  {hasUnreadNotifications && (
-                    <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-                <AnimatePresence>
-                  {isNotificationCenterOpen && <NotificationCenter onClose={() => setIsNotificationCenterOpen(false)} />}
-                </AnimatePresence>
+                <div ref={notificationContainerRef} className="relative">
+                  <button
+                    type="button"
+                    aria-label="Abrir notificaciones del proyecto"
+                    aria-expanded={isNotificationCenterOpen}
+                    onClick={toggleNotificationCenter}
+                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
+                      hasUnreadNotifications
+                        ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
+                        : 'border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]'
+                    }`}
+                  >
+                    {hasUnreadNotifications && (
+                      <>
+                        <span className="absolute inset-0 rounded-full border-2 border-[#C78234]/50 animate-ping" />
+                        <span className="absolute -inset-1.5 rounded-full border border-[#C78234]/30" />
+                      </>
+                    )}
+                    <CoffeeIcon
+                      ref={coffeeIconRef}
+                      className="relative z-10"
+                      size={23}
+                      aria-hidden="true"
+                    />
+                    {hasUnreadNotifications && (
+                      <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  <AnimatePresence>
+                    {isNotificationCenterOpen && <NotificationCenter onClose={() => setIsNotificationCenterOpen(false)} />}
+                  </AnimatePresence>
+                </div>
                 <button
                   type="button"
                   aria-label="Abrir configuracion del proyecto"
@@ -534,6 +571,22 @@ export function DashboardPage() {
       <div className="mx-auto max-w-7xl p-4 sm:p-6">
         {renderContent()}
       </div>
+      <CashClosingDialog
+        key={isCashClosingOpen ? 'cash-closing-open' : 'cash-closing-closed'}
+        open={isCashClosingOpen}
+        expectedAmount={closingExpectedAmount}
+        isLoading={closeSession.isPending}
+        onClose={() => setIsCashClosingOpen(false)}
+        onConfirm={(input) => {
+          closeSession.mutate(input, {
+            onSuccess: () => {
+              setIsCashClosingOpen(false)
+              sileo.success({ title: 'Caja cerrada correctamente.', duration: 3000 })
+            },
+            onError: (error) => sileo.error({ title: 'No se pudo cerrar la caja', description: getApiErrorMessage(error, 'Inténtalo de nuevo.') }),
+          })
+        }}
+      />
     </div>
   )
 }

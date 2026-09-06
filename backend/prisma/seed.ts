@@ -558,6 +558,7 @@ const permissions = [
   { name: "sales.cancel", description: "Cancelar ventas" },
   { name: "cash.open", description: "Abrir caja" },
   { name: "cash.close", description: "Cerrar caja" },
+  { name: "cash.correct", description: "Corregir un cierre de caja" },
   { name: "reports.read", description: "Consultar reportes" },
 ];
 

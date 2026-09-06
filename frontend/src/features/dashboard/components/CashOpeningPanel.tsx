@@ -58,7 +58,7 @@ export function CashOpeningPanel({
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8A6A45]">Inicio de turno</p>
         <h2 className="mt-2 text-2xl font-semibold text-[#2C211D]">Abre la caja para comenzar</h2>
         <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-          Registra el efectivo disponible antes de iniciar las ventas del turno.
+          Registra el efectivo disponible antes de iniciar las ventas del turno. Las transferencias no se suman al efectivo esperado.
         </p>
       </div>
 

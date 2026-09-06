@@ -16,12 +16,16 @@ export function useCashSession() {
     mutationFn: openCashSession,
     onSuccess: (session) => {
       queryClient.setQueryData(cashSessionQueryKey, session)
+      void queryClient.invalidateQueries({ queryKey: cashSessionQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
   const closeMutation = useMutation({
     mutationFn: closeCashSession,
     onSuccess: () => {
       queryClient.setQueryData(cashSessionQueryKey, null)
+      void queryClient.invalidateQueries({ queryKey: cashSessionQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 

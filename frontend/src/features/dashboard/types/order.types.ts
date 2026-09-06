@@ -14,6 +14,7 @@ export interface CreateOrderItem {
 export interface CreateOrderPayload {
   customerName?: string | null;
   notes?: string | null;
+  cashSessionId?: string;
   items: CreateOrderItem[];
   paymentMethod: string;
   cashReceived?: number;

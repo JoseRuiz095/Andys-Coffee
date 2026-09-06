@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '../../../shared/components/Button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 
@@ -18,10 +18,6 @@ export function CashPaymentDialog({
   onConfirm,
 }: CashPaymentDialogProps) {
   const [cashReceived, setCashReceived] = useState('')
-
-  useEffect(() => {
-    if (open) setCashReceived('')
-  }, [open])
 
   const received = Number(cashReceived)
   const change = Number.isFinite(received) ? received - total : 0
@@ -58,6 +54,7 @@ export function CashPaymentDialog({
                 onChange={(event) => setCashReceived(event.target.value)}
                 className="min-h-12 w-full bg-transparent px-3 text-xl font-semibold text-[#2C211D] outline-none"
                 aria-label="Monto recibido"
+                disabled={isLoading}
               />
             </div>
           </label>
@@ -76,6 +73,7 @@ export function CashPaymentDialog({
                 key={digit}
                 type="button"
                 onClick={() => appendDigit(digit)}
+                disabled={isLoading}
                 className="min-h-10 rounded-lg border border-[#E7E3DC] bg-white text-lg font-semibold text-[#2C211D] transition hover:bg-[#F2EFE8]"
               >
                 {digit}
@@ -84,6 +82,7 @@ export function CashPaymentDialog({
             <button
               type="button"
               onClick={clearAmount}
+              disabled={isLoading}
               className="min-h-10 rounded-lg border border-[#E7C7C2] bg-[#FFF7F5] text-sm font-semibold text-[#8D3B32]"
             >
               Limpiar

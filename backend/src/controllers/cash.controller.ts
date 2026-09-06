@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CashService } from '../services/cash.service';
-import { openCashSessionSchema } from '../validators/cash.validator';
+import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema } from '../validators/cash.validator';
 
 function getAuthenticatedUserId(req: Request) {
   if (!req.user?.id) {
@@ -12,10 +12,6 @@ function getAuthenticatedUserId(req: Request) {
 
 export const getActiveCashSession = asyncHandler(async (req: Request, res: Response) => {
   const session = await CashService.getActiveSession();
-  if (session && new Date().getHours() >= 14) {
-    await CashService.closeIfBusinessDayEnded(getAuthenticatedUserId(req));
-    return res.status(200).json({ session: null });
-  }
   res.status(200).json({ session });
 });
 
@@ -26,6 +22,17 @@ export const openCashSession = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const closeCashSession = asyncHandler(async (req: Request, res: Response) => {
-  const session = await CashService.closeSession(getAuthenticatedUserId(req));
+  const input = closeCashSessionSchema.parse(req.body);
+  const session = await CashService.closeSession(getAuthenticatedUserId(req), input);
+  res.status(200).json({ session });
+});
+
+export const correctCashClosing = asyncHandler(async (req: Request, res: Response) => {
+  const input = correctCashClosingSchema.parse(req.body);
+  const session = await CashService.correctClosing(
+    getAuthenticatedUserId(req),
+    String(req.params.sessionId),
+    input,
+  );
   res.status(200).json({ session });
 });

@@ -1,7 +1,7 @@
 import React from 'react'
 import { APP_ROUTES } from '../../../shared/constants/routes'
 import { authStore } from '../../auth/store/auth.store'
-import { closeCashSession } from '../../dashboard/services/cash.service'
+import { closeCashSession, getActiveCashSession } from '../../dashboard/services/cash.service'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { SettingsIcon } from '../../../components/ui/settings'
@@ -83,6 +83,7 @@ export function SettingsPage() {
     { id: 'sales.cancel', label: 'Cancelar ventas', admin: true, cashier: false },
     { id: 'cash.open', label: 'Abrir caja', admin: true, cashier: true },
     { id: 'cash.close', label: 'Cerrar caja', admin: true, cashier: true },
+    { id: 'cash.correct', label: 'Corregir cierres de caja', admin: true, cashier: false },
     { id: 'reports.read', label: 'Consultar reportes', admin: true, cashier: false },
   ])
 
@@ -127,7 +128,14 @@ export function SettingsPage() {
 
   const handleLogout = async () => {
     try {
-      await closeCashSession()
+      const session = await getActiveCashSession()
+      if (session) {
+        await closeCashSession({
+          closingAmount: Number(session.expectedAmount),
+          reason: 'Cierre al cerrar sesión',
+          comment: 'Cierre automático al cerrar sesión.',
+        })
+      }
     } catch {
       // Logout must still complete if the session was already closed or unavailable.
     } finally {

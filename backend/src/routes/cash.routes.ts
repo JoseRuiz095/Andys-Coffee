@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { closeCashSession, getActiveCashSession, openCashSession } from '../controllers/cash.controller';
+import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSession } from '../controllers/cash.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
-import { openCashSessionSchema } from '../validators/cash.validator';
+import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema } from '../validators/cash.validator';
 
 const router = Router();
 
@@ -15,6 +15,13 @@ router.post(
   validate(openCashSessionSchema),
   openCashSession,
 );
-router.post('/sessions/close', requireAuth, checkPermission('cash.close'), closeCashSession);
+router.post('/sessions/close', requireAuth, checkPermission('cash.close'), validate(closeCashSessionSchema), closeCashSession);
+router.patch(
+  '/sessions/:sessionId/closing',
+  requireAuth,
+  checkPermission('cash.correct'),
+  validate(correctCashClosingSchema),
+  correctCashClosing,
+);
 
 export default router;

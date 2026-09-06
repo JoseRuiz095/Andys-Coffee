@@ -36,10 +36,19 @@ export const CashRepository = {
     });
   },
 
+  async findActiveSessionInTransaction(tx: Prisma.TransactionClient) {
+    return tx.cashSession.findFirst({
+      where: { status: 'open' },
+      orderBy: { openedAt: 'desc' },
+    });
+  },
+
   async closeActiveSession(
     tx: Prisma.TransactionClient,
     closedById: string,
+    closingAmount: Prisma.Decimal,
     reason: string,
+    comment?: string,
   ): Promise<CashSessionWithDetails | null> {
     const session = await tx.cashSession.findFirst({
       where: { status: 'open' },
@@ -47,18 +56,21 @@ export const CashRepository = {
     });
     if (!session) return null;
 
-    return tx.cashSession.update({
+    const difference = closingAmount.sub(session.expectedAmount);
+    const closedSession = await tx.cashSession.update({
       where: { id: session.id },
       data: {
         status: 'closed',
         closedById,
         closedAt: new Date(),
-        closingAmount: session.expectedAmount,
-        difference: new Prisma.Decimal(0),
+        closingAmount,
+        difference,
+        closingReason: reason,
+        closingComment: comment,
         movements: {
           create: {
             type: 'CLOSING',
-            amount: session.expectedAmount,
+            amount: closingAmount,
             description: reason,
             createdById: closedById,
           },
@@ -66,6 +78,60 @@ export const CashRepository = {
       },
       include: sessionInclude,
     });
+
+    await tx.auditLog.create({
+      data: {
+        userId: closedById,
+        action: 'CASH_SESSION_CLOSED',
+        cashSessionId: session.id,
+        metadata: {
+          closingAmount: closingAmount.toString(),
+          expectedAmount: session.expectedAmount.toString(),
+          difference: difference.toString(),
+          reason,
+          comment: comment ?? null,
+        },
+      },
+    });
+
+    return closedSession;
+  },
+
+  async correctClosedSession(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    correctedById: string,
+    correctedAmount: Prisma.Decimal,
+    reason: string,
+    comment?: string,
+  ): Promise<CashSessionWithDetails | null> {
+    const session = await tx.cashSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.status !== 'closed' || session.closingAmount === null) return null;
+
+    const correctedDifference = correctedAmount.sub(session.expectedAmount);
+    const correctedSession = await tx.cashSession.update({
+      where: { id: session.id },
+      data: { closingAmount: correctedAmount, difference: correctedDifference },
+      include: sessionInclude,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: correctedById,
+        action: 'CASH_SESSION_CLOSING_CORRECTED',
+        cashSessionId: session.id,
+        metadata: {
+          originalClosingAmount: session.closingAmount.toString(),
+          correctedClosingAmount: correctedAmount.toString(),
+          originalDifference: session.difference?.toString() ?? null,
+          correctedDifference: correctedDifference.toString(),
+          reason,
+          comment: comment ?? null,
+        },
+      },
+    });
+
+    return correctedSession;
   },
 
   async createSessionWithOpening(

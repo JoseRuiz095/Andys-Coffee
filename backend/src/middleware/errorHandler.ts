@@ -16,6 +16,10 @@ export const errorHandler = (
     });
   }
 
+  if (err.name === 'BusinessRuleError') {
+    return res.status(409).json({ message: err.message });
+  }
+
   // Error genérico para no exponer detalles de implementación
   return res.status(500).json({ message: 'Ocurrió un error inesperado en el servidor.' });
 };
