@@ -1,7 +1,16 @@
 import { supabase } from '../config/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import sharp, { type Metadata } from 'sharp';
 
 const BUCKET_NAME = 'Img';
+const MAX_IMAGE_DIMENSION = 4096;
+
+class UploadValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UploadValidationError';
+  }
+}
 
 export const UploadService = {
   /**
@@ -11,11 +20,30 @@ export const UploadService = {
    */
   async uploadProductImage(file: Express.Multer.File): Promise<string> {
     if (!file) {
-      throw new Error('No se proporcionó ningún archivo para subir.');
+      throw new UploadValidationError('No se proporcionó ningún archivo para subir.');
     }
 
-    const fileExtension = file.originalname.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExtension}`;
+    let metadata: Metadata;
+    try {
+      metadata = await sharp(file.buffer, { limitInputPixels: MAX_IMAGE_DIMENSION ** 2 }).metadata();
+    } catch {
+      throw new UploadValidationError('El archivo no contiene una imagen válida.');
+    }
+    const formatToMime: Record<string, string> = {
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const detectedMime = metadata.format ? formatToMime[metadata.format] : undefined;
+
+    if (!detectedMime || detectedMime !== file.mimetype) {
+      throw new UploadValidationError('El contenido de la imagen no coincide con un formato permitido.');
+    }
+    if (!metadata.width || !metadata.height || metadata.width > MAX_IMAGE_DIMENSION || metadata.height > MAX_IMAGE_DIMENSION) {
+      throw new UploadValidationError(`La imagen no puede superar ${MAX_IMAGE_DIMENSION}x${MAX_IMAGE_DIMENSION} píxeles.`);
+    }
+
+    const fileName = `${uuidv4()}.${metadata.format}`;
     // Guardamos los archivos en una carpeta 'public' dentro del bucket para que sean accesibles.
     const filePath = `public/${fileName}`;
 
@@ -46,8 +74,9 @@ export const UploadService = {
       const url = new URL(imageUrl);
       const path = url.pathname.split(`/${BUCKET_NAME}/`)[1];
 
-      if (path) {
-        await supabase.storage.from(BUCKET_NAME).remove([path]);
+      if (path && path.startsWith('public/')) {
+        const { error } = await supabase.storage.from(BUCKET_NAME).remove([path]);
+        if (error) throw error;
       }
     } catch (error) {
       console.error('Error al eliminar la imagen de Supabase:', error);

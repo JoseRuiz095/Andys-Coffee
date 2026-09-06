@@ -33,6 +33,13 @@ class NotFoundError extends Error {
   }
 }
 
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
   promotions: (Prisma.PromotionGetPayload<{ include: { products: true; categories: true } }>)[],
@@ -298,7 +305,7 @@ export const OrderService = {
     const comboIds = items.map(item => item.comboId).filter(Boolean) as string[];
     const extraIds = items.flatMap(item => item.extras?.map(e => e.extraId) || []).filter(Boolean);
 
-    const [dbProducts, dbCombosWithItems, dbExtras, activePromotions] = await Promise.all([
+    const [dbProducts, dbCombosWithItems, dbExtras, productExtras, activePromotions] = await Promise.all([
       prisma.product.findMany({ where: { id: { in: productIds }, isActive: true } }),
       prisma.combo.findMany({
         where: {
@@ -310,6 +317,11 @@ export const OrderService = {
         include: { items: { include: { product: true } } },
       }),
       prisma.extra.findMany({ where: { id: { in: extraIds }, isActive: true } }),
+      prisma.productExtra.findMany({
+        where: {
+          OR: productIds.flatMap((productId) => extraIds.map((extraId) => ({ productId, extraId }))),
+        },
+      }),
       prisma.promotion.findMany({
         where: {
           isActive: true,
@@ -324,6 +336,25 @@ export const OrderService = {
     const productsMap = new Map(dbProducts.map(p => [p.id, p]));
     const combosMap = new Map(dbCombosWithItems.map(c => [c.id, c]));
     const extrasMap = new Map(dbExtras.map(e => [e.id, e]));
+
+    if (productIds.some((id) => !productsMap.has(id))) {
+      throw new ValidationError('Uno o más productos no existen o están inactivos.');
+    }
+    if (comboIds.some((id) => !combosMap.has(id))) {
+      throw new ValidationError('Uno o más combos no existen, están inactivos o no están disponibles hoy.');
+    }
+    if (extraIds.some((id) => !extrasMap.has(id))) {
+      throw new ValidationError('Uno o más extras no existen o están inactivos.');
+    }
+    const validProductExtras = new Set(productExtras.map(({ productId, extraId }) => `${productId}:${extraId}`));
+    for (const item of items) {
+      if (!item.productId) continue;
+      for (const extra of item.extras ?? []) {
+        if (!validProductExtras.has(`${item.productId}:${extra.extraId}`)) {
+          throw new ValidationError(`El extra ${extra.extraId} no pertenece al producto ${item.productId}.`);
+        }
+      }
+    }
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -380,7 +411,7 @@ export const OrderService = {
       for (const item of items) {
         if (item.productId) {
           const product = productsMap.get(item.productId);
-          if (!product) throw new Error(`Producto con ID ${item.productId} no encontrado o inactivo.`);
+          if (!product) throw new ValidationError(`Producto con ID ${item.productId} no encontrado o inactivo.`);
           const itemSubtotal = product.price.mul(item.quantity);
           const itemCost = product.cost.mul(item.quantity);
           subtotal = subtotal.add(itemSubtotal);
@@ -392,9 +423,9 @@ export const OrderService = {
           createdOrderItems.push(orderItem);
           for (const extraData of item.extras ?? []) {
             const extra = extrasMap.get(extraData.extraId);
-            if (!extra) throw new Error(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
+            if (!extra) throw new ValidationError(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
             const relation = await tx.productExtra.findUnique({ where: { productId_extraId: { productId: product.id, extraId: extra.id } } });
-            if (!relation) throw new Error(`El extra ${extra.id} no pertenece al producto ${product.id}.`);
+            if (!relation) throw new ValidationError(`El extra ${extra.id} no pertenece al producto ${product.id}.`);
             const extraSubtotal = extra.price.mul(extraData.quantity);
             subtotal = subtotal.add(extraSubtotal);
             totalOrderCost = totalOrderCost.add(extra.cost.mul(extraData.quantity));
@@ -402,7 +433,7 @@ export const OrderService = {
           }
         } else if (item.comboId) {
           const combo = combosMap.get(item.comboId);
-          if (!combo) throw new Error(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
+          if (!combo) throw new ValidationError(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
           subtotal = subtotal.add(combo.price.mul(item.quantity));
           for (const comboItem of combo.items) {
             const quantity = comboItem.quantity.mul(item.quantity);
@@ -423,7 +454,7 @@ export const OrderService = {
         await tx.orderItem.update({ where: { id: discount.orderItemId }, data: { discount: discount.amount, subtotal: { decrement: discount.amount } } });
       }
       const finalTotal = Prisma.Decimal.max(new Prisma.Decimal(0), subtotal.sub(totalDiscount));
-      const isCashPayment = paymentMethod === 'Efectivo' || paymentMethod === 'cash';
+      const isCashPayment = paymentMethod === 'cash';
       const receivedAmount = isCashPayment
         ? new Prisma.Decimal(cashReceived ?? 0)
         : null;

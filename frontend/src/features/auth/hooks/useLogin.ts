@@ -31,7 +31,7 @@ export function useLogin() {
 
     try {
       const result = await login(credentials)
-      authStore.setSession(result.token, result.user)
+      authStore.setSession(result.user)
       redirectToDashboard()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'No se pudo iniciar sesión')

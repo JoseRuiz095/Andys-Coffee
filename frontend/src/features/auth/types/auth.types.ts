@@ -11,10 +11,10 @@ export type AuthUser = {
   roleId: string
   roleName?: string
   isActive: boolean
+  permissions?: string[]
 }
 
 export type LoginResult = {
-  token: string
   user: AuthUser
 }
 

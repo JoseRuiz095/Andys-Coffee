@@ -88,28 +88,32 @@
 
 ## P1 — Alta prioridad
 
-### [ ] SEC-006 — Unificar y endurecer la gestión de sesiones
+### [-] SEC-006 — Unificar y endurecer la gestión de sesiones
+
+- **Implementado localmente:** el JWT ya no se devuelve en JSON ni se guarda en `localStorage`; el frontend usa la cookie HttpOnly mediante `withCredentials`, valida `/auth/me` al iniciar y `POST /api/auth/logout` expira la cookie.
+- **Validación local:** build y lint frontend, `npx tsc --noEmit` backend, `npm test` y `npm run test:e2e:sec006` pasan; el E2E confirma refresh, logout, ausencia del token en `localStorage` y rechazo posterior de `/auth/me`.
+- **Pendiente para cierre:** ejecutar la variante de producción con HTTPS real y confirmar la cookie `Secure` en el entorno desplegado.
 
 - **Problema:** el token se devuelve en JSON y se guarda en `localStorage`; la cookie usa `secure: false`; el logout solo limpia el estado local.
 - **Solución:** usar cookie HttpOnly/Secure/SameSite apropiada como fuente primaria; retirar el token persistido en JavaScript; implementar `POST /api/auth/logout` que expire la cookie; configurar Axios con una política de credenciales coherente.
 - **Archivos:** `backend/src/controllers/auth.controller.ts`, `backend/src/routes/auth.routes.ts`, `frontend/src/app/api.ts`, `frontend/src/features/auth/store/auth.store.ts`.
 - **Criterio de cierre:** logout invalida la sesión del navegador; el token no aparece en `localStorage`; `/auth/me` valida la sesión real antes de mostrar el dashboard.
 
-### [ ] SEC-007 — Endurecer la validación de pedidos
+### [-] SEC-007 — Endurecer la validación de pedidos
 
 - **Problema:** los items pueden contener producto y combo simultáneamente, o ninguno; IDs y cantidades tienen validación incompleta; extras no se vinculan al producto.
 - **Solución:** exigir exactamente un `productId` o `comboId`; validar UUID, cantidades máximas, texto y método de pago enumerado; exigir productos/extras activos y relaciones válidas; rechazar campos desconocidos cuando corresponda.
 - **Archivos:** `backend/src/validators/order.validator.ts`, `backend/src/services/order.service.ts`.
 - **Criterio de cierre:** entradas ambiguas, IDs inexistentes, extras no asociados, productos inactivos y cantidades fuera de rango reciben 400; el servidor calcula todos los precios.
 
-### [ ] SEC-009 — Asegurar la carga de imágenes
+### [-] SEC-009 — Asegurar la carga de imágenes
 
 - **Problema:** Multer usa memoria sin límite y acepta MIME, extensión y contenido proporcionados por el cliente.
 - **Solución:** establecer límites de tamaño y campos; permitir formatos concretos; validar magic bytes y dimensiones; generar extensión segura; usar almacenamiento privado o URLs firmadas; limpiar archivos si falla la persistencia.
 - **Archivos:** `backend/src/routes/product.routes.ts`, `backend/src/services/upload.service.ts`, configuración de Supabase.
 - **Criterio de cierre:** archivos grandes, MIME falso y formatos no permitidos se rechazan; un fallo de BD no deja archivos huérfanos.
 
-### [ ] SEC-010 — Separar DTOs públicos y administrativos
+### [ ] SEC-010 — Separar DTOs públicos y administrativos (Aun no se implementa esto)
 
 - **Problema:** menú y detalle de producto pueden devolver coste, SKU, recetas, ingredientes y datos de inventario.
 - **Solución:** seleccionar campos explícitos y crear DTOs públicos mínimos; reservar costes, recetas, stock y metadatos internos para endpoints autorizados.

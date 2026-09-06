@@ -6,8 +6,29 @@ import { checkPermission } from '../middleware/authorization';
 
 const router = Router();
 
-// Configuramos multer para que guarde los archivos en memoria como un buffer.
-const upload = multer({ storage: multer.memoryStorage() });
+class UploadValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UploadValidationError';
+  }
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 20,
+    fieldSize: 64 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      callback(new UploadValidationError('Solo se permiten imágenes JPEG, PNG o WebP.'));
+      return;
+    }
+    callback(null, true);
+  },
+});
 
 // Public routes for anyone to see products
 router.get('/', ProductController.findAll);

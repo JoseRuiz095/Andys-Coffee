@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import axios from 'axios'
 import { apiClient } from '../../../app/api'
-import type { LoginCredentials, LoginResult } from '../types/auth.types'
+import type { AuthUser, LoginCredentials, LoginResult } from '../types/auth.types'
 
 const DEFAULT_LOGIN_ERROR_MESSAGE = 'No se pudo iniciar sesión. Inténtalo de nuevo.'
 const NETWORK_LOGIN_ERROR_MESSAGE =
@@ -9,7 +9,6 @@ const NETWORK_LOGIN_ERROR_MESSAGE =
 
 // Esquema Zod para validar la respuesta del login. Fuente de verdad de la API.
 const loginResponseSchema = z.object({
-  token: z.string(),
   user: z.object({
     id: z.string().uuid(),
     email: z.string().email(),
@@ -20,6 +19,10 @@ const loginResponseSchema = z.object({
     // Se asume que los permisos vendrán en el login. Se marca como opcional para evitar errores si el backend aún no los envía.
     permissions: z.array(z.string()).optional(),
   }),
+})
+
+const currentUserResponseSchema = z.object({
+  user: loginResponseSchema.shape.user,
 })
 
 function getLoginErrorMessage(error: unknown): string {
@@ -57,4 +60,13 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
     // Centralizamos el manejo de errores para devolver un mensaje claro.
     throw new Error(getLoginErrorMessage(error), { cause: error })
   }
+}
+
+export async function getCurrentUser(): Promise<AuthUser> {
+  const response = await apiClient.get('/auth/me')
+  return currentUserResponseSchema.parse(response.data).user
+}
+
+export async function logout(): Promise<void> {
+  await apiClient.post('/auth/logout')
 }

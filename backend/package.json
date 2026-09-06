@@ -11,7 +11,10 @@
     "seed": "npm run prisma:generate && npm run prisma:seed",
     "test": "tsx --test test/**/*.test.ts",
     "test:integration": "cross-env RUN_INTEGRATION_TESTS=true tsx --test test/integration/*.integration.test.ts",
-    "test:e2e:security": "playwright test test/e2e/sec-003.e2e.spec.ts"
+    "test:e2e:security": "playwright test test/e2e/sec-003.e2e.spec.ts",
+    "test:e2e:sec006": "playwright test test/e2e/sec-006-auth-session.spec.ts",
+    "test:e2e": "playwright test test/e2e/*.e2e.spec.ts",
+    "test:e2e:report": "playwright show-report"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +33,7 @@
     "multer": "^2.2.0",
     "pino": "^9.1.0",
     "pino-pretty": "^13.0.0",
+    "sharp": "^0.35.4",
     "tiny-csrf": "^1.1.6",
     "uuid": "^14.0.1",
     "zod": "^4.4.3"

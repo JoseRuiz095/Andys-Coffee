@@ -3,11 +3,13 @@ import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard'
 import { SettingsPage } from '../features/settings'
 import { authStore } from '../features/auth/store/auth.store'
+import { getCurrentUser } from '../features/auth/services/auth.service'
 import { APP_ROUTES } from '../shared/constants/routes'
 
 export function AppRouter() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const [session, setSession] = useState(authStore.getState())
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -28,7 +30,28 @@ export function AppRouter() {
   }, [])
 
   useEffect(() => {
-    const isAuthenticated = Boolean(session.token)
+    let isMounted = true
+
+    getCurrentUser()
+      .then((user) => {
+        if (isMounted) authStore.setSession(user)
+      })
+      .catch(() => {
+        if (isMounted) authStore.clearSession()
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingSession(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isCheckingSession) return
+
+    const isAuthenticated = Boolean(session.user)
 
     if (!isAuthenticated && pathname !== APP_ROUTES.login) {
       window.history.replaceState({}, '', APP_ROUTES.login)
@@ -41,7 +64,11 @@ export function AppRouter() {
       window.history.replaceState({}, '', APP_ROUTES.dashboard)
       setPathname(APP_ROUTES.dashboard)
     }
-  }, [pathname, session.token])
+  }, [isCheckingSession, pathname, session.user])
+
+  if (isCheckingSession) {
+    return null
+  }
 
   if (pathname === APP_ROUTES.dashboard) {
     return <DashboardPage />

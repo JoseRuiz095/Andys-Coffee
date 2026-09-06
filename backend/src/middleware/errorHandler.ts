@@ -16,6 +16,10 @@ export const errorHandler = (
     });
   }
 
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({ message: err.message });
+  }
+
   if (err.name === 'BusinessRuleError') {
     return res.status(409).json({ message: err.message });
   }

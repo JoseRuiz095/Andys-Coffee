@@ -23,7 +23,17 @@ export async function login(req: Request, res: Response) {
     maxAge: 8 * 60 * 60 * 1000,
   });
 
-  return res.json({ token, user });
+  return res.json({ user });
+}
+
+export function logout(_req: Request, res: Response) {
+  res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  return res.status(204).send();
 }
 
 export async function getCurrentUser(req: Request, res: Response) {

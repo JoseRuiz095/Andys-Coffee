@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import csrf from "tiny-csrf";
+import multer from "multer";
 import authRoutes from "./routes/auth.routes";
 import menuRoutes from "./routes/menu.routes";
 import productRoutes from "./routes/product.routes";
@@ -125,6 +126,10 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
   if (err.name === 'BusinessRuleError') {
     return res.status(409).json({ message: err.message });
+  }
+
+  if (err.name === 'UploadValidationError' || err instanceof multer.MulterError) {
+    return res.status(400).json({ message: err.message });
   }
 
   if (err instanceof SyntaxError && "body" in err) {

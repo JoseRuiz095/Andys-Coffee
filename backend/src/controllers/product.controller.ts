@@ -36,33 +36,46 @@ export const ProductController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productData = createProductSchema.parse(req.body);
+    let uploadedImageUrl: string | undefined;
 
-    if (req.file) {
-      const imageUrl = await UploadService.uploadProductImage(req.file);
-      productData.imageUrl = imageUrl;
+    try {
+      if (req.file) {
+        uploadedImageUrl = await UploadService.uploadProductImage(req.file);
+        productData.imageUrl = uploadedImageUrl;
+      }
+
+      const newProduct = await ProductService.create(productData, user);
+      res.status(201).json(newProduct);
+    } catch (error) {
+      if (uploadedImageUrl) await UploadService.deleteProductImage(uploadedImageUrl);
+      throw error;
     }
-
-    const newProduct = await ProductService.create(productData, user);
-    res.status(201).json(newProduct);
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productId = req.params.id as string;
     const productData = updateProductSchema.parse(req.body);
+    let uploadedImageUrl: string | undefined;
+    let previousImageUrl: string | null | undefined;
 
-    if (req.file) {
-      const existingProduct = await ProductService.findOne(productId);
-      const imageUrl = await UploadService.uploadProductImage(req.file);
-      productData.imageUrl = imageUrl;
-
-      if (existingProduct?.imageUrl) {
-        await UploadService.deleteProductImage(existingProduct.imageUrl);
+    try {
+      if (req.file) {
+        const existingProduct = await ProductService.findOne(productId);
+        previousImageUrl = existingProduct?.imageUrl;
+        uploadedImageUrl = await UploadService.uploadProductImage(req.file);
+        productData.imageUrl = uploadedImageUrl;
       }
-    }
 
-    const updatedProduct = await ProductService.update(productId, productData, user);
-    res.status(200).json(updatedProduct);
+      const updatedProduct = await ProductService.update(productId, productData, user);
+      if (uploadedImageUrl && previousImageUrl) {
+        await UploadService.deleteProductImage(previousImageUrl);
+      }
+      res.status(200).json(updatedProduct);
+    } catch (error) {
+      if (uploadedImageUrl) await UploadService.deleteProductImage(uploadedImageUrl);
+      throw error;
+    }
   }),
 
   remove: asyncHandler(async (req: Request, res: Response) => {

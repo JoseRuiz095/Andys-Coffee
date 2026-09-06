@@ -1,6 +1,7 @@
 import React from 'react'
 import { APP_ROUTES } from '../../../shared/constants/routes'
 import { authStore } from '../../auth/store/auth.store'
+import { logout } from '../../auth/services/auth.service'
 import { closeCashSession, getActiveCashSession } from '../../dashboard/services/cash.service'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
@@ -139,6 +140,11 @@ export function SettingsPage() {
     } catch {
       // Logout must still complete if the session was already closed or unavailable.
     } finally {
+      try {
+        await logout()
+      } catch {
+        // The local session is cleared even if the API is unavailable.
+      }
       authStore.clearSession()
       navigateTo(APP_ROUTES.login)
     }
