@@ -174,8 +174,7 @@ export const OrderService = {
 
     // Authorization Check: Allow if user owns the order or has general view permissions.
     if (order.createdById !== user.id && !user.permissions?.includes('view:orders')) {
-      // To prevent IDOR, we return null, which the controller will treat as a 404.
-      return null;
+      throw new AuthorizationError('No tienes permiso para acceder a este pedido.');
     }
 
     return order;
@@ -192,7 +191,10 @@ export const OrderService = {
       throw new NotFoundError('Pedido no encontrado.');
     }
 
-    // Authorization Check
+    if (order.createdById !== user.id && !user.permissions?.includes('view:orders')) {
+      throw new AuthorizationError('No tienes permiso para modificar este pedido.');
+    }
+
     if (!user.permissions?.includes('sales.cancel')) {
       throw new AuthorizationError('No tienes permiso para modificar este pedido.');
     }
@@ -265,6 +267,17 @@ export const OrderService = {
       const updatedOrder = await tx.order.update({
         where: { id },
         data: updateData,
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'ORDER_STATUS_CHANGED',
+          metadata: {
+            orderId: id,
+            previousStatus: order.status,
+            newStatus: status,
+          },
+        },
       });
       logger.info({
         actor: { id: user.id, name: user.name },

@@ -9,7 +9,9 @@
     "prisma:seed": "npx prisma db seed",
     "prisma:migrate": "npx prisma migrate dev",
     "seed": "npm run prisma:generate && npm run prisma:seed",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test test/**/*.test.ts",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true tsx --test test/integration/*.integration.test.ts",
+    "test:e2e:security": "playwright test test/e2e/sec-003.e2e.spec.ts"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +35,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
@@ -41,6 +44,7 @@
     "@types/multer": "^2.2.0",
     "@types/pg": "^8.23.1",
     "@types/uuid": "^10.0.0",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "prisma": "^6.19.3",
     "ts-node": "^10.9.2",
