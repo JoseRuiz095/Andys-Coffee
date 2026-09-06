@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
-import { Promotion, PromotionType } from '@prisma/client';
+import { Promotion } from '@prisma/client';
+import { calculateBestPromotion, isValidPromotion } from './pricing.service';
 
 export const MenuService = {
   /**
@@ -28,11 +29,12 @@ export const MenuService = {
     );
 
     // 2. Crear mapas para búsqueda rápida de promociones
-    const promotionsByProduct = new Map<string, Promotion>();
-    const promotionsByCategory = new Map<string, Promotion>();
+    const promotionsByProduct = new Map<string, Promotion[]>();
+    const promotionsByCategory = new Map<string, Promotion[]>();
     for (const promo of activePromotions) {
-      promo.products.forEach(p => promotionsByProduct.set(p.productId, promo));
-      promo.categories.forEach(c => promotionsByCategory.set(c.categoryId, promo));
+      if (!isValidPromotion(promo)) continue;
+      promo.products.forEach(p => promotionsByProduct.set(p.productId, [...(promotionsByProduct.get(p.productId) ?? []), promo]));
+      promo.categories.forEach(c => promotionsByCategory.set(c.categoryId, [...(promotionsByCategory.get(c.categoryId) ?? []), promo]));
     }
 
     // 3. Obtener categorías con sus productos y combos. El filtro de combos por día se hace en la app.
@@ -61,26 +63,21 @@ export const MenuService = {
     return categories.map(category => {
       // Mapear y transformar productos, aplicando la lógica de promoción
       const products = category.products.map(product => {
-        const promo = promotionsByProduct.get(product.id) || promotionsByCategory.get(product.categoryId || '');
-
-        let finalPrice = product.price.toNumber();
-        let promotionData = null;
-
-        if (promo) {
-          promotionData = {
-            id: promo.id,
-            name: promo.name,
-            description: promo.description,
-            type: promo.type,
-          };
-          if (promo.type === PromotionType.FIXED_PRICE) {
-            finalPrice = promo.discountValue.toNumber();
-          }
-        }
+        const promotions = [
+          ...(promotionsByProduct.get(product.id) ?? []),
+          ...(promotionsByCategory.get(product.categoryId || '') ?? []),
+        ];
+        const pricing = calculateBestPromotion(product.price, 1, promotions);
+        const promotionData = pricing.promotion ? {
+          id: pricing.promotion.id,
+          name: promotions.find((promo) => promo.id === pricing.promotion?.id)?.name,
+          description: promotions.find((promo) => promo.id === pricing.promotion?.id)?.description,
+          type: pricing.promotion.type,
+        } : null;
 
         return {
           ...product,
-          price: finalPrice,
+          price: pricing.total.toNumber(),
           type: 'product' as const,
           promotion: promotionData,
         };

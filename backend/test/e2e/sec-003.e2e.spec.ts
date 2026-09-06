@@ -112,16 +112,6 @@ async function productMutation(
         "Content-Type": "application/json",
       });
 
-      const session = window.localStorage.getItem("andys-auth-session");
-
-      if (session) {
-        const sessionData = JSON.parse(session) as { token?: string };
-
-        if (sessionData.token) {
-          headers.set("Authorization", `Bearer ${sessionData.token}`);
-        }
-      }
-
       if (token) {
         headers.set("X-CSRF-TOKEN", token);
       }

@@ -1,4 +1,4 @@
-import { OrderStatus, Prisma, PromotionType } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
@@ -9,6 +9,7 @@ import { prisma } from '../config/prisma';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { logger } from '../utils/logger';
+import { calculateBestPromotion } from './pricing.service';
 
 // --- Custom Errors for Service Layer ---
 
@@ -40,64 +41,26 @@ class ValidationError extends Error {
   }
 }
 
+export async function getNextCustomerName(tx: Prisma.TransactionClient): Promise<string> {
+  const [{ nextNumber }] = await tx.$queryRaw<{ nextNumber: bigint }[]>`
+    SELECT nextval('customer_name_sequence') AS "nextNumber"
+  `;
+  return `Cliente ${nextNumber.toString()}`;
+}
+
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
   promotions: (Prisma.PromotionGetPayload<{ include: { products: true; categories: true } }>)[],
 ) {
-  const discounts: { orderItemId: string; amount: Prisma.Decimal }[] = [];
-  const processedQuantities = new Map<string, number>();
-
-  for (const promotion of promotions) {
-    const eligibleItems = orderItems.filter((item) => {
-      if (item.sourceComboId) return false;
-      return promotion.products.some((entry) => entry.productId === item.productId)
-        || Boolean(item.product?.categoryId && promotion.categories.some(
-          (entry) => entry.categoryId === item.product?.categoryId,
-        ));
-    });
-    const availableItems = eligibleItems.flatMap((item) => {
-      const processed = processedQuantities.get(item.id) ?? 0;
-      const available = Math.max(0, item.quantity.toNumber() - processed);
-      return Array.from({ length: available }, () => item);
-    });
-    availableItems.sort((left, right) => right.unitPrice.comparedTo(left.unitPrice));
-
-    if (promotion.type === PromotionType.FIXED_PRICE) {
-      for (const item of availableItems) {
-        if (item.unitPrice.gt(promotion.discountValue)) {
-          discounts.push({ orderItemId: item.id, amount: item.unitPrice.sub(promotion.discountValue) });
-          processedQuantities.set(item.id, (processedQuantities.get(item.id) ?? 0) + 1);
-        }
-      }
-    }
-
-    if (promotion.type === PromotionType.BOGO || promotion.type === PromotionType.MULTIBUY_FIXED_PRICE) {
-      const buyQuantity = promotion.buyQuantity ?? 1;
-      const getQuantity = promotion.type === PromotionType.BOGO ? (promotion.getQuantity ?? 1) : 0;
-      const groupSize = promotion.type === PromotionType.BOGO ? buyQuantity + getQuantity : buyQuantity;
-      if (groupSize <= 0) continue;
-      while (availableItems.length >= groupSize) {
-        const group = availableItems.splice(0, groupSize);
-        group.forEach((item) => processedQuantities.set(item.id, (processedQuantities.get(item.id) ?? 0) + 1));
-        if (promotion.type === PromotionType.BOGO) {
-          for (const item of group.slice(-getQuantity)) {
-            discounts.push({ orderItemId: item.id, amount: item.unitPrice.mul(promotion.discountValue).div(100) });
-          }
-        } else {
-          const groupPrice = group.reduce((sum, item) => sum.add(item.unitPrice), new Prisma.Decimal(0));
-          if (groupPrice.gt(promotion.discountValue)) {
-            discounts.push({ orderItemId: group[group.length - 1].id, amount: groupPrice.sub(promotion.discountValue) });
-          }
-        }
-      }
-    }
-  }
-
-  const aggregated = new Map<string, Prisma.Decimal>();
-  for (const discount of discounts) {
-    aggregated.set(discount.orderItemId, (aggregated.get(discount.orderItemId) ?? new Prisma.Decimal(0)).add(discount.amount));
-  }
-  return Array.from(aggregated, ([orderItemId, amount]) => ({ orderItemId, amount }));
+  return orderItems.flatMap((item) => {
+    if (item.sourceComboId) return [];
+    const applicable = promotions.filter((promotion) =>
+      promotion.products.some((entry) => entry.productId === item.productId)
+      || Boolean(item.product?.categoryId && promotion.categories.some((entry) => entry.categoryId === item.product?.categoryId)),
+    );
+    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), applicable);
+    return pricing.discount.gt(0) ? [{ orderItemId: item.id, amount: pricing.discount }] : [];
+  });
 }
 
 
@@ -380,19 +343,7 @@ export const OrderService = {
       // Handle customer name generation
       let finalCustomerName = restOfOrder.customerName;
       if (!finalCustomerName || finalCustomerName.trim().toLowerCase() === 'cliente') {
-        const lastCustomerOrder = await tx.order.findFirst({
-          where: { customerName: { startsWith: 'Cliente ' } },
-          orderBy: { createdAt: 'desc' },
-        });
-
-        let nextCustomerNumber = 1;
-        if (lastCustomerOrder?.customerName) {
-          const match = lastCustomerOrder.customerName.match(/^Cliente (\d+)$/);
-          if (match) {
-            nextCustomerNumber = parseInt(match[1], 10) + 1;
-          }
-        }
-        finalCustomerName = `Cliente ${nextCustomerNumber}`;
+        finalCustomerName = await getNextCustomerName(tx);
       }
 
       const order = await tx.order.create({

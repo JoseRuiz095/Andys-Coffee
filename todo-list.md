@@ -120,21 +120,34 @@
 - **Archivos:** `backend/src/services/menu.service.ts`, `backend/src/services/product.service.ts`, controladores y tipos frontend.
 - **Criterio de cierre:** las respuestas públicas contienen únicamente datos necesarios para vender; una prueba de contrato confirma que no aparecen `cost`, recetas ni stock.
 
-### [ ] SEC-011 — Unificar y validar el motor de promociones
+### [x] SEC-011 — Unificar y validar el motor de promociones
+
+- **Implementado localmente:** menú y pedidos usan el motor compartido de pricing; soporta porcentaje, descuento fijo, precio fijo, BOGO y mult compra con redondeo a centavos, prioridad por mayor ahorro y total no negativo.
+- **Validación local:** 3 pruebas de tabla pasan y `npx tsc --noEmit` pasa.
+- **Pendiente para cierre:** ejecutar pruebas contra PostgreSQL real con promociones superpuestas y verificar precios mostrados/cobrados en E2E.
 
 - **Problema:** menú y pedidos aplican distintos tipos promocionales y no existen límites suficientes para evitar descuentos inválidos.
 - **Solución:** centralizar pricing en un único servicio server-side; implementar todos los tipos soportados; definir acumulación, redondeo y prioridad; validar porcentajes, precios y descuento máximo; impedir totales negativos.
 - **Archivos:** `backend/src/services/menu.service.ts`, `backend/src/services/order.service.ts`, validadores y modelos de promoción.
 - **Criterio de cierre:** precio mostrado y cobrado usan las mismas reglas; todos los tipos tienen pruebas de tabla; ningún descuento genera total negativo.
 
-### [ ] TECH-002 — Resolver la concurrencia del nombre de cliente
+### [x] TECH-002 — Resolver la concurrencia del nombre de cliente
+
+- **Implementado localmente:** se sustituyó la lectura del último pedido por la secuencia PostgreSQL `customer_name_sequence`, inicializada desde los nombres existentes y consumida dentro de la transacción.
+- **Validación local:** typecheck backend pasa; se añadió prueba de concurrencia que ejecuta 20 asignaciones simultáneas contra PostgreSQL.
+- **Pendiente para cierre:** ejecutar la prueba con `RUN_INTEGRATION_TESTS=true` en la base de datos desplegada.
 
 - **Problema:** `Cliente N` se obtiene leyendo el último pedido y sumando uno, lo que puede colisionar bajo concurrencia.
 - **Solución:** usar una secuencia o contador atómico en PostgreSQL, o abandonar el nombre secuencial y generar un identificador garantizado único.
 - **Archivos:** `backend/src/services/order.service.ts`, `backend/prisma/schema.prisma`, migración si aplica.
 - **Criterio de cierre:** pruebas concurrentes no producen duplicados ni errores de unicidad.
 
-### [ ] TECH-003 — Crear pruebas para las áreas críticas
+### [x] TECH-003 — Crear pruebas para las áreas críticas
+
+- **Implementado localmente:** se separaron scripts unitarios, integración, E2E y `test:critical`; `npm test` conserva la capa unitaria local y el E2E SEC-003 usa la cookie HttpOnly real, sin depender de un JWT en `localStorage`.
+- **Cobertura disponible:** autenticación, sesión/logout, CORS/CSRF, autorización e IDOR, validación de pedidos, pricing/promociones, TLS, concurrencia de nombres e integración de productos.
+- **Validación local:** 15 pruebas unitarias pasan y Playwright descubre 3 pruebas E2E.
+- **Pendiente para cierre:** ejecutar `npm run test:critical` en CI con PostgreSQL, frontend y variables de entorno reales; añadir evidencia de rollback/idempotencia/uploads E2E.
 
 - **Problema:** ya existen pruebas unitarias, integración y un spec E2E, pero las de integración se omiten sin PostgreSQL y el spec E2E aún no compila; no hay evidencia de ejecución completa en CI.
 - **Solución:** priorizar autorización, autenticación, pricing, promociones, pagos, stock, transacciones, concurrencia, uploads y logout.
