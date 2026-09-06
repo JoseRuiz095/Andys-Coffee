@@ -191,8 +191,7 @@ model InventoryUnit {
 model Ingredient {
   id            String              @id @default(dbgenerated("(gen_random_uuid())::text"))
   name          String
-  // sku           String?             @unique(map: "ingredients_sku_unique", where: raw("(sku IS NOT NULL)"))
-  sku           String?
+  sku           String?              @unique(map: "ingredients_sku_unique")
   unitId        String
   currentStock  Decimal             @default(0) @db.Decimal(14, 4)
   minimumStock  Decimal             @default(0) @db.Decimal(14, 4)
@@ -345,6 +344,7 @@ model CashSession {
   auditLogs      AuditLog[]
 
   @@index([openedAt(sort: Desc)])
+  @@index([cashRegisterId, openedAt(sort: Desc)], map: "cashSessions_register_history_idx")
   @@map("cash_sessions")
 }
 

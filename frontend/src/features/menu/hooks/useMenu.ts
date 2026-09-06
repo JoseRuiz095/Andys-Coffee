@@ -13,8 +13,8 @@ export const useMenu = () => {
   const query = useQuery({
     queryKey: menuQueryKey,
     queryFn: getMenu, // La función que hace la llamada a la API.
-    staleTime: Infinity, // Los datos se consideran "frescos" para siempre.
-    refetchOnWindowFocus: false, // No volver a hacer fetch al cambiar de pestaña.
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
   })
 
   return query

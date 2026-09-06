@@ -35,7 +35,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!idempotencyKey || idempotencyKey.length > 100) {
     return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
   }
-  const order = await OrderService.create(req.body, user.id, idempotencyKey);
+  const order = await OrderService.create(req.body, user.id, idempotencyKey, 0, req.id);
   res.status(201).json(order);
 });
 
@@ -45,7 +45,7 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
   const statusData = await updateOrderStatusSchema.parseAsync(req.body);
 
   try {
-    const order = await OrderService.updateStatus(id, statusData, user);
+    const order = await OrderService.updateStatus(id, statusData, user, req.id);
     res.status(200).json(order);
   } catch (error: any) {
     if (error.name === 'StateTransitionError') {

@@ -156,49 +156,76 @@
 
 ## P2 — Prioridad media
 
-### [ ] TECH-001 — Unificar el manejo de errores
+### [x] TECH-001 — Unificar el manejo de errores
+
+- **Implementado localmente:** `app.ts` monta un único `errorHandler`; se centralizaron respuestas para Zod, autenticación, autorización, ausencia, conflictos Prisma, CSRF, CORS, uploads y errores desconocidos.
+- **Validación local:** se añadieron pruebas de códigos HTTP y no filtración de detalles; `npm test` y `npx tsc --noEmit` pasan.
+- **Pendiente para cierre:** ampliar pruebas HTTP de cada código Prisma contra PostgreSQL real.
 
 - **Problema:** `backend/src/middleware/errorHandler.ts` no se monta y `app.ts` tiene otro handler que convierte demasiados errores en 500.
 - **Solución:** montar un único handler; mapear Zod a 400, autenticación a 401, autorización a 403, ausencia a 404, conflictos Prisma a 409 y errores desconocidos a 500; no filtrar detalles internos.
 - **Archivos:** `backend/src/app.ts`, `backend/src/middleware/errorHandler.ts`, controladores y servicios.
 - **Criterio de cierre:** status codes consistentes y respuestas sin stack traces, SQL, tokens o secretos.
 
-### [ ] PERF-001 — Limitar y validar paginación y filtros
+### [x] PERF-001 — Limitar y validar paginación y filtros
+
+- **Implementado localmente:** productos y pedidos usan schemas estrictos con página entera entre 1 y 1.000.000, `limit` entre 1 y 100, búsqueda recortada a 100 caracteres y filtros desconocidos rechazados.
+- **Validación local:** se añadieron pruebas de entradas válidas, límites, `NaN`, decimales, negativos, filtros desconocidos y búsqueda excesiva; `npm test` y `npx tsc --noEmit` pasan.
 
 - **Problema:** `page` y `limit` son strings sin rangos; pueden producir `NaN`, valores negativos o consultas demasiado grandes.
 - **Solución:** validar enteros positivos, aplicar máximos, normalizar búsquedas y rechazar filtros inválidos; seleccionar solo columnas necesarias.
 - **Archivos:** `backend/src/validators/product.validator.ts`, `backend/src/validators/order.validator.ts`, servicios de producto/pedido.
 - **Criterio de cierre:** entradas inválidas reciben 400 y ningún request puede solicitar un volumen ilimitado.
 
-### [ ] PERF-002 — Mejorar consultas de menú y creación de pedidos
+### [x] PERF-002 — Mejorar consultas de menú y creación de pedidos
+
+- **Implementado localmente:** el menú filtra promociones y combos por día en PostgreSQL y selecciona solo campos necesarios; pedidos reducen payloads de catálogo, crean extras anidados y agrupan movimientos de inventario con `createMany` dentro de la transacción.
+- **Validación local:** `npm test`, `npx tsc --noEmit` y `npx prisma validate` pasan.
+- **Pendiente para cierre:** ejecutar benchmark con PostgreSQL real para medir cantidad de queries y latencia con pedidos grandes.
 
 - **Problema:** el menú filtra días en memoria y devuelve objetos amplios; pedidos insertan líneas y extras uno a uno.
 - **Solución:** reducir `select/include`, filtrar en BD cuando sea viable, usar operaciones por lote y medir consultas; mantener la transacción alrededor de las invariantes.
 - **Archivos:** `backend/src/services/menu.service.ts`, `backend/src/services/order.service.ts`.
 - **Criterio de cierre:** benchmark con pedido grande y menú real demuestra tiempos y cantidad de queries aceptables.
 
-### [ ] CONFIG-001 — Completar configuración segura de entornos
+### [x] CONFIG-001 — Completar configuración segura de entornos
+
+- **Implementado localmente:** se añadieron `backend/.env.example` y `frontend/.env.example`; Prisma CLI acepta `DIRECT_URL` o `DATABASE_URL`, el frontend no contiene fallback Supabase y Vite queda limitado a `127.0.0.1` con hosts permitidos explícitos.
+- **Validación local:** `npx prisma validate`, typecheck/build frontend y typecheck backend deben ejecutarse con variables reales; los ejemplos no contienen secretos.
 
 - **Problema:** no existe `.env.example`; `prisma.config.ts` exige `DIRECT_URL` mientras el cliente acepta también `DATABASE_URL`; el frontend se sirve en `0.0.0.0`.
 - **Solución:** crear documentación de variables sin secretos, validar configuración al arranque, documentar runtime Node y restringir host/preview fuera de desarrollo.
 - **Archivos:** `.env.example` si se decide incorporarlo, `backend/prisma.config.ts`, `backend/src/config/*`, `frontend/vite.config.ts`.
 - **Criterio de cierre:** despliegue reproducible sin valores por defecto inseguros y sin secretos en el frontend.
 
-### [ ] FRONT-001 — Alinear sesión, estados y caché del frontend
+### [x] FRONT-001 — Alinear sesión, estados y caché del frontend
+
+- **Implementado localmente:** la sesión se valida contra `/auth/me`, cualquier `401` limpia el estado global, pedidos usan TanStack Query con claves por filtros e invalidación tras cambios, las ventas invalidan pedidos/caja/notificaciones y el menú tiene frescura de 5 minutos.
+- **Validación local:** build y lint frontend, typecheck backend y pruebas backend pasan.
+- **Pendiente para cierre:** ejecutar E2E con expiración real de sesión y mutaciones contra servicios desplegados.
 
 - **Problema:** router manual protege por token local, los estados frontend/backend no coinciden por completo y las mutaciones no invalidan siempre queries.
 - **Solución:** validar sesión contra backend, compartir tipos de contrato, mapear todos los estados válidos, manejar errores de mutación y definir invalidación/refetch explícita.
 - **Archivos:** `frontend/src/app/router.tsx`, `frontend/src/app/api.ts`, hooks y servicios de auth/orders/menu.
 - **Criterio de cierre:** refresh, expiración, logout, cambio de estado y actualización de catálogo producen UI consistente.
 
-### [ ] DATA-001 — Revisar esquema y migraciones de Prisma
+### [x] DATA-001 — Revisar esquema y migraciones de Prisma
+
+- **Implementado localmente:** se conserva la unicidad parcial de sesiones abiertas por caja para permitir historial, se hace único `Ingredient.sku` nullable, se añade índice de historial y se incorporan constraints de estados, importes, stock y cantidades.
+- **Validación local:** `npx prisma validate` y typecheck pasan; la migración falla de forma atómica si los datos existentes violan una constraint.
+- **Pendiente para cierre:** aplicar la migración sobre una copia de producción, auditar valores fuera de catálogo y preparar rollback operativo antes de desplegar.
 
 - **Problema:** `CashSession.cashRegisterId @unique` limita el historial; varios estados son `String`; `Ingredient.sku` no es único; hay migraciones con posible pérdida o cambio restrictivo de datos.
 - **Solución:** confirmar reglas históricas, añadir constraints/enums solo con plan de migración y revisar datos afectados antes de aplicar cambios.
 - **Archivos:** `backend/prisma/schema.prisma`, `backend/prisma/migrations/*`.
 - **Criterio de cierre:** modelo y migraciones reflejan sesiones históricas, estados válidos, importes/cantidades permitidos y plan de rollback.
 
-### [ ] OBS-001 — Mejorar logging y auditoría de negocio
+### [x] OBS-001 — Mejorar logging y auditoría de negocio
+
+- **Implementado localmente:** cada request recibe `X-Request-ID`; login/logout, catálogo, pedidos, cambios de estado y operaciones de caja generan eventos estructurados con actor, acción, entidad, estados, importe y correlación.
+- **Protección:** no se registran contraseñas, tokens, payloads completos, SQL ni stacks; el handler de errores conserva solo nombre, ruta y request ID.
+- **Validación local:** `npx tsc --noEmit` y `npm test` pasan; una prueba HTTP verifica generación, propagación y rechazo de request IDs arbitrarios.
+- **Pendiente para cierre:** verificar eventos en el agregador de producción y completar inventario/gastos/compras cuando esos casos de uso tengan rutas activas.
 
 - **Problema:** Pino registra arranque y errores, pero no existe trazabilidad suficiente de quién, qué y cuándo en login, permisos, ventas, cancelaciones, inventario, caja, gastos y compras.
 - **Solución:** añadir eventos estructurados con actor, acción, entidad, estado anterior/nuevo, importe, timestamp y request ID; excluir secretos, contraseñas y tokens.

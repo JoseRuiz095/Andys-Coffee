@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { OrderStatus } from '@prisma/client';
+import { normalizedSearchSchema, paginationFields } from './pagination.validator';
 
-export const filterQuerySchema = z.object({
-  page: z.string().default('1'),
-  limit: z.string().default('10'),
+export const filterQuerySchema = z.strictObject({
+  ...paginationFields,
   status: z.nativeEnum(OrderStatus).optional(),
-  search: z.string().optional(),
+  search: normalizedSearchSchema.optional(),
 });
 
 export const orderItemExtraSchema = z.strictObject({

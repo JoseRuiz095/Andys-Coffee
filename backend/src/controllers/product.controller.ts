@@ -44,7 +44,7 @@ export const ProductController = {
         productData.imageUrl = uploadedImageUrl;
       }
 
-      const newProduct = await ProductService.create(productData, user);
+      const newProduct = await ProductService.create(productData, user, req.id);
       res.status(201).json(newProduct);
     } catch (error) {
       if (uploadedImageUrl) await UploadService.deleteProductImage(uploadedImageUrl);
@@ -67,7 +67,7 @@ export const ProductController = {
         productData.imageUrl = uploadedImageUrl;
       }
 
-      const updatedProduct = await ProductService.update(productId, productData, user);
+      const updatedProduct = await ProductService.update(productId, productData, user, req.id);
       if (uploadedImageUrl && previousImageUrl) {
         await UploadService.deleteProductImage(previousImageUrl);
       }
@@ -81,7 +81,7 @@ export const ProductController = {
   remove: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productId = req.params.id as string;
-    await ProductService.remove(productId, user);
+    await ProductService.remove(productId, user, req.id);
     res.status(204).send();
   }),
 };

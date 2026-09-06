@@ -8,8 +8,8 @@ import {
 import { prisma } from '../config/prisma';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
-import { logger } from '../utils/logger';
-import { calculateBestPromotion } from './pricing.service';
+import { auditLog } from '../utils/logger';
+import { calculateBestPromotion, type PricingPromotion } from './pricing.service';
 
 // --- Custom Errors for Service Layer ---
 
@@ -50,7 +50,7 @@ export async function getNextCustomerName(tx: Prisma.TransactionClient): Promise
 
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
-  promotions: (Prisma.PromotionGetPayload<{ include: { products: true; categories: true } }>)[],
+  promotions: (PricingPromotion & { products: { productId: string }[]; categories: { categoryId: string }[] })[],
 ) {
   return orderItems.flatMap((item) => {
     if (item.sourceComboId) return [];
@@ -68,8 +68,7 @@ async function applyPromotions(
 
 export const OrderService = {
   async findAll(query: z.infer<typeof filterQuerySchema>, user: AuthUser) {
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
+    const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.OrderWhereInput = {
@@ -150,7 +149,7 @@ export const OrderService = {
     return order;
   },
 
-  async updateStatus(id: string, data: z.infer<typeof updateOrderStatusSchema>, user: AuthUser) {
+  async updateStatus(id: string, data: z.infer<typeof updateOrderStatusSchema>, user: AuthUser, requestId?: string) {
     const { status } = data;
 
     const order = await prisma.order.findUnique({
@@ -249,17 +248,20 @@ export const OrderService = {
           },
         },
       });
-      logger.info({
+      auditLog({
+        requestId,
         actor: { id: user.id, name: user.name },
-        orderId: id,
-        previousStatus: order.status,
-        newStatus: status,
+        action: 'ORDER_STATUS_CHANGED',
+        entity: 'order',
+        entityId: id,
+        previousState: order.status,
+        newState: status,
       }, 'Order status changed');
       return updatedOrder;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
-  async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
+  async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
     const { items, paymentMethod, cashSessionId, cashReceived, ...restOfOrder } = orderData;
     const today = new Date();
     const currentDay = today.getDay();
@@ -269,7 +271,10 @@ export const OrderService = {
     const extraIds = items.flatMap(item => item.extras?.map(e => e.extraId) || []).filter(Boolean);
 
     const [dbProducts, dbCombosWithItems, dbExtras, productExtras, activePromotions] = await Promise.all([
-      prisma.product.findMany({ where: { id: { in: productIds }, isActive: true } }),
+      prisma.product.findMany({
+        where: { id: { in: productIds }, isActive: true },
+        select: { id: true, name: true, categoryId: true, price: true, cost: true },
+      }),
       prisma.combo.findMany({
         where: {
           id: { in: comboIds },
@@ -277,9 +282,20 @@ export const OrderService = {
           items: { every: { product: { isActive: true } } },
           OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
         },
-        include: { items: { include: { product: true } } },
+        include: {
+          items: {
+            select: {
+              productId: true,
+              quantity: true,
+              product: { select: { id: true, name: true, cost: true, isActive: true } },
+            },
+          },
+        },
       }),
-      prisma.extra.findMany({ where: { id: { in: extraIds }, isActive: true } }),
+      prisma.extra.findMany({
+        where: { id: { in: extraIds }, isActive: true },
+        select: { id: true, name: true, price: true, cost: true },
+      }),
       prisma.productExtra.findMany({
         where: {
           OR: productIds.flatMap((productId) => extraIds.map((extraId) => ({ productId, extraId }))),
@@ -292,7 +308,15 @@ export const OrderService = {
           endDate: { gte: today },
           OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
         },
-        include: { products: true, categories: true },
+        select: {
+          id: true,
+          type: true,
+          discountValue: true,
+          buyQuantity: true,
+          getQuantity: true,
+          products: { select: { productId: true } },
+          categories: { select: { categoryId: true } },
+        },
       }),
     ]);
 
@@ -368,19 +392,40 @@ export const OrderService = {
           subtotal = subtotal.add(itemSubtotal);
           totalOrderCost = totalOrderCost.add(itemCost);
           const orderItem = await tx.orderItem.create({
-            data: { orderId: order.id, productId: product.id, productName: product.name, quantity: item.quantity, unitPrice: product.price, subtotal: itemSubtotal, costSnapshot: itemCost, notes: item.note },
+            data: {
+              orderId: order.id,
+              productId: product.id,
+              productName: product.name,
+              quantity: item.quantity,
+              unitPrice: product.price,
+              subtotal: itemSubtotal,
+              costSnapshot: itemCost,
+              notes: item.note,
+              extras: {
+                create: (item.extras ?? []).map((extraData) => {
+                  const extra = extrasMap.get(extraData.extraId);
+                  if (!extra) throw new ValidationError(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
+                  const extraSubtotal = extra.price.mul(extraData.quantity);
+                  return {
+                    extraId: extra.id,
+                    extraName: extra.name,
+                    quantity: extraData.quantity,
+                    unitPrice: extra.price,
+                    subtotal: extraSubtotal,
+                    costSnapshot: extra.cost,
+                  };
+                }),
+              },
+            },
             include: { product: true },
           });
           createdOrderItems.push(orderItem);
           for (const extraData of item.extras ?? []) {
             const extra = extrasMap.get(extraData.extraId);
             if (!extra) throw new ValidationError(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
-            const relation = await tx.productExtra.findUnique({ where: { productId_extraId: { productId: product.id, extraId: extra.id } } });
-            if (!relation) throw new ValidationError(`El extra ${extra.id} no pertenece al producto ${product.id}.`);
             const extraSubtotal = extra.price.mul(extraData.quantity);
             subtotal = subtotal.add(extraSubtotal);
             totalOrderCost = totalOrderCost.add(extra.cost.mul(extraData.quantity));
-            await tx.orderItemExtra.create({ data: { orderItemId: orderItem.id, extraId: extra.id, extraName: extra.name, quantity: extraData.quantity, unitPrice: extra.price, subtotal: extraSubtotal, costSnapshot: extra.cost } });
           }
         } else if (item.comboId) {
           const combo = combosMap.get(item.comboId);
@@ -436,6 +481,7 @@ export const OrderService = {
           }
         }
       }
+      const inventoryMovements: Prisma.InventoryMovementCreateManyInput[] = [];
       for (const [ingredientId, quantity] of ingredientRequirements) {
         const updated = await tx.ingredient.updateMany({
           where: { id: ingredientId, isActive: true, currentStock: { gte: quantity } },
@@ -446,16 +492,17 @@ export const OrderService = {
           error.name = 'BusinessRuleError';
           throw error;
         }
-        await tx.inventoryMovement.create({
-          data: {
-            ingredientId,
-            type: 'sale',
-            quantity: quantity.negated(),
-            referenceType: 'order',
-            referenceId: order.id,
-            createdById: userId,
-          },
+        inventoryMovements.push({
+          ingredientId,
+          type: 'sale',
+          quantity: quantity.negated(),
+          referenceType: 'order',
+          referenceId: order.id,
+          createdById: userId,
         });
+      }
+      if (inventoryMovements.length > 0) {
+        await tx.inventoryMovement.createMany({ data: inventoryMovements });
       }
 
       const updatedOrder = await tx.order.update({
@@ -511,11 +558,20 @@ export const OrderService = {
         );
       }
 
+      auditLog({
+        requestId,
+        actor: { id: userId },
+        action: 'ORDER_CREATED',
+        entity: 'order',
+        entityId: updatedOrder.id,
+        amount: finalTotal.toFixed(2),
+      }, 'Order created');
+
         return updatedOrder;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) {
-        return OrderService.create(orderData, userId, idempotencyKey, attempt + 1);
+        return OrderService.create(orderData, userId, idempotencyKey, attempt + 1, requestId);
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         for (let lookupAttempt = 0; lookupAttempt < 3; lookupAttempt += 1) {

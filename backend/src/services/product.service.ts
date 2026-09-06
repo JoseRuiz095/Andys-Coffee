@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { z } from 'zod';
 import { UploadService } from './upload.service';
-import { logger } from '../utils/logger';
+import { auditLog } from '../utils/logger';
 import { prisma } from '../config/prisma';
 import { AuthUser } from './auth.service';
 
@@ -31,8 +31,7 @@ const ensureUserHasPermission = (user: AuthUser, permission: string) => {
 
 export const ProductService = {
   async findAll(query: z.infer<typeof filterQuerySchema>) {
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
+    const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {
@@ -84,20 +83,22 @@ export const ProductService = {
     });
   },
 
-  async create(productData: z.infer<typeof createProductSchema>, user: AuthUser) {
+  async create(productData: z.infer<typeof createProductSchema>, user: AuthUser, requestId?: string) {
     ensureUserHasPermission(user, 'manage:products');
     const newProduct = await prisma.product.create({
       data: { ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? `SKU-${randomUUID()}` },
     });
-    logger.info({
-      message: `El producto fue creado`,
+    auditLog({
+      requestId,
       actor: { id: user.id, name: user.name },
-      productId: newProduct.id
-    }, `Product created`);
+      action: 'PRODUCT_CREATED',
+      entity: 'product',
+      entityId: newProduct.id,
+    }, 'Product created');
     return newProduct;
   },
 
-  async update(id: string, productData: z.infer<typeof updateProductSchema>, user: AuthUser) {
+  async update(id: string, productData: z.infer<typeof updateProductSchema>, user: AuthUser, requestId?: string) {
     ensureUserHasPermission(user, 'manage:products');
 
     const originalProduct = await prisma.product.findUnique({
@@ -129,21 +130,20 @@ export const ProductService = {
     }
 
     if (Object.keys(changes).length > 0) {
-      logger.info(
-        {
-          message: `El producto fue actualizado`,
-          actor: { id: user.id, name: user.name },
-          productId: id,
-          changes,
-        },
-        `Product updated`
-      );
+      auditLog({
+        requestId,
+        actor: { id: user.id, name: user.name },
+        action: 'PRODUCT_UPDATED',
+        entity: 'product',
+        entityId: id,
+        metadata: changes,
+      }, 'Product updated');
     }
 
     return updatedProduct;
   },
 
-  async remove(id: string, user: AuthUser) {
+  async remove(id: string, user: AuthUser, requestId?: string) {
     ensureUserHasPermission(user, 'manage:products');
 
     const productToDelete = await prisma.product.findUnique({
@@ -155,14 +155,13 @@ export const ProductService = {
       throw new NotFoundError('Producto no encontrado.');
     }
 
-    logger.info(
-      {
-        message: `El producto va a ser eliminado`,
-        actor: { id: user.id, name: user.name },
-        productId: id,
-      },
-      `Product deletion attempt`
-    );
+    auditLog({
+      requestId,
+      actor: { id: user.id, name: user.name },
+      action: 'PRODUCT_DELETED',
+      entity: 'product',
+      entityId: id,
+    }, 'Product deleted');
 
     await prisma.product.delete({
       where: { id },

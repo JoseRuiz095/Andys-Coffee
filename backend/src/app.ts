@@ -1,17 +1,17 @@
 import "dotenv/config";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import csrf from "tiny-csrf";
-import multer from "multer";
 import authRoutes from "./routes/auth.routes";
 import menuRoutes from "./routes/menu.routes";
 import productRoutes from "./routes/product.routes";
 import orderRoutes from "./routes/order.routes";
 import notificationRoutes from "./routes/notification.routes";
 import cashRoutes from "./routes/cash.routes";
-import { logger } from "./utils/logger";
 import { CSRF_SECRET } from "./config/csrf";
+import { errorHandler } from "./middleware/errorHandler";
+import { randomUUID } from "node:crypto";
 
 // Monkey-patch BigInt to allow JSON serialization
 (BigInt.prototype as any).toJSON = function () {
@@ -20,6 +20,15 @@ import { CSRF_SECRET } from "./config/csrf";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
+
+app.use((req, res, next) => {
+  const suppliedRequestId = req.get("X-Request-ID");
+  req.id = suppliedRequestId && /^[0-9a-f-]{36}$/i.test(suppliedRequestId)
+    ? suppliedRequestId
+    : randomUUID();
+  res.setHeader("X-Request-ID", req.id);
+  next();
+});
 
 // --- Security Configuration ---
 
@@ -94,51 +103,6 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// --- Error Handling ---
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  // Handle CSRF errors
-  if (
-    err.code === "EBADCSRFTOKEN" ||
-    (typeof err.message === "string" &&
-      err.message.startsWith("Did not get a valid CSRF token"))
-  ) {
-    logger.warn({ err }, "CSRF token validation failed");
-    return res.status(403).json({ message: 'CSRF token is invalid.' });
-  }
-
-  // Handle CORS errors
-  if (err.message === 'Not allowed by CORS') {
-    logger.warn({ err }, "CORS origin blocked");
-    return res.status(403).json({ message: 'This origin is not allowed.' });
-  }
-
-  if (err.name === 'AuthorizationError') {
-    return res.status(403).json({ message: err.message });
-  }
-
-  if (err.name === 'NotFoundError') {
-    return res.status(404).json({ message: err.message });
-  }
-
-  if (err.name === 'StateTransitionError') {
-    return res.status(409).json({ message: err.message });
-  }
-
-  if (err.name === 'BusinessRuleError') {
-    return res.status(409).json({ message: err.message });
-  }
-
-  if (err.name === 'UploadValidationError' || err instanceof multer.MulterError) {
-    return res.status(400).json({ message: err.message });
-  }
-
-  if (err instanceof SyntaxError && "body" in err) {
-    logger.warn({ err }, "Invalid JSON in request body");
-    return res.status(400).json({ message: "Invalid JSON format in request body." });
-  }
-
-  logger.error({ err }, "An unexpected internal server error occurred");
-  return res.status(500).json({ message: "Internal Server Error." });
-});
+app.use(errorHandler);
 
 export { app };

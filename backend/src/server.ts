@@ -9,5 +9,5 @@ const server = app.listen(port, () => {
 });
 
 server.on("error", (error) => {
-  logger.error({ err: error }, "Error del servidor");
+  logger.error({ errorName: error.name }, "Error del servidor");
 });

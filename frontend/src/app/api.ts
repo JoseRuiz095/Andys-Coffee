@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { authStore } from '../features/auth/store/auth.store';
 
 /**
  * Cliente de Axios para comunicarse con la API del backend.
@@ -66,6 +67,9 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     releaseCsrfRequest(error.config);
+    if (error.response?.status === 401) {
+      authStore.clearSession();
+    }
     return Promise.reject(error);
   },
 );

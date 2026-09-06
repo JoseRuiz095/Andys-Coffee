@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizedSearchSchema, paginationFields } from './pagination.validator';
 
 export const createProductSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -15,10 +16,9 @@ export const updateProductSchema = createProductSchema.partial().extend({
     displayOrder: z.number().int().optional(),
 });
 
-export const filterQuerySchema = z.object({
-  page: z.string().optional().default('1'),
-  limit: z.string().optional().default('20'),
+export const filterQuerySchema = z.strictObject({
+  ...paginationFields,
   category: z.string().uuid().optional(),
   isActive: z.enum(['true', 'false']).optional(),
-  search: z.string().optional(),
+  search: normalizedSearchSchema.optional(),
 });

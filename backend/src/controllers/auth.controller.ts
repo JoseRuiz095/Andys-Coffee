@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { authenticateUser, createJwtToken } from "../services/auth.service";
+import { auditLog } from "../utils/logger";
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
@@ -11,6 +12,7 @@ export async function login(req: Request, res: Response) {
   const user = await authenticateUser(email, password);
 
   if (!user) {
+    auditLog({ requestId: req.id, action: "LOGIN_FAILED", entity: "auth" }, "Authentication failed");
     return res.status(401).json({ message: "Correo o contraseña incorrectos." });
   }
 
@@ -23,15 +25,25 @@ export async function login(req: Request, res: Response) {
     maxAge: 8 * 60 * 60 * 1000,
   });
 
+  auditLog({
+    requestId: req.id,
+    actor: { id: user.id, name: user.name, role: user.roleName },
+    action: "LOGIN_SUCCEEDED",
+    entity: "auth",
+    entityId: user.id,
+  }, "Authentication succeeded");
+
   return res.json({ user });
 }
 
-export function logout(_req: Request, res: Response) {
+export function logout(req: Request, res: Response) {
   res.clearCookie("token", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
+
+  auditLog({ requestId: req.id, action: "LOGOUT", entity: "auth" }, "Session logout requested");
 
   return res.status(204).send();
 }

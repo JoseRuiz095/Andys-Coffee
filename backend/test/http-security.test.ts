@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { test, before, after } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
@@ -47,4 +48,21 @@ test("las rutas sensibles exigen autenticación después de CSRF", async () => {
     });
     assert.equal(response.status, 401, url);
   }
+});
+
+test("genera y propaga un request ID sin aceptar valores arbitrarios", async () => {
+  const generatedResponse = await fetch(`${baseUrl}/health`);
+  const generatedRequestId = generatedResponse.headers.get("x-request-id");
+  assert.match(generatedRequestId ?? "", /^[0-9a-f-]{36}$/i);
+
+  const requestId = randomUUID();
+  const propagatedResponse = await fetch(`${baseUrl}/health`, {
+    headers: { "X-Request-ID": requestId },
+  });
+  assert.equal(propagatedResponse.headers.get("x-request-id"), requestId);
+
+  const arbitraryResponse = await fetch(`${baseUrl}/health`, {
+    headers: { "X-Request-ID": "not-a-request-id" },
+  });
+  assert.notEqual(arbitraryResponse.headers.get("x-request-id"), "not-a-request-id");
 });

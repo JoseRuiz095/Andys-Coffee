@@ -8,7 +8,9 @@ export const useCreateOrder = () => {
   return useMutation({
     mutationFn: (order: CreateOrderPayload) => createOrder(order),
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['cash-session', 'active'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       console.log('Order created successfully:', data);
     },
     onError: (error) => {
