@@ -1,5 +1,5 @@
 -- Nullable SKUs may repeat NULL, but every concrete SKU must be unique.
-CREATE UNIQUE INDEX "ingredients_sku_unique" ON "ingredients"("sku");
+CREATE UNIQUE INDEX IF NOT EXISTS "ingredients_sku_unique" ON "ingredients"("sku");
 
 ALTER TABLE "ingredients"
   ADD CONSTRAINT "ingredients_stock_nonnegative_check"

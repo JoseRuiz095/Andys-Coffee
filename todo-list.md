@@ -106,7 +106,7 @@
 - **Archivos:** `backend/src/validators/order.validator.ts`, `backend/src/services/order.service.ts`.
 - **Criterio de cierre:** entradas ambiguas, IDs inexistentes, extras no asociados, productos inactivos y cantidades fuera de rango reciben 400; el servidor calcula todos los precios.
 
-### [-] SEC-009 — Asegurar la carga de imágenes
+### [x] SEC-009 — Asegurar la carga de imágenes
 
 - **Problema:** Multer usa memoria sin límite y acepta MIME, extensión y contenido proporcionados por el cliente.
 - **Solución:** establecer límites de tamaño y campos; permitir formatos concretos; validar magic bytes y dimensiones; generar extensión segura; usar almacenamiento privado o URLs firmadas; limpiar archivos si falla la persistencia.

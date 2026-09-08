@@ -168,11 +168,13 @@ export function OrderDetailsPanel({
                   className="flex items-start gap-3 rounded-xl bg-[#F2EFE8] p-3"
                 >
                   <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[#D9E3D6]">
-                    <img
-                      src={getSupabaseImageUrl(item.image, 'Img', 'public')}
-                      alt={item.productName}
-                      className="h-full w-full object-cover"
-                    />
+                    {getSupabaseImageUrl(item.image, 'Img', 'public') && (
+                      <img
+                        src={getSupabaseImageUrl(item.image, 'Img', 'public')}
+                        alt={item.productName}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">

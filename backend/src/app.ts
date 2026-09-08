@@ -90,6 +90,14 @@ app.use((req, _res, next) => {
 });
 app.use(csrf(CSRF_SECRET, ["POST", "PUT", "PATCH", "DELETE"]));
 
+// CSRF ya validó este campo; no debe contaminar los DTO estrictos de las rutas.
+app.use((req, _res, next) => {
+  if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+    delete req.body._csrf;
+  }
+  next();
+});
+
 
 // --- Routes ---
 app.use("/api/auth", authRoutes);

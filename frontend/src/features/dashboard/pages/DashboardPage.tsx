@@ -26,8 +26,13 @@ import { useCashSession } from '../hooks/useCashSession'
 import axios from 'axios'
 
 function getApiErrorMessage(error: unknown, fallback: string) {
-  if (axios.isAxiosError<{ message?: string }>(error)) {
-    return error.response?.data?.message ?? error.message
+  if (axios.isAxiosError<{ message?: string; errors?: unknown }>(error)) {
+    const data = error.response?.data
+    if (data?.errors) {
+      const details = typeof data.errors === 'string' ? data.errors : JSON.stringify(data.errors)
+      return `${data.message ?? 'Error de validación.'}: ${details}`
+    }
+    return data?.message ?? error.message
   }
   return error instanceof Error ? error.message : fallback
 }
@@ -86,11 +91,10 @@ export function DashboardPage() {
       paymentMethod: paymentMethod!,
       cashReceived,
       items: orderItems.map(
-        ({ productId, comboId, quantity, unitPrice, note, type }) => ({
+        ({ productId, comboId, quantity, note, type }) => ({
           productId: type === 'product' ? productId : undefined,
           comboId: type === 'combo' ? comboId : undefined,
           quantity,
-          unitPrice,
           note,
         }),
       ),

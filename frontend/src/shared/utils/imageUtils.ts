@@ -9,16 +9,15 @@ import { SUPABASE_URL } from '../constants/config';
  * @param imagePath The relative path of the image within the Supabase bucket (e.g., 'products/coffee.jpg').
  * @param bucketName The name of the Supabase storage bucket. Defaults to 'Img'.
  * @param accessType The type of access for the image ('public' or 'sign'). Defaults to 'public'.
- * @returns The full URL to the image, or an empty string if SUPABASE_URL is not defined.
+ * @returns The full URL to the image, or undefined when configuration is missing.
  */
 export function getSupabaseImageUrl(
   imagePath: string,
   bucketName: string = 'Img',
   accessType: 'public' | 'sign' = 'public'
-): string {
-  if (!SUPABASE_URL) {
-    console.warn('SUPABASE_URL is not defined. Image URLs cannot be constructed.');
-    return '';
+): string | undefined {
+  if (!SUPABASE_URL || !imagePath) {
+    return undefined;
   }
 
   // Ensure the base URL does not end with a slash and imagePath does not start with one,

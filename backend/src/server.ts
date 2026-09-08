@@ -9,5 +9,5 @@ const server = app.listen(port, () => {
 });
 
 server.on("error", (error) => {
-  logger.error({ errorName: error.name }, "Error del servidor");
+  logger.error({ errorName: error.name, errorCode: (error as NodeJS.ErrnoException).code }, "Error del servidor");
 });
