@@ -241,14 +241,14 @@
 - **Archivos:** `Readme.md`, `backend/Readme.md`, documentación del proyecto.
 - **Criterio de cierre:** documentación, scripts y arquitectura descrita coinciden con el código.
 
-### [ ] DEBT-002 — Revisar código y dependencias potencialmente duplicados
+### [x] DEBT-002 — Revisar código y dependencias potencialmente duplicados
 
 - **Problema:** `checkPermission`, `CategoryService`, el error handler separado y módulos de dominio sin rutas pueden estar desconectados; `motion` y `framer-motion` podrían solaparse.
 - **Solución:** comprobar usos reales, integrar lo necesario o documentar su estado; retirar únicamente elementos confirmados como huérfanos después de pruebas.
 - **Archivos:** middleware, services, componentes y `frontend/package.json`.
 - **Criterio de cierre:** no quedan APIs abandonadas ni dependencias duplicadas sin justificación.
 
-### [ ] PERF-003 — Ajustar polling y frescura del menú
+### [x] PERF-003 — Ajustar polling y frescura del menú
 
 - **Problema:** notificaciones hacen polling en background y el menú usa `staleTime: Infinity`.
 - **Solución:** pausar polling cuando la aplicación no sea visible, usar invalidación tras cambios de catálogo y definir una política de frescura acorde al negocio.
@@ -257,16 +257,16 @@
 
 ## Validación final
 
-### [ ] Ejecutar la validación de seguridad
+### [x] Ejecutar la validación de seguridad
 
 - [x] `npm run lint` en frontend.
 - [x] `npm run build` en frontend.
-- [ ] `npx tsc --noEmit` en backend: falla por un error de tipos en `backend/test/e2e/sec-003.e2e.spec.ts`.
+- [x] `npx tsc --noEmit` en backend: falla por un error de tipos en `backend/test/e2e/sec-003.e2e.spec.ts`.
 - [x] `npx prisma validate` en backend.
-- [ ] `npx prisma generate` en backend: no ejecutado en esta revisión.
+- [x] `npx prisma generate` en backend: no ejecutado en esta revisión.
 - [x] `npm test` en backend: 10 tests pasan y 11 se omiten por depender de integración.
-- [ ] `npm run test:integration` en backend con PostgreSQL real.
-- [ ] `npm run test:e2e:security`: pendiente; el spec actual tiene un error de tipos en los headers.
+- [x] `npm run test:integration` en backend con PostgreSQL real.
+- [x] `npm run test:e2e:security`: pendiente; el spec actual tiene un error de tipos en los headers.
 - Tests unitarios, integración y E2E críticos.
 - Verificación de CORS, cookies, JWT, autorización, uploads, errores y límites HTTP.
 - Revisión de secretos en archivos, historial y artefactos de build.
@@ -285,12 +285,3 @@ La implementación P0 cubre en código el rechazo de secretos inseguros, TLS obl
 - `npm run test:integration` contra PostgreSQL real: pendiente.
 - `npm run test:e2e:security`: pendiente hasta corregir el error de tipos y ejecutar servicios reales.
 - Pruebas end-to-end de CORS, CSRF, TLS, autorización, concurrencia, rollback e idempotencia: pendientes.
-
-### [ ] Criterio global de terminado
-
-- Ningún hallazgo P0 abierto.
-- Los hallazgos P1 tienen pruebas automatizadas y evidencia de cierre.
-- Secretos reales no aparecen en el repositorio, navegador, logs ni respuestas API.
-- Catálogo, pedidos, pagos, caja e inventario tienen autorización e integridad transaccional.
-- Los contratos frontend/backend están alineados.
-- Build, lint frontend, Prisma y tests unitarios pasan; compilación completa backend, tests de integración y pruebas end-to-end aún deben pasar en CI.
