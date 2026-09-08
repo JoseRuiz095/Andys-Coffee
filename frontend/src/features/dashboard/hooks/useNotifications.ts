@@ -18,8 +18,8 @@ export function useNotifications() {
   } = useQuery({
     queryKey: ['notifications'],
     queryFn: getNotifications,
-    refetchInterval: 30000, // Poll every 30 seconds
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   const markAsReadMutation = useMutation({

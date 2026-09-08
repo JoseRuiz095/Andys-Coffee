@@ -1,15 +1,31 @@
-import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useState, useRef } from 'react'
 import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard'
+import { SalePage } from '../features/menu/pages/SalePage'
 import { SettingsPage } from '../features/settings'
 import { authStore } from '../features/auth/store/auth.store'
 import { getCurrentUser } from '../features/auth/services/auth.service'
 import { APP_ROUTES } from '../shared/constants/routes'
 
+function usePrevious<T>(value: T) {
+  const ref = useRef<T | undefined>(undefined)
+  useEffect(() => {
+    ref.current = value
+  })
+  // The ref intentionally exposes the value from the previous render.
+  // eslint-disable-next-line react-hooks/refs
+  return ref.current
+}
+
 export function AppRouter() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const [session, setSession] = useState(authStore.getState())
   const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const prevPathname = usePrevious(pathname)
+
+  const routeOrder: string[] = [APP_ROUTES.login, APP_ROUTES.dashboard, APP_ROUTES.menu, APP_ROUTES.settings]
+  const direction = prevPathname ? (routeOrder.indexOf(pathname) > routeOrder.indexOf(prevPathname) ? 1 : -1) : 1
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -70,13 +86,86 @@ export function AppRouter() {
     return null
   }
 
-  if (pathname === APP_ROUTES.dashboard) {
-    return <DashboardPage />
+  const variants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 100 : -100,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 100 : -100,
+      opacity: 0,
+    }),
   }
 
-  if (pathname === APP_ROUTES.settings) {
-    return <SettingsPage />
-  }
+  return (
+    <AnimatePresence initial={false} mode="sync" custom={direction}>
+      {pathname === APP_ROUTES.dashboard && (
+        <motion.div
+          key={APP_ROUTES.dashboard}
+          className="overflow-x-clip"
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <DashboardPage />
+        </motion.div>
+      )}
 
-  return <LoginPage />
+      {pathname === APP_ROUTES.menu && (
+        <motion.div
+          key={APP_ROUTES.menu}
+          className="overflow-x-clip"
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <SalePage />
+        </motion.div>
+      )}
+
+      {pathname === APP_ROUTES.settings && (
+        <motion.div
+          key={APP_ROUTES.settings}
+          className="overflow-x-clip"
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <SettingsPage />
+        </motion.div>
+      )}
+
+      {pathname === APP_ROUTES.login && (
+        <motion.div
+          key={APP_ROUTES.login}
+          className="overflow-x-clip"
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <LoginPage />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 }

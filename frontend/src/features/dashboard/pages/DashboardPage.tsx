@@ -1,4 +1,4 @@
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
@@ -42,6 +42,16 @@ function navigateTo(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+function usePrevious<T>(value: T) {
+  const ref = React.useRef<T | undefined>(undefined)
+  React.useEffect(() => {
+    ref.current = value
+  })
+  // The ref intentionally exposes the value from the previous render.
+  // eslint-disable-next-line react-hooks/refs
+  return ref.current
+}
+
 export function DashboardPage() {
   const [isLoading] = React.useState(false) // Keep this if OrderListSection still uses it
   const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
@@ -51,6 +61,8 @@ export function DashboardPage() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] =
     React.useState(false)
   const [activeView, setActiveView] = React.useState('Venta')
+  const prevActiveView = usePrevious(activeView)
+
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([])
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
@@ -64,6 +76,9 @@ export function DashboardPage() {
   const isInitialCategorySet = React.useRef(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
   const notificationContainerRef = React.useRef<HTMLDivElement>(null)
+
+  const viewOrder = ['Venta', 'Dashboard', 'Ordenes', 'Inventario', 'Administracion']
+  const direction = prevActiveView ? (viewOrder.indexOf(activeView) > viewOrder.indexOf(prevActiveView) ? 1 : -1) : 1
 
   const {
     data: menuData,
@@ -349,39 +364,137 @@ export function DashboardPage() {
   }
 
   const renderContent = () => {
-    if (activeView === 'Venta') {
-      if (!cashSession || cashSession.status !== 'open') {
-        return (
-          <CashOpeningPanel
-            session={cashSession}
-            isLoading={isCashSessionLoading}
-            error={cashSessionError as Error | null}
-            isOpening={openSession.isPending}
-            onOpen={(openingAmount) => {
-              openSession.mutate(openingAmount, {
-                onSuccess: () => {
-                  sileo.success({ title: 'Caja abierta correctamente.', duration: 3000 })
-                },
-                onError: (error) => {
-                  sileo.error({
-                    title: 'No se pudo abrir la caja',
-                    description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
-                  })
-                },
-              })
-            }}
-          />
-        )
-      }
+    const variants = {
+      enter: (direction: number) => ({
+        x: direction > 0 ? 100 : -100,
+        opacity: 0,
+      }),
+      center: {
+        x: 0,
+        opacity: 1,
+      },
+      exit: (direction: number) => ({
+        x: direction < 0 ? 100 : -100,
+        opacity: 0,
+      }),
+    }
 
-      return (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]">
-          {isError ? (
-            <div className="rounded-lg border border-red-400 bg-red-100 p-8 text-center text-red-700">
-              <p className="font-bold">¡Error al cargar el menú!</p>
-              <p>{error.message}</p>
-            </div>
+    return (
+      <AnimatePresence mode="wait" custom={direction}>
+        {activeView === 'Venta' &&
+          (!cashSession || cashSession.status !== 'open' ? (
+            <motion.div
+              key="cash-opening"
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.3 }}
+            >
+              <CashOpeningPanel
+                session={cashSession}
+                isLoading={isCashSessionLoading}
+                error={cashSessionError as Error | null}
+                isOpening={openSession.isPending}
+                onOpen={(openingAmount) => {
+                  openSession.mutate(openingAmount, {
+                    onSuccess: () => {
+                      sileo.success({ title: 'Caja abierta correctamente.', duration: 3000 })
+                    },
+                    onError: (error) => {
+                      sileo.error({
+                        title: 'No se pudo abrir la caja',
+                        description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
+                      })
+                    },
+                  })
+                }}
+              />
+            </motion.div>
           ) : (
+            <motion.div
+              key="venta-view"
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]"
+            >
+              {isError ? (
+                <div className="rounded-lg border border-red-400 bg-red-100 p-8 text-center text-red-700">
+                  <p className="font-bold">¡Error al cargar el menú!</p>
+                  <p>{error.message}</p>
+                </div>
+              ) : (
+                <MenuSection
+                  menu={menuData}
+                  isLoading={isMenuLoading}
+                  categoryNames={categoryNames}
+                  onAddToOrder={handleAddToOrder}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                />
+              )}
+              <OrderDetailsPanel
+                isLoading={isCreatingOrder}
+                items={orderItems}
+                subtotal={subtotal}
+                total={total}
+                orderNotes={orderNotes}
+                customerName={customerName}
+                paymentMethod={paymentMethod}
+                onNotesChange={handleNotesChange}
+                onCustomerNameChange={handleCustomerNameChange}
+                onPaymentMethodChange={handlePaymentMethodChange}
+                onRemoveItem={handleRemoveItem}
+                onClearOrder={handleClearOrder}
+                onUpdateItemNote={handleUpdateItemNote}
+                onProcessTransaction={handleProcessOrder}
+              />
+              <CashPaymentDialog
+                key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
+                open={isCashPaymentOpen}
+                total={total}
+                isLoading={isCreatingOrder}
+                onClose={() => setIsCashPaymentOpen(false)}
+                onConfirm={(cashReceived) => submitOrder(cashReceived)}
+              />
+            </motion.div>
+          ))}
+
+        {activeView === 'Ordenes' && (
+          <motion.div
+            key="ordenes-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+          >
+            <OrdersPage />
+          </motion.div>
+        )}
+
+        {(activeView === 'Inventario' || activeView === 'Administracion') && (
+          <motion.div
+            key="other-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+            className="grid gap-6 lg:grid-cols-[280px_1fr_320px]"
+          >
+            <OrderListSection
+              isLoading={isLoading}
+              selectedOrderId={selectedOrderId}
+              onSelectOrder={setSelectedOrderId}
+            />
             <MenuSection
               menu={menuData}
               isLoading={isMenuLoading}
@@ -390,58 +503,14 @@ export function DashboardPage() {
               selectedCategory={selectedCategory}
               onSelectCategory={setSelectedCategory}
             />
-          )}
-          <OrderDetailsPanel
-            isLoading={isCreatingOrder}
-            items={orderItems}
-            subtotal={subtotal}
-            total={total}
-            orderNotes={orderNotes}
-            customerName={customerName}
-            paymentMethod={paymentMethod}
-            onNotesChange={handleNotesChange}
-            onCustomerNameChange={handleCustomerNameChange}
-            onPaymentMethodChange={handlePaymentMethodChange}
-            onRemoveItem={handleRemoveItem}
-            onClearOrder={handleClearOrder}
-            onUpdateItemNote={handleUpdateItemNote}
-            onProcessTransaction={handleProcessOrder}
-          />
-          <CashPaymentDialog
-            key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
-            open={isCashPaymentOpen}
-            total={total}
-            isLoading={isCreatingOrder}
-            onClose={() => setIsCashPaymentOpen(false)}
-            onConfirm={(cashReceived) => submitOrder(cashReceived)}
-          />
-        </div>
-      )
-    }
-    if (activeView === 'Ordenes') {
-      return <OrdersPage />
-    }
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr_320px]">
-        <OrderListSection
-          isLoading={isLoading}
-          selectedOrderId={selectedOrderId}
-          onSelectOrder={setSelectedOrderId}
-        />
-        <MenuSection
-          menu={menuData}
-          isLoading={isMenuLoading}
-          categoryNames={categoryNames}
-          onAddToOrder={handleAddToOrder}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-        />
-        <OrderDetailsPanel
-          isLoading={isCreatingOrder}
-          paymentMethod={paymentMethod}
-          onPaymentMethodChange={handlePaymentMethodChange}
-        />
-      </div>
+            <OrderDetailsPanel
+              isLoading={isCreatingOrder}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={handlePaymentMethodChange}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     )
   }
 

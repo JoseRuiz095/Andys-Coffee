@@ -1,7 +1,7 @@
 "use client"
 
-import type { Variants } from 'motion/react'
-import { motion, useAnimation } from 'motion/react'
+import type { Variants } from 'framer-motion'
+import { motion, useAnimationControls } from 'framer-motion'
 import type { HTMLAttributes, MouseEvent } from 'react'
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react'
 
@@ -37,7 +37,7 @@ const PATH_VARIANTS: Variants = {
 
 const ShieldCheckIcon = forwardRef<ShieldCheckIconHandle, ShieldCheckIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
-    const controls = useAnimation()
+    const controls = useAnimationControls()
     const isControlledRef = useRef(false)
 
     useImperativeHandle(ref, () => {

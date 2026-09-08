@@ -1,6 +1,6 @@
 "use client"
 
-import { motion, useAnimation } from 'motion/react'
+import { motion, useAnimationControls } from 'framer-motion'
 import type { HTMLAttributes, MouseEvent } from 'react'
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react'
 
@@ -15,7 +15,7 @@ interface SettingsIconProps extends HTMLAttributes<HTMLDivElement> {
 
 const SettingsIcon = forwardRef<SettingsIconHandle, SettingsIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
-    const controls = useAnimation()
+    const controls = useAnimationControls()
     const isControlledRef = useRef(false)
 
     useImperativeHandle(ref, () => {
