@@ -6,14 +6,15 @@ import { InventoryEntries } from './InventoryEntries'
 import { InventoryMovements } from './InventoryMovements'
 import { InventoryPhysical } from './InventoryPhysical'
 import { InventoryExits } from './InventoryExits'
+import { IngredientsPage } from './IngredientsPage'
 
-type InventoryView = 'current' | 'add-entry' | 'entries' | 'movements' | 'physical' | 'exits'
+type InventoryView = 'current' | 'add-entry' | 'entries' | 'movements' | 'physical' | 'exits' | 'ingredients'
 
 export function InventoryLayout() {
   const [activeView, setActiveView] = useState<InventoryView>('current')
   const prevViewRef = useRef<InventoryView>(activeView)
 
-  const views: InventoryView[] = ['current', 'add-entry', 'entries', 'movements', 'physical', 'exits']
+  const views: InventoryView[] = ['current', 'add-entry', 'entries', 'movements', 'physical', 'exits', 'ingredients']
   const currentIndex = views.indexOf(activeView)
   const prevIndex = views.indexOf(prevViewRef.current)
   const direction = currentIndex > prevIndex ? 1 : -1
@@ -53,6 +54,16 @@ export function InventoryLayout() {
               }`}
             >
               Inventario Actual
+            </button>
+            <button
+              onClick={() => handleViewChange('ingredients')}
+              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                activeView === 'ingredients'
+                  ? 'border-[#5A804F] text-[#5A804F]'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Ingredientes
             </button>
             <button
               onClick={() => handleViewChange('add-entry')}
@@ -121,6 +132,19 @@ export function InventoryLayout() {
             transition={{ duration: 0.3 }}
           >
             <InventoryCurrent />
+          </motion.div>
+        )}
+        {activeView === 'ingredients' && (
+          <motion.div
+            key="ingredients-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+          >
+            <IngredientsPage />
           </motion.div>
         )}
         {activeView === 'add-entry' && (

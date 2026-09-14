@@ -93,10 +93,10 @@ export function InventoryExits() {
   const handleConfirmExit = () => {
     const qty = parseFloat(quantity)
 
-    if (!selectedIngredient || qty > selectedIngredient.currentStock) {
+    if (!selectedIngredient || qty > Number(selectedIngredient.currentStock)) {
       sileo.error({
         title: 'Stock insuficiente',
-        description: `Disponible: ${selectedIngredient?.currentStock.toFixed(2) || 0}`,
+        description: `Disponible: ${selectedIngredient ? Number(selectedIngredient.currentStock).toFixed(2) : 0}`,
       })
       setIsConfirming(false)
       return
@@ -171,7 +171,7 @@ export function InventoryExits() {
                   <option value="">Selecciona un ingrediente</option>
                   {ingredientsData?.data?.map((ing) => (
                     <option key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.currentStock.toFixed(2)} {ing.unit.abbreviation})
+                      {ing.name} ({Number(ing.currentStock).toFixed(2)} {ing.unit.abbreviation})
                     </option>
                   ))}
                 </select>
@@ -216,7 +216,7 @@ export function InventoryExits() {
                 </label>
                 <div className="flex items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
                   <span className="text-sm font-medium text-gray-900">
-                    {selectedIngredient.currentStock.toFixed(2)}{' '}
+                    {Number(selectedIngredient.currentStock).toFixed(2)}{' '}
                     <span className="text-gray-600">{selectedIngredient.unit.abbreviation}</span>
                   </span>
                 </div>

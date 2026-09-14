@@ -2,8 +2,10 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
-import { useCreatePurchase, usePurchasesList } from '../hooks/usePurchases'
+import { useCreatePurchase, usePurchasesList, useSearchSuppliers } from '../hooks/usePurchases'
 import { useSearchIngredients } from '../hooks/useInventory'
+import { IngredientFormModal } from '../components/IngredientFormModal'
+import { SupplierFormModal } from '../components/SupplierFormModal'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20'
@@ -19,6 +21,8 @@ interface PurchaseItem {
   ingredientId: string
   quantity: number
   unitCost: number
+  ingredientName?: string
+  unitAbbreviation?: string
 }
 
 export function InventoryAddEntry() {
@@ -33,9 +37,17 @@ export function InventoryAddEntry() {
   const [isConfirming, setIsConfirming] = useState(false)
   const [ingredientSearch, setIngredientSearch] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false)
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const [showSupplierResults, setShowSupplierResults] = useState(false)
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
+  const [selectedSupplierData, setSelectedSupplierData] = useState<any>(null)
 
   // Búsqueda dinámica de ingredientes
   const { data: searchResults, isLoading: isSearching } = useSearchIngredients(ingredientSearch)
+
+  // Búsqueda dinámica de proveedores
+  const { data: supplierResults, isLoading: isSearchingSuppliers } = useSearchSuppliers(supplierSearch)
 
   const { mutate: createPurchase, isPending: isCreating } = useCreatePurchase()
   const { refetch: refetchPurchases } = usePurchasesList({ status: 'draft', limit: 100 })
@@ -78,6 +90,8 @@ export function InventoryAddEntry() {
         ingredientId: selectedIngredient,
         quantity: qty,
         unitCost: cost,
+        ingredientName: selectedIngredientData?.name,
+        unitAbbreviation: selectedIngredientData?.unit.abbreviation,
       },
     ])
 
@@ -88,6 +102,21 @@ export function InventoryAddEntry() {
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index))
+  }
+
+  const handleIngredientCreated = (ingredient: any) => {
+    setIsIngredientModalOpen(false)
+    setSelectedIngredient(ingredient.id)
+    setIngredientSearch('')
+    setShowSearchResults(false)
+  }
+
+  const handleSupplierCreated = (supplier: any) => {
+    setIsSupplierModalOpen(false)
+    setSupplier(supplier.id)
+    setSupplierSearch('')
+    setShowSupplierResults(false)
+    setSelectedSupplierData(supplier)
   }
 
   const handleConfirmCreate = () => {
@@ -162,18 +191,104 @@ export function InventoryAddEntry() {
             {/* Información general */}
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Información de la compra</h2>
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
+              {/* Proveedor - Búsqueda dinámica */}
+              <div className="relative">
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Proveedor (opcional)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Nombre del proveedor"
-                  value={supplierId}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  className={TAILWIND_INPUT_CLASS}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={supplierId ? '' : 'Buscar proveedor...'}
+                    value={
+                      supplierId && selectedSupplierData
+                        ? selectedSupplierData.name
+                        : supplierSearch
+                    }
+                    onChange={(e) => {
+                      setSupplierSearch(e.target.value)
+                      setSupplier('')
+                      setShowSupplierResults(true)
+                    }}
+                    onFocus={() => setShowSupplierResults(true)}
+                    className={TAILWIND_INPUT_CLASS}
+                  />
+
+                  {supplierId && (
+                    <button
+                      onClick={() => {
+                        setSupplier('')
+                        setSupplierSearch('')
+                        setShowSupplierResults(false)
+                        setSelectedSupplierData(null)
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {showSupplierResults && !supplierId && (supplierSearch.length >= 2 || supplierResults?.length || 0 > 0) && (
+                    <motion.div
+                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      {isSearchingSuppliers ? (
+                        <div className="p-3">
+                          <Skeleton className="h-8" />
+                        </div>
+                      ) : supplierResults && supplierResults.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {supplierResults.map((supplier) => (
+                            <button
+                              key={supplier.id}
+                              onClick={() => {
+                                setSupplier(supplier.id)
+                                setSupplierSearch('')
+                                setShowSupplierResults(false)
+                                setSelectedSupplierData(supplier)
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                              type="button"
+                            >
+                              <p className="text-sm font-medium text-gray-900">{supplier.name}</p>
+                              {(supplier.phone || supplier.email) && (
+                                <p className="text-xs text-gray-600">
+                                  {supplier.phone}
+                                  {supplier.phone && supplier.email ? ' · ' : ''}
+                                  {supplier.email}
+                                </p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : supplierSearch.length >= 2 ? (
+                        <div className="divide-y divide-gray-100">
+                          <div className="p-3 text-center text-xs text-gray-500">
+                            No encontramos proveedores
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsSupplierModalOpen(true)
+                              setShowSupplierResults(false)
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
+                            type="button"
+                          >
+                            + Crear "{supplierSearch}"
+                          </button>
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Número de factura (opcional)
@@ -262,14 +377,26 @@ export function InventoryAddEntry() {
                                   )}
                                 </p>
                                 <p className="text-xs text-gray-600">
-                                  {ingredient.currentStock.toFixed(2)} {ingredient.unit.abbreviation}
+                                  {Number(ingredient.currentStock).toFixed(2)} {ingredient.unit.abbreviation}
                                 </p>
                               </button>
                             ))}
                           </div>
                         ) : ingredientSearch.length >= 2 ? (
-                          <div className="p-3 text-center text-xs text-gray-500">
-                            No encontramos ingredientes
+                          <div className="divide-y divide-gray-100">
+                            <div className="p-3 text-center text-xs text-gray-500">
+                              No encontramos ingredientes exactos
+                            </div>
+                            <button
+                              onClick={() => {
+                                setIsIngredientModalOpen(true)
+                                setShowSearchResults(false)
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
+                              type="button"
+                            >
+                              + Crear "{ingredientSearch}"
+                            </button>
                           </div>
                         ) : null}
                       </motion.div>
@@ -337,34 +464,31 @@ export function InventoryAddEntry() {
                 <h3 className="mb-3 font-semibold text-gray-900">Items agregados</h3>
                 <div className="space-y-2">
                   <AnimatePresence mode="popLayout">
-                    {items.map((item, i) => {
-                      const ingredient = ingredientsData?.data?.find((ing) => ing.id === item.ingredientId)
-                      return (
-                        <motion.div
-                          key={i}
-                          className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 10 }}
+                    {items.map((item, i) => (
+                      <motion.div
+                        key={i}
+                        className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">
+                            {item.ingredientName || 'Ingrediente desconocido'}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {item.quantity.toFixed(2)} x ${item.unitCost.toFixed(2)} ={' '}
+                            <strong>${(item.quantity * item.unitCost).toFixed(2)}</strong>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(i)}
+                          className="ml-2 rounded-lg bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
                         >
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              {ingredient?.name || 'Ingrediente desconocido'}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {item.quantity.toFixed(2)} x ${item.unitCost.toFixed(2)} ={' '}
-                              <strong>${(item.quantity * item.unitCost).toFixed(2)}</strong>
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveItem(i)}
-                            className="ml-2 rounded-lg bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
-                          >
-                            Quitar
-                          </button>
-                        </motion.div>
-                      )
-                    })}
+                          Quitar
+                        </button>
+                      </motion.div>
+                    ))}
                   </AnimatePresence>
                 </div>
               </motion.div>
@@ -489,6 +613,22 @@ export function InventoryAddEntry() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Ingredient Creation Modal */}
+        <IngredientFormModal
+          isOpen={isIngredientModalOpen}
+          onClose={() => setIsIngredientModalOpen(false)}
+          onSuccess={handleIngredientCreated}
+          initialName={ingredientSearch}
+        />
+
+        {/* Supplier Creation Modal */}
+        <SupplierFormModal
+          isOpen={isSupplierModalOpen}
+          onClose={() => setIsSupplierModalOpen(false)}
+          onSuccess={handleSupplierCreated}
+          initialName={supplierSearch}
+        />
       </div>
     </motion.div>
   )
