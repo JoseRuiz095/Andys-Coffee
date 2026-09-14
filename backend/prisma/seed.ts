@@ -560,6 +560,13 @@ const permissions = [
   { name: "cash.close", description: "Cerrar caja" },
   { name: "cash.correct", description: "Corregir un cierre de caja" },
   { name: "reports.read", description: "Consultar reportes" },
+  { name: "inventory.view", description: "Ver inventario" },
+  { name: "inventory.create_entry", description: "Registrar entradas de inventario" },
+  { name: "inventory.create_exit", description: "Registrar salidas de inventario" },
+  { name: "inventory.adjust", description: "Ajustar inventario" },
+  { name: "inventory.physical_count", description: "Realizar conteos físicos" },
+  { name: "inventory.create_ingredient", description: "Crear y editar ingredientes" },
+  { name: "inventory.manage_suppliers", description: "Gestionar proveedores" },
 ];
 
 // ============================================================
@@ -613,7 +620,7 @@ async function main() {
     data: allPermissions.map((p) => ({ roleId: adminRoleId, permissionId: p.id })),
   });
 
-  const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close"];
+  const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close", "inventory.view"];
   const cashierPermissions = allPermissions.filter((p) => cashierPermissionNames.includes(p.name));
   await prisma.rolePermission.createMany({
     data: cashierPermissions.map((p) => ({ roleId: cashierRoleId, permissionId: p.id })),
@@ -755,7 +762,10 @@ async function main() {
   // PROMOCIONES
   // ==========================================================
   console.log("Creando promociones...");
-  await prisma.promotion.deleteMany({}); // Limpiar promociones viejas
+  // Limpiar relaciones primero antes de eliminar promociones
+  await prisma.promotionOnProduct.deleteMany({});
+  await prisma.promotionOnCategory.deleteMany({});
+  await prisma.promotion.deleteMany({});
 
   const promotionDefinitions = [
     {

@@ -1,0 +1,86 @@
+import { useQuery } from '@tanstack/react-query'
+import { inventoryApi } from '../api/inventory.api'
+
+export function useInventorySummary() {
+  return useQuery({
+    queryKey: ['inventory', 'summary'],
+    queryFn: () => inventoryApi.getSummary(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useInventoryValue() {
+  return useQuery({
+    queryKey: ['inventory', 'value'],
+    queryFn: () => inventoryApi.getTotalValue(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useLowStock() {
+  return useQuery({
+    queryKey: ['inventory', 'low-stock'],
+    queryFn: () => inventoryApi.getLowStock(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface UseInventoryListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'all' | 'normal' | 'low_stock' | 'out_of_stock';
+  isActive?: boolean;
+}
+
+export function useInventoryList(params: UseInventoryListParams = {}) {
+  return useQuery({
+    queryKey: ['inventory', 'list', params],
+    queryFn: () => inventoryApi.getAll(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+export function useInventoryById(id: string) {
+  return useQuery({
+    queryKey: ['inventory', id],
+    queryFn: () => inventoryApi.getById(id),
+    enabled: !!id,
+    staleTime: 3 * 60 * 1000,
+  });
+}
+
+export function useInventoryBySku(sku: string) {
+  return useQuery({
+    queryKey: ['inventory', 'sku', sku],
+    queryFn: () => inventoryApi.getBySku(sku),
+    enabled: !!sku,
+    staleTime: 3 * 60 * 1000,
+  });
+}
+
+export interface UseInventoryMovementsParams {
+  page?: number;
+  limit?: number;
+  ingredientId?: string;
+  type?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function useInventoryMovements(params: UseInventoryMovementsParams = {}) {
+  return useQuery({
+    queryKey: ['inventory', 'movements', params],
+    queryFn: () => inventoryApi.getMovements(params),
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useSearchIngredients(query: string) {
+  return useQuery({
+    queryKey: ['inventory', 'search', query],
+    queryFn: () => inventoryApi.searchIngredients(query),
+    enabled: query.length >= 2,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+}

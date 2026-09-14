@@ -9,6 +9,10 @@ import productRoutes from "./routes/product.routes";
 import orderRoutes from "./routes/order.routes";
 import notificationRoutes from "./routes/notification.routes";
 import cashRoutes from "./routes/cash.routes";
+import inventoryRoutes from "./routes/inventory.routes";
+import purchaseRoutes from "./routes/purchase.routes";
+import inventoryCountRoutes from "./routes/inventory-count.routes";
+import supplierRoutes from "./routes/supplier.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
@@ -106,6 +110,10 @@ app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/cash-register", cashRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/purchases", purchaseRoutes);
+app.use("/api/inventory-counts", inventoryCountRoutes);
+app.use("/api/suppliers", supplierRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

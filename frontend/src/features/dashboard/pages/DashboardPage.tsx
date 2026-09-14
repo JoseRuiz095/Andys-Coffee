@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
-import { OrderListSection } from '../components/OrderListSection'
 import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
 import { authStore } from '../../auth/store/auth.store'
@@ -18,6 +17,7 @@ import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useNotifications } from '../hooks/useNotifications'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
+import { InventoryLayout } from '../../inventory'
 import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
@@ -53,8 +53,7 @@ function usePrevious<T>(value: T) {
 }
 
 export function DashboardPage() {
-  const [isLoading] = React.useState(false) // Keep this if OrderListSection still uses it
-  const [selectedOrderId, setSelectedOrderId] = React.useState<string>()
+  const [isLoading] = React.useState(false)
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(
     authStore.getState().user,
   )
@@ -479,35 +478,33 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {(activeView === 'Inventario' || activeView === 'Administracion') && (
+        {activeView === 'Inventario' && (
           <motion.div
-            key="other-view"
+            key="inventario-view"
             custom={direction}
             variants={variants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{ duration: 0.3 }}
-            className="grid gap-6 lg:grid-cols-[280px_1fr_320px]"
           >
-            <OrderListSection
-              isLoading={isLoading}
-              selectedOrderId={selectedOrderId}
-              onSelectOrder={setSelectedOrderId}
-            />
-            <MenuSection
-              menu={menuData}
-              isLoading={isMenuLoading}
-              categoryNames={categoryNames}
-              onAddToOrder={handleAddToOrder}
-              selectedCategory={selectedCategory}
-              onSelectCategory={setSelectedCategory}
-            />
-            <OrderDetailsPanel
-              isLoading={isCreatingOrder}
-              paymentMethod={paymentMethod}
-              onPaymentMethodChange={handlePaymentMethodChange}
-            />
+            <InventoryLayout />
+          </motion.div>
+        )}
+
+        {activeView === 'Administracion' && (
+          <motion.div
+            key="admin-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+            className="rounded-lg border border-gray-200 bg-white p-8 text-center"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Administración</h2>
+            <p className="text-gray-600">En desarrollo...</p>
           </motion.div>
         )}
       </AnimatePresence>

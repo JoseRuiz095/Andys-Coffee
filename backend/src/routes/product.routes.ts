@@ -34,11 +34,11 @@ const upload = multer({
 router.get('/', ProductController.findAll);
 router.get('/:id', ProductController.findOne);
 
-// Protected routes for administrators with 'manage:products' permission
+// Protected routes for administrators with product permissions
 router.post(
   '/',
   requireAuth,
-  checkPermission('manage:products'),
+  checkPermission('products.create'),
   upload.single('image'),
   ProductController.create
 );
@@ -46,7 +46,7 @@ router.post(
 router.patch(
   '/:id',
   requireAuth,
-  checkPermission('manage:products'),
+  checkPermission('products.update'),
   upload.single('image'),
   ProductController.update
 );
@@ -54,7 +54,7 @@ router.patch(
 router.delete(
   '/:id',
   requireAuth,
-  checkPermission('manage:products'),
+  checkPermission('products.delete'),
   ProductController.remove
 );
 

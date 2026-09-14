@@ -4,6 +4,7 @@ import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard'
 import { SalePage } from '../features/menu/pages/SalePage'
 import { SettingsPage } from '../features/settings'
+import { InventoryCurrent } from '../features/inventory'
 import { authStore } from '../features/auth/store/auth.store'
 import { getCurrentUser } from '../features/auth/services/auth.service'
 import { APP_ROUTES } from '../shared/constants/routes'
@@ -24,7 +25,7 @@ export function AppRouter() {
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const prevPathname = usePrevious(pathname)
 
-  const routeOrder: string[] = [APP_ROUTES.login, APP_ROUTES.dashboard, APP_ROUTES.menu, APP_ROUTES.settings]
+  const routeOrder: string[] = [APP_ROUTES.login, APP_ROUTES.dashboard, APP_ROUTES.menu, APP_ROUTES.inventory, APP_ROUTES.settings]
   const direction = prevPathname ? (routeOrder.indexOf(pathname) > routeOrder.indexOf(prevPathname) ? 1 : -1) : 1
 
   useEffect(() => {
@@ -132,6 +133,22 @@ export function AppRouter() {
           style={{ willChange: 'transform, opacity' }}
         >
           <SalePage />
+        </motion.div>
+      )}
+
+      {pathname === APP_ROUTES.inventory && (
+        <motion.div
+          key={APP_ROUTES.inventory}
+          className="overflow-x-clip"
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <InventoryCurrent />
         </motion.div>
       )}
 

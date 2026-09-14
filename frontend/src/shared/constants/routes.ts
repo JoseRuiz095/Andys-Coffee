@@ -4,4 +4,5 @@ export const APP_ROUTES = {
   orders: '/orders',
   settings: '/settings',
   menu: '/menu',
+  inventory: '/inventory',
 } as const
