@@ -838,6 +838,26 @@ async function main() {
   }
 
   // ==========================================================
+  // UNIDADES DE MEDIDA
+  // ==========================================================
+  console.log("Creando unidades de medida...");
+  const units = [
+    { name: "Mililitro", abbreviation: "ml" },
+    { name: "Litro", abbreviation: "lt" },
+    { name: "Pieza", abbreviation: "pz" },
+    { name: "Gramo", abbreviation: "gr" },
+    { name: "Kilogramo", abbreviation: "kg" },
+  ];
+
+  // Clear existing units
+  await prisma.inventoryUnit.deleteMany({});
+
+  // Create new units
+  await prisma.inventoryUnit.createMany({
+    data: units,
+  });
+
+  // ==========================================================
   // RESUMEN
   // ==========================================================
 
@@ -848,17 +868,19 @@ async function main() {
     prisma.promotion.count(),
     prisma.role.count(),
     prisma.permission.count(),
+    prisma.inventoryUnit.count(),
   ]);
 
   console.log("\n========================================");
   console.log("       SEED EJECUTADO CORRECTAMENTE");
   console.log("========================================");
-  console.log(`Categorías:   ${counts[0]}`);
-  console.log(`Productos:    ${counts[1]}`);
-  console.log(`Combos:       ${counts[2]}`);
-  console.log(`Promociones:  ${counts[3]}`);
-  console.log(`Roles:        ${counts[4]}`);
-  console.log(`Permisos:     ${counts[5]}`);
+  console.log(`Categorías:      ${counts[0]}`);
+  console.log(`Productos:       ${counts[1]}`);
+  console.log(`Combos:          ${counts[2]}`);
+  console.log(`Promociones:     ${counts[3]}`);
+  console.log(`Roles:           ${counts[4]}`);
+  console.log(`Permisos:        ${counts[5]}`);
+  console.log(`Unidades:        ${counts[6]}`);
   console.log("========================================");
 }
 
