@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '../api/inventory.api'
 
 export function useInventorySummary() {
@@ -22,6 +22,42 @@ export function useLowStock() {
     queryKey: ['inventory', 'low-stock'],
     queryFn: () => inventoryApi.getLowStock(),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCreateIngredient() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Parameters<typeof inventoryApi.create>[0]) =>
+      inventoryApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
+  });
+}
+
+export function useUpdateIngredient() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof inventoryApi.update>[1] }) =>
+      inventoryApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
+  });
+}
+
+export function useSetIngredientActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      inventoryApi.setActive(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
   });
 }
 
@@ -82,5 +118,13 @@ export function useSearchIngredients(query: string) {
     queryFn: () => inventoryApi.searchIngredients(query),
     enabled: query.length >= 2,
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+export function useInventoryUnits() {
+  return useQuery({
+    queryKey: ['inventory', 'units'],
+    queryFn: () => inventoryApi.getUnits(),
+    staleTime: 60 * 60 * 1000, // 1 hour
   });
 }

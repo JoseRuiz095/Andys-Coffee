@@ -289,4 +289,13 @@ export const InventoryService = {
 
     return InventoryRepository.setActive(id, isActive);
   },
+
+  async getUnits(user: AuthUser) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.view')) {
+      throw new AuthorizationError('No tienes permiso para ver unidades de medida.');
+    }
+
+    return InventoryRepository.getAllUnits();
+  },
 };

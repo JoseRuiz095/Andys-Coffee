@@ -139,4 +139,53 @@ export const inventoryApi = {
     );
     return response.data;
   },
+
+  // Get all inventory units
+  getUnits: async () => {
+    const response = await apiClient.get<Array<{
+      id: string;
+      name: string;
+      abbreviation: string;
+    }>>('/inventory/units');
+    return response.data;
+  },
+
+  // Create new ingredient
+  create: async (data: {
+    name: string;
+    sku?: string;
+    unitId: string;
+    minimumStock?: number;
+  }) => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      ingredient: InventoryIngredient;
+    }>('/inventory', data);
+    return response.data;
+  },
+
+  // Update ingredient
+  update: async (id: string, data: {
+    name?: string;
+    sku?: string;
+    minimumStock?: number;
+  }) => {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message: string;
+      ingredient: InventoryIngredient;
+    }>(`/inventory/${id}`, data);
+    return response.data;
+  },
+
+  // Activate/deactivate ingredient
+  setActive: async (id: string, isActive: boolean) => {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message: string;
+      ingredient: InventoryIngredient;
+    }>(`/inventory/${id}/active`, { isActive });
+    return response.data;
+  },
 };

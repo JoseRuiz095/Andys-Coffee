@@ -11,6 +11,9 @@ router.use(requireAuth);
 // Search ingredients by name/SKU
 router.get('/search', InventoryController.search);
 
+// Get all units (before /summary to avoid path conflicts)
+router.get('/units', InventoryController.getUnits);
+
 // Summary endpoints (fast, no pagination)
 router.get('/summary', InventoryController.getSummary);
 router.get('/value', InventoryController.getTotalValue);

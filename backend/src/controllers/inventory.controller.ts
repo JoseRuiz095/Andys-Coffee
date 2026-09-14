@@ -374,4 +374,21 @@ export const InventoryController = {
       throw error;
     }
   },
+
+  async getUnits(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+
+      const units = await InventoryService.getUnits(user);
+
+      res.json(units);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
+      throw error;
+    }
+  },
 };

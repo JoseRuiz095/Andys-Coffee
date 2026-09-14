@@ -479,4 +479,15 @@ export const InventoryRepository = {
       },
     });
   },
+
+  async getAllUnits() {
+    return prisma.inventoryUnit.findMany({
+      select: {
+        id: true,
+        name: true,
+        abbreviation: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  },
 };
