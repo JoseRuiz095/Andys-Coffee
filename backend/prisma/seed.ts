@@ -567,6 +567,8 @@ const permissions = [
   { name: "inventory.physical_count", description: "Realizar conteos físicos" },
   { name: "inventory.create_ingredient", description: "Crear y editar ingredientes" },
   { name: "inventory.manage_suppliers", description: "Gestionar proveedores" },
+  { name: "inventory.delete_ingredient", description: "Eliminar ingredientes" },
+  { name: "inventory.delete_supplier", description: "Eliminar proveedores" },
 ];
 
 // ============================================================

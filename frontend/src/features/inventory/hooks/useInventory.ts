@@ -61,6 +61,18 @@ export function useSetIngredientActive() {
   });
 }
 
+export function useDeleteIngredient() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      inventoryApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
+  });
+}
+
 export interface UseInventoryListParams {
   page?: number;
   limit?: number;

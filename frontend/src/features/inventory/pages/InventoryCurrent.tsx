@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useInventoryList } from '../hooks/useInventory'
@@ -10,32 +10,30 @@ import type { UseInventoryListParams } from '../hooks/useInventory'
 export function InventoryCurrent() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'normal' | 'low_stock' | 'out_of_stock'>('all')
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
   const queryParams: UseInventoryListParams = {
     page,
     limit: 20,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status,
   };
 
   const { data, isLoading, error } = useInventoryList(queryParams);
 
-  const handleSearch = useCallback((value: string) => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    setSearch(value);
-    setPage(1);
-
+  useEffect(() => {
     const timer = setTimeout(() => {
-      // Aquí la query se rerun automáticamente por el cambio de search
+      setDebouncedSearch(search);
+      setPage(1);
     }, 300);
 
-    setDebounceTimer(timer);
-  }, [debounceTimer]);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value);
+  }, []);
 
   const handleStatusChange = (newStatus: typeof status) => {
     setStatus(newStatus);

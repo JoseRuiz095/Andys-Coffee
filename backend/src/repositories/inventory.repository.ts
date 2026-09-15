@@ -1,6 +1,8 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 
+type PrismaClient = Prisma.TransactionClient | typeof prisma;
+
 export const InventoryRepository = {
   async findAll(where: Prisma.IngredientWhereInput = {}, select: Prisma.IngredientSelect = {}) {
     return prisma.ingredient.findMany({
@@ -480,6 +482,28 @@ export const InventoryRepository = {
     });
   },
 
+  async delete(id: string) {
+    return prisma.ingredient.delete({ where: { id } });
+  },
+
+  async countRelations(id: string) {
+    const result = await prisma.ingredient.findUnique({
+      where: { id },
+      select: {
+        _count: {
+          select: {
+            movements: true,
+            purchaseItems: true,
+            recipes: true,
+            extraRecipes: true,
+            countItems: true,
+          },
+        },
+      },
+    });
+    return result?._count ?? null;
+  },
+
   async getAllUnits() {
     return prisma.inventoryUnit.findMany({
       select: {
@@ -488,6 +512,92 @@ export const InventoryRepository = {
         abbreviation: true,
       },
       orderBy: { name: 'asc' },
+    });
+  },
+
+  async updateStock(
+    ingredientId: string,
+    quantityChange: Prisma.Decimal | number,
+    client: PrismaClient = prisma,
+  ) {
+    return client.ingredient.update({
+      where: { id: ingredientId },
+      data: { currentStock: { increment: quantityChange } },
+      select: {
+        id: true,
+        name: true,
+        currentStock: true,
+        averageCost: true,
+        isActive: true,
+      },
+    });
+  },
+
+  async updateAverageCost(
+    ingredientId: string,
+    newAverageCost: Prisma.Decimal | number,
+    client: PrismaClient = prisma,
+  ) {
+    return client.ingredient.update({
+      where: { id: ingredientId },
+      data: { averageCost: new Prisma.Decimal(newAverageCost) },
+      select: {
+        id: true,
+        averageCost: true,
+      },
+    });
+  },
+
+  async createMovement(
+    data: {
+      ingredientId: string;
+      type: string;
+      quantity: Prisma.Decimal | number;
+      unitCost?: Prisma.Decimal | number;
+      referenceType?: string;
+      referenceId?: string;
+      reason?: string;
+      notes?: string;
+      createdById?: string;
+    },
+    client: PrismaClient = prisma,
+  ) {
+    return client.inventoryMovement.create({
+      data: {
+        ingredientId: data.ingredientId,
+        type: data.type,
+        quantity: new Prisma.Decimal(data.quantity),
+        unitCost: data.unitCost ? new Prisma.Decimal(data.unitCost) : undefined,
+        referenceType: data.referenceType,
+        referenceId: data.referenceId,
+        reason: data.reason,
+        notes: data.notes,
+        createdById: data.createdById,
+      },
+      select: {
+        id: true,
+        type: true,
+        quantity: true,
+        reason: true,
+        notes: true,
+        createdAt: true,
+      },
+    });
+  },
+
+  async findIngredientById(
+    id: string,
+    client: PrismaClient = prisma,
+  ) {
+    return client.ingredient.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        currentStock: true,
+        averageCost: true,
+        isActive: true,
+      },
     });
   },
 };

@@ -36,8 +36,8 @@ export function InventoryPhysical() {
   const { data: ingredients } = useInventoryList({
     page: 1,
     limit: 1000,
-    status: undefined,
-    search: '',
+    status: 'all',
+    search: undefined,
   })
   const { mutate: addItem, isPending: isAddingItem } = useAddItem(countId)
   const { mutate: completeCount, isPending: isCompleting } = useCompleteCount(countId)

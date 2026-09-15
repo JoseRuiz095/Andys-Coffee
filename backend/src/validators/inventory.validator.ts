@@ -5,7 +5,7 @@ export const inventoryListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   status: z.enum(['all', 'normal', 'low_stock', 'out_of_stock']).default('all'),
-  isActive: z.boolean().optional().default(true),
+  isActive: z.coerce.boolean().optional().default(true),
 });
 
 export const inventoryMovementsSchema = z.object({

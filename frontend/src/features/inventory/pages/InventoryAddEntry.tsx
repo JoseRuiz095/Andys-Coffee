@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import { PencilIcon } from '../../../components/ui/PencilIcon'
+import { XIcon } from '../../../components/ui/XIcon'
 import { useCreatePurchase, usePurchasesList, useSearchSuppliers } from '../hooks/usePurchases'
 import { useSearchIngredients } from '../hooks/useInventory'
 import { IngredientFormModal } from '../components/IngredientFormModal'
@@ -17,6 +19,24 @@ function getApiErrorMessage(error: any, fallback: string): string {
   return fallback
 }
 
+function generateInvoiceNumber(): string {
+  const today = new Date()
+  const day = String(today.getDate()).padStart(2, '0')
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const year = today.getFullYear()
+
+  // Obtener contador del localStorage para hoy
+  const dateKey = `invoice-counter-${year}-${month}-${day}`
+  const currentCounter = parseInt(localStorage.getItem(dateKey) || '0', 10)
+  const nextCounter = currentCounter + 1
+
+  // Guardar el nuevo contador
+  localStorage.setItem(dateKey, String(nextCounter))
+
+  // Generar número con formato: FAC-{numero}-Dia/Mes/Año
+  return `FAC-${nextCounter}-${day}/${month}/${year}`
+}
+
 interface PurchaseItem {
   ingredientId: string
   quantity: number
@@ -29,12 +49,13 @@ export function InventoryAddEntry() {
   const [supplierId, setSupplier] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [notes, setNotes] = useState('')
-  const [tax, setTax] = useState('')
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [selectedIngredient, setSelectedIngredient] = useState('')
+  const [selectedIngredientData, setSelectedIngredientData] = useState<any>(null)
   const [itemQuantity, setItemQuantity] = useState('')
   const [itemCost, setItemCost] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [ingredientSearch, setIngredientSearch] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false)
@@ -52,11 +73,11 @@ export function InventoryAddEntry() {
   const { mutate: createPurchase, isPending: isCreating } = useCreatePurchase()
   const { refetch: refetchPurchases } = usePurchasesList({ status: 'draft', limit: 100 })
 
-  // Encontrar ingrediente seleccionado en resultados de búsqueda
-  const selectedIngredientData = useMemo(() => {
-    if (!selectedIngredient || !searchResults) return null
-    return searchResults.find((ing) => ing.id === selectedIngredient)
-  }, [selectedIngredient, searchResults])
+  // Generar número de factura automáticamente al montar
+  useEffect(() => {
+    setInvoiceNumber(generateInvoiceNumber())
+  }, [])
+
 
   // Filtrar resultados de búsqueda
   const filteredSearchResults = useMemo(() => {
@@ -84,18 +105,25 @@ export function InventoryAddEntry() {
       return
     }
 
-    setItems([
-      ...items,
-      {
-        ingredientId: selectedIngredient,
-        quantity: qty,
-        unitCost: cost,
-        ingredientName: selectedIngredientData?.name,
-        unitAbbreviation: selectedIngredientData?.unit.abbreviation,
-      },
-    ])
+    const newItem = {
+      ingredientId: selectedIngredient,
+      quantity: qty,
+      unitCost: cost,
+      ingredientName: selectedIngredientData?.name,
+      unitAbbreviation: selectedIngredientData?.unit.abbreviation,
+    }
+
+    if (editingIndex !== null) {
+      const updatedItems = [...items]
+      updatedItems[editingIndex] = newItem
+      setItems(updatedItems)
+      setEditingIndex(null)
+    } else {
+      setItems([...items, newItem])
+    }
 
     setSelectedIngredient('')
+    setSelectedIngredientData(null)
     setItemQuantity('')
     setItemCost('')
   }
@@ -133,18 +161,18 @@ export function InventoryAddEntry() {
         supplierId: supplierId || undefined,
         invoiceNumber: invoiceNumber || undefined,
         notes: notes || undefined,
-        tax: tax ? parseFloat(tax) : undefined,
         items,
       },
       {
         onSuccess: () => {
           sileo.success({ title: 'Compra creada correctamente.', duration: 2000 })
           setSupplier('')
-          setInvoiceNumber('')
           setNotes('')
-          setTax('')
           setItems([])
           setIsConfirming(false)
+          setEditingIndex(null)
+          // Generar número de factura para la siguiente compra
+          setInvoiceNumber(generateInvoiceNumber())
           refetchPurchases()
         },
         onError: (error: any) => {
@@ -158,8 +186,7 @@ export function InventoryAddEntry() {
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
-  const taxAmount = tax ? parseFloat(tax) : 0
-  const total = subtotal + taxAmount
+  const total = subtotal
 
   return (
     <motion.div
@@ -291,14 +318,13 @@ export function InventoryAddEntry() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Número de factura (opcional)
+                  Número de factura (Auto)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: INV-2024-001"
                   value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className={TAILWIND_INPUT_CLASS}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-600 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -334,6 +360,7 @@ export function InventoryAddEntry() {
                       <button
                         onClick={() => {
                           setSelectedIngredient('')
+                          setSelectedIngredientData(null)
                           setIngredientSearch('')
                           setShowSearchResults(false)
                         }}
@@ -364,6 +391,7 @@ export function InventoryAddEntry() {
                                 key={ingredient.id}
                                 onClick={() => {
                                   setSelectedIngredient(ingredient.id)
+                                  setSelectedIngredientData(ingredient)
                                   setIngredientSearch('')
                                   setShowSearchResults(false)
                                 }}
@@ -406,16 +434,25 @@ export function InventoryAddEntry() {
 
                 {/* Cantidad */}
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">Cantidad</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={itemQuantity}
-                    onChange={(e) => setItemQuantity(e.target.value)}
-                    placeholder="0.00"
-                    className={TAILWIND_INPUT_CLASS}
-                  />
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Cantidad {selectedIngredientData && `(${selectedIngredientData.unit.abbreviation})`}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={itemQuantity}
+                      onChange={(e) => setItemQuantity(e.target.value)}
+                      placeholder="0.00"
+                      className={`${TAILWIND_INPUT_CLASS} flex-1`}
+                    />
+                    {selectedIngredientData && (
+                      <div className="flex items-center justify-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 min-w-12">
+                        {selectedIngredientData.unit.abbreviation}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Costo unitario */}
@@ -450,66 +487,12 @@ export function InventoryAddEntry() {
                 disabled={!selectedIngredient || !itemQuantity || !itemCost}
                 className="w-full rounded-lg bg-[#5A804F] px-4 py-2 text-white font-medium transition-colors hover:bg-[#4a6a3f] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Agregar item
+                {editingIndex !== null ? 'Actualizar item' : 'Agregar item'}
               </button>
             </div>
 
-            {/* Lista de items agregados */}
-            {items.length > 0 && (
-              <motion.div
-                className="mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <h3 className="mb-3 font-semibold text-gray-900">Items agregados</h3>
-                <div className="space-y-2">
-                  <AnimatePresence mode="popLayout">
-                    {items.map((item, i) => (
-                      <motion.div
-                        key={i}
-                        className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 10 }}
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
-                            {item.ingredientName || 'Ingrediente desconocido'}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            {item.quantity.toFixed(2)} x ${item.unitCost.toFixed(2)} ={' '}
-                            <strong>${(item.quantity * item.unitCost).toFixed(2)}</strong>
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveItem(i)}
-                          className="ml-2 rounded-lg bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
-                        >
-                          Quitar
-                        </button>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Notas y IVA */}
+            {/* Notas */}
             <div className="mb-6 space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  IVA (opcional)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={tax}
-                  onChange={(e) => setTax(e.target.value)}
-                  placeholder="0.00"
-                  className={TAILWIND_INPUT_CLASS}
-                />
-              </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Notas (opcional)
@@ -548,23 +531,60 @@ export function InventoryAddEntry() {
               <p className="text-sm text-gray-500">Sin items agregados</p>
             ) : (
               <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Items:</span>
-                  <span className="font-medium text-gray-900">{items.length}</span>
+                <div className="max-h-64 overflow-y-auto space-y-2 mb-4">
+                  {items.map((item, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-lg p-3 ${editingIndex === i ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-sm font-medium text-gray-900 flex-1">
+                          {item.ingredientName}
+                        </p>
+                        <div className="flex gap-1 ml-2">
+                          <button
+                            onClick={() => {
+                              setSelectedIngredient(item.ingredientId)
+                              setSelectedIngredientData({
+                                id: item.ingredientId,
+                                name: item.ingredientName,
+                                unit: { abbreviation: item.unitAbbreviation }
+                              })
+                              setItemQuantity(item.quantity.toString())
+                              setItemCost(item.unitCost.toString())
+                              setEditingIndex(i)
+                            }}
+                            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            type="button"
+                            title="Editar"
+                          >
+                            <PencilIcon size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveItem(i)}
+                            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            type="button"
+                            title="Eliminar"
+                          >
+                            <XIcon size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        {item.quantity.toFixed(2)} {item.unitAbbreviation} × ${item.unitCost.toFixed(2)} = ${(item.quantity * item.unitCost).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
-                </div>
-                {taxAmount > 0 && (
+                <div className="border-t border-gray-200 pt-3 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">IVA:</span>
-                    <span className="font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+                    <span className="text-gray-600">Items:</span>
+                    <span className="font-medium text-gray-900">{items.length}</span>
                   </div>
-                )}
-                <div className="flex justify-between border-t border-gray-200 pt-3 text-base font-semibold">
-                  <span>Total:</span>
-                  <span className="text-green-600">${total.toFixed(2)}</span>
+                  <div className="flex justify-between border-t border-gray-200 pt-3 text-base font-semibold">
+                    <span>Total:</span>
+                    <span className="text-green-600">${total.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             )}

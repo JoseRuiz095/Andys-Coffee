@@ -5,8 +5,6 @@ export { InventoryAddEntry } from './pages/InventoryAddEntry';
 export { InventoryEntries } from './pages/InventoryEntries';
 export { InventoryMovements } from './pages/InventoryMovements';
 export { InventoryExits } from './pages/InventoryExits';
-export { SuppliersPage } from './pages/SuppliersPage';
-export { IngredientsPage } from './pages/IngredientsPage';
 
 // Components
 export { InventoryStats } from './components/InventoryStats';

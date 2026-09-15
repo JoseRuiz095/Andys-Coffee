@@ -1,6 +1,8 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 
+type PrismaClient = Prisma.TransactionClient | typeof prisma;
+
 export const PurchaseRepository = {
   async findById(id: string) {
     return prisma.purchase.findUnique({
@@ -92,6 +94,72 @@ export const PurchaseRepository = {
           },
         },
       },
+    });
+  },
+
+  async findByIdWithItems(
+    id: string,
+    client: PrismaClient = prisma,
+  ) {
+    return client.purchase.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            ingredient: true,
+          },
+        },
+      },
+    });
+  },
+
+  async updateStatusAndReturn(
+    id: string,
+    status: string,
+    client: PrismaClient = prisma,
+  ) {
+    return client.purchase.update({
+      where: { id },
+      data: { status },
+      include: {
+        items: {
+          include: {
+            ingredient: {
+              include: {
+                unit: true,
+              },
+            },
+          },
+        },
+        supplier: true,
+      },
+    });
+  },
+
+  async findIngredientsForPurchase(ingredientIds: string[], client: PrismaClient = prisma) {
+    return client.ingredient.findMany({
+      where: { id: { in: ingredientIds } },
+      select: {
+        id: true,
+        currentStock: true,
+        averageCost: true,
+      },
+    });
+  },
+
+  async createPurchaseItems(
+    purchaseId: string,
+    items: { ingredientId: string; quantity: string | number; unitCost: string | number; total: string | number }[],
+    client: PrismaClient = prisma,
+  ) {
+    return client.purchaseItem.createMany({
+      data: items.map(item => ({
+        purchaseId,
+        ingredientId: item.ingredientId,
+        quantity: new Prisma.Decimal(item.quantity),
+        unitCost: new Prisma.Decimal(item.unitCost),
+        total: new Prisma.Decimal(item.total),
+      })),
     });
   },
 };

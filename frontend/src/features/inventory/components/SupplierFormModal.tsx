@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
-import { useCreateSupplier, useSearchSuppliers } from '../hooks/usePurchases'
+import { useCreateSupplier, useSearchSuppliers, useUpdateSupplier, useSupplierById } from '../hooks/usePurchases'
 
 interface SupplierFormModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess?: (supplier: any) => void
   initialName?: string
+  editingSupplierId?: string | null
+  showSimilarMatches?: boolean
 }
 
 export function SupplierFormModal({
@@ -15,6 +17,8 @@ export function SupplierFormModal({
   onClose,
   onSuccess,
   initialName = '',
+  editingSupplierId = null,
+  showSimilarMatches = true,
 }: SupplierFormModalProps) {
   const [name, setName] = useState(initialName)
   const [phone, setPhone] = useState('')
@@ -22,16 +26,40 @@ export function SupplierFormModal({
   const [address, setAddress] = useState('')
   const [similarSearch, setSimilarSearch] = useState('')
 
+  const { data: editingSupplier } = useSupplierById(editingSupplierId || '')
   const { data: similarResults, isLoading: isSearching } = useSearchSuppliers(
-    similarSearch.length >= 2 ? similarSearch : ''
+    showSimilarMatches && similarSearch.length >= 2 && !editingSupplierId ? similarSearch : ''
   )
   const { mutate: createSupplier, isPending: isCreating } = useCreateSupplier()
+  const { mutate: updateSupplier, isPending: isUpdating } = useUpdateSupplier()
+
+  useEffect(() => {
+    if (editingSupplier && isOpen) {
+      const timer = setTimeout(() => {
+        setName(editingSupplier.name)
+        setPhone(editingSupplier.phone || '')
+        setEmail(editingSupplier.email || '')
+        setAddress(editingSupplier.address || '')
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [editingSupplier, isOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!name.trim()) {
       sileo.error({ title: 'Nombre requerido', description: 'Ingresa un nombre para el proveedor.' })
+      return
+    }
+
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      sileo.error({ title: 'Email inválido', description: 'Ingresa un email válido.' })
+      return
+    }
+
+    if (phone.trim() && !/^[+\d\s\-()]+$/.test(phone.trim())) {
+      sileo.error({ title: 'Teléfono inválido', description: 'Ingresa un teléfono válido.' })
       return
     }
 
@@ -42,18 +70,36 @@ export function SupplierFormModal({
       address: address.trim() || undefined,
     }
 
-    createSupplier(data, {
-      onSuccess: (response) => {
-        sileo.success({ title: 'Proveedor creado', duration: 2000 })
-        onSuccess?.(response.supplier)
-        handleClose()
-      },
-      onError: (error: any) => {
-        const message =
-          error?.response?.data?.message || error?.message || 'Error creando proveedor'
-        sileo.error({ title: 'Error', description: message })
-      },
-    })
+    if (editingSupplierId) {
+      updateSupplier(
+        { id: editingSupplierId, data },
+        {
+          onSuccess: (response) => {
+            sileo.success({ title: 'Proveedor actualizado', duration: 2000 })
+            onSuccess?.(response.supplier)
+            handleClose()
+          },
+          onError: (error: any) => {
+            const message =
+              error?.response?.data?.message || error?.message || 'Error actualizando proveedor'
+            sileo.error({ title: 'Error', description: message })
+          },
+        }
+      )
+    } else {
+      createSupplier(data, {
+        onSuccess: (response) => {
+          sileo.success({ title: 'Proveedor creado', duration: 2000 })
+          onSuccess?.(response.supplier)
+          handleClose()
+        },
+        onError: (error: any) => {
+          const message =
+            error?.response?.data?.message || error?.message || 'Error creando proveedor'
+          sileo.error({ title: 'Error', description: message })
+        },
+      })
+    }
   }
 
   const handleClose = () => {
@@ -76,10 +122,12 @@ export function SupplierFormModal({
         exit={{ scale: 0.95, opacity: 0 }}
       >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Crear Proveedor</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {editingSupplierId ? 'Editar Proveedor' : 'Crear Proveedor'}
+          </h2>
 
           {/* Búsqueda de similares */}
-          {name.length >= 2 && (
+          {showSimilarMatches && !editingSupplierId && name.length >= 2 && (
             <div className="rounded-lg bg-blue-50 p-3">
               <p className="mb-2 text-xs font-medium text-blue-900">Proveedores similares encontrados:</p>
               {isSearching ? (
@@ -170,10 +218,10 @@ export function SupplierFormModal({
             </button>
             <button
               type="submit"
-              disabled={isCreating}
+              disabled={isCreating || isUpdating}
               className="flex-1 rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f] disabled:opacity-50"
             >
-              {isCreating ? 'Creando...' : 'Crear'}
+              {isCreating || isUpdating ? (editingSupplierId ? 'Actualizando...' : 'Creando...') : (editingSupplierId ? 'Actualizar' : 'Crear')}
             </button>
           </div>
         </form>

@@ -74,6 +74,30 @@ export function useCreatePurchase() {
   });
 }
 
+export function useSupplierById(id: string) {
+  return useQuery({
+    queryKey: ['suppliers', id],
+    queryFn: () => purchasesApi.getSupplier(id),
+    enabled: !!id,
+    staleTime: 3 * 60 * 1000,
+  });
+}
+
+export interface UseSuppliersListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+}
+
+export function useSuppliersList(params: UseSuppliersListParams = {}) {
+  return useQuery({
+    queryKey: ['suppliers', 'list', params],
+    queryFn: () => purchasesApi.getSuppliers(params),
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 export function useSearchSuppliers(query: string) {
   return useQuery({
     queryKey: ['suppliers', 'search', query],
@@ -89,6 +113,44 @@ export function useCreateSupplier() {
   return useMutation({
     mutationFn: (data: Parameters<typeof purchasesApi.createSupplier>[0]) =>
       purchasesApi.createSupplier(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.setQueryData(['suppliers', data.supplier.id], data.supplier);
+    },
+  });
+}
+
+export function useUpdateSupplier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof purchasesApi.updateSupplier>[1] }) =>
+      purchasesApi.updateSupplier(id, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.setQueryData(['suppliers', data.supplier.id], data.supplier);
+    },
+  });
+}
+
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      purchasesApi.deleteSupplier(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    },
+  });
+}
+
+export function useSetSupplierActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      purchasesApi.setSupplierActive(id, isActive),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       queryClient.setQueryData(['suppliers', data.supplier.id], data.supplier);

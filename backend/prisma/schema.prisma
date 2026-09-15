@@ -249,6 +249,7 @@ model InventoryMovement {
   unitCost      Decimal    @default(0) @db.Decimal(14, 4)
   referenceType String?
   referenceId   String?
+  reason        String?
   notes         String?
   createdById   String?
   createdAt     DateTime   @default(now()) @db.Timestamptz(6)

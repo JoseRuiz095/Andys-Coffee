@@ -188,4 +188,13 @@ export const inventoryApi = {
     }>(`/inventory/${id}/active`, { isActive });
     return response.data;
   },
+
+  // Delete ingredient
+  delete: async (id: string) => {
+    const response = await apiClient.delete<{
+      success: boolean;
+      message: string;
+    }>(`/inventory/${id}`);
+    return response.data;
+  },
 };

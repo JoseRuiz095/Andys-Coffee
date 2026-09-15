@@ -23,7 +23,11 @@ router.get('/low-stock', InventoryController.getLowStock);
 router.get('/movements', InventoryController.getMovements);
 
 // Create manual exit
-router.post('/exits', InventoryController.createExit);
+router.post(
+  '/exits',
+  checkPermission('inventory.create_exit'),
+  InventoryController.createExit
+);
 
 // Create ingredient
 router.post(
@@ -44,6 +48,13 @@ router.patch(
   '/:id/active',
   checkPermission('inventory.create_ingredient'),
   InventoryController.setActive
+);
+
+// Delete ingredient
+router.delete(
+  '/:id',
+  checkPermission('inventory.delete_ingredient'),
+  InventoryController.delete
 );
 
 // List all ingredients

@@ -6,6 +6,7 @@ import { useCreateExit } from '../hooks/useInventoryExits'
 import { useInventoryList } from '../hooks/useInventory'
 import { useInventoryMovements } from '../hooks/useInventory'
 import { EXIT_REASON_LABELS, type ExitReason } from '../api/inventory-exits.api'
+import { authStore } from '../../auth/store/auth.store'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20'
@@ -57,6 +58,9 @@ export function InventoryExits() {
   const [reason, setReason] = useState<ExitReason>('waste')
   const [notes, setNotes] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
+
+  const { user } = authStore.getState()
+  const canCreateExit = user?.permissions?.includes('inventory.create_exit')
 
   const { data: ingredientsData, isLoading: isLoadingIngredients } = useInventoryList({
     page: 1,
@@ -148,8 +152,21 @@ export function InventoryExits() {
         </motion.div>
 
         {/* Formulario */}
+        {!canCreateExit && (
+          <motion.div
+            className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <p className="text-sm font-medium text-yellow-800">
+              No tienes permiso para registrar salidas. Contacta a un administrador.
+            </p>
+          </motion.div>
+        )}
+
         <motion.div
-          className="mb-6 rounded-lg border border-gray-200 bg-white p-6"
+          className={`mb-6 rounded-lg border border-gray-200 bg-white p-6 ${!canCreateExit ? 'opacity-50 pointer-events-none' : ''}`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}

@@ -6,15 +6,15 @@ import { InventoryEntries } from './InventoryEntries'
 import { InventoryMovements } from './InventoryMovements'
 import { InventoryPhysical } from './InventoryPhysical'
 import { InventoryExits } from './InventoryExits'
-import { IngredientsPage } from './IngredientsPage'
+import { InventoryManagementPage } from './InventoryManagementPage'
 
-type InventoryView = 'current' | 'add-entry' | 'entries' | 'movements' | 'physical' | 'exits' | 'ingredients'
+type InventoryView = 'current' | 'add-entry' | 'entries' | 'movements' | 'physical' | 'exits' | 'management'
 
 export function InventoryLayout() {
   const [activeView, setActiveView] = useState<InventoryView>('current')
   const prevViewRef = useRef<InventoryView>(activeView)
 
-  const views: InventoryView[] = ['current', 'add-entry', 'entries', 'movements', 'physical', 'exits', 'ingredients']
+  const views: InventoryView[] = ['current', 'add-entry', 'entries', 'movements', 'physical', 'exits', 'management']
   const currentIndex = views.indexOf(activeView)
   const prevIndex = views.indexOf(prevViewRef.current)
   const direction = currentIndex > prevIndex ? 1 : -1
@@ -42,9 +42,9 @@ export function InventoryLayout() {
   return (
     <div>
       {/* Sub-navigation */}
-      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white overflow-x-auto">
         <div className="mx-auto max-w-7xl px-6">
-          <nav className="flex gap-1">
+          <nav className="flex gap-1 min-w-max md:min-w-0">
             <button
               onClick={() => handleViewChange('current')}
               className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
@@ -56,14 +56,14 @@ export function InventoryLayout() {
               Inventario Actual
             </button>
             <button
-              onClick={() => handleViewChange('ingredients')}
+              onClick={() => handleViewChange('management')}
               className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'ingredients'
+                activeView === 'management'
                   ? 'border-[#5A804F] text-[#5A804F]'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Ingredientes
+              Gestión de Inventario
             </button>
             <button
               onClick={() => handleViewChange('add-entry')}
@@ -134,9 +134,9 @@ export function InventoryLayout() {
             <InventoryCurrent />
           </motion.div>
         )}
-        {activeView === 'ingredients' && (
+        {activeView === 'management' && (
           <motion.div
-            key="ingredients-view"
+            key="management-view"
             custom={direction}
             variants={variants}
             initial="enter"
@@ -144,7 +144,7 @@ export function InventoryLayout() {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            <IngredientsPage />
+            <InventoryManagementPage />
           </motion.div>
         )}
         {activeView === 'add-entry' && (

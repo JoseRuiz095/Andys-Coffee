@@ -99,6 +99,12 @@ export const purchasesApi = {
     return response.data;
   },
 
+  // Get all suppliers (paginated)
+  getSuppliers: async (params: { page?: number; limit?: number; search?: string; isActive?: boolean } = {}) => {
+    const response = await apiClient.get<PaginatedResponse<Supplier>>('/suppliers', { params });
+    return response.data;
+  },
+
   // Create a new purchase
   create: async (data: {
     supplierId?: string;
@@ -130,6 +136,12 @@ export const purchasesApi = {
     return response.data;
   },
 
+  // Get single supplier by ID
+  getSupplier: async (id: string) => {
+    const response = await apiClient.get<Supplier>(`/suppliers/${id}`);
+    return response.data;
+  },
+
   // Search suppliers by name
   searchSuppliers: async (query: string) => {
     const response = await apiClient.get<Supplier[]>(
@@ -146,6 +158,35 @@ export const purchasesApi = {
       message: string;
       supplier: Supplier;
     }>('/suppliers', data);
+    return response.data;
+  },
+
+  // Update supplier
+  updateSupplier: async (id: string, data: { name?: string; phone?: string; email?: string; address?: string }) => {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message: string;
+      supplier: Supplier;
+    }>(`/suppliers/${id}`, data);
+    return response.data;
+  },
+
+  // Delete supplier
+  deleteSupplier: async (id: string) => {
+    const response = await apiClient.delete<{
+      success: boolean;
+      message: string;
+    }>(`/suppliers/${id}`);
+    return response.data;
+  },
+
+  // Set supplier active/inactive
+  setSupplierActive: async (id: string, isActive: boolean) => {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message: string;
+      supplier: Supplier;
+    }>(`/suppliers/${id}/active`, { isActive });
     return response.data;
   },
 };

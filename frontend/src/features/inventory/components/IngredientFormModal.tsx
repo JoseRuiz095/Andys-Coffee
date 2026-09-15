@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
-import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits } from '../hooks/useInventory'
+import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits, useInventoryById } from '../hooks/useInventory'
 
 interface IngredientFormModalProps {
   isOpen: boolean
@@ -9,6 +9,7 @@ interface IngredientFormModalProps {
   onSuccess?: (ingredient: any) => void
   initialName?: string
   editingIngredientId?: string | null
+  showSimilarMatches?: boolean
 }
 
 export function IngredientFormModal({
@@ -17,6 +18,7 @@ export function IngredientFormModal({
   onSuccess,
   initialName = '',
   editingIngredientId = null,
+  showSimilarMatches = true,
 }: IngredientFormModalProps) {
   const [name, setName] = useState(initialName)
   const [sku, setSku] = useState('')
@@ -26,10 +28,25 @@ export function IngredientFormModal({
 
   const { data: units, isLoading: isLoadingUnits } = useInventoryUnits()
   const { data: similarResults, isLoading: isSearching } = useSearchIngredients(
-    similarSearch.length >= 2 ? similarSearch : ''
+    showSimilarMatches && similarSearch.length >= 2 ? similarSearch : ''
+  )
+  const { data: editingIngredient } = useInventoryById(
+    editingIngredientId || ''
   )
   const { mutate: createIngredient, isPending: isCreating } = useCreateIngredient()
   const { mutate: updateIngredient, isPending: isUpdating } = useUpdateIngredient()
+
+  useEffect(() => {
+    if (editingIngredient && isOpen) {
+      const timer = setTimeout(() => {
+        setName(editingIngredient.name)
+        setSku(editingIngredient.sku || '')
+        setMinimumStock(editingIngredient.minimumStock ? Number(editingIngredient.minimumStock).toString() : '')
+        setUnitId(editingIngredient.unit?.id || '')
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [editingIngredient, isOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,7 +132,7 @@ export function IngredientFormModal({
           </h2>
 
           {/* Búsqueda de similares */}
-          {!editingIngredientId && name.length >= 2 && (
+          {showSimilarMatches && !editingIngredientId && name.length >= 2 && (
             <div className="rounded-lg bg-blue-50 p-3">
               <p className="mb-2 text-xs font-medium text-blue-900">Ingredientes similares encontrados:</p>
               {isSearching ? (

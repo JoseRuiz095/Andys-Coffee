@@ -38,6 +38,13 @@ class DuplicateError extends Error {
   }
 }
 
+class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 const EXIT_REASON_LABELS: Record<string, string> = {
   waste: 'Merma / Desperdicio',
   sample: 'Muestra / Degustación',
@@ -185,7 +192,7 @@ export const InventoryService = {
     }
 
     return prisma.$transaction(async (tx) => {
-      const ingredient = await tx.ingredient.findUnique({ where: { id: data.ingredientId } });
+      const ingredient = await InventoryRepository.findIngredientById(data.ingredientId, tx);
       if (!ingredient) throw new NotFoundError('Ingrediente no encontrado.');
       if (!ingredient.isActive) throw new ValidationError('El ingrediente está inactivo.');
 
@@ -197,23 +204,21 @@ export const InventoryService = {
         );
       }
 
-      const updatedIngredient = await tx.ingredient.update({
-        where: { id: data.ingredientId },
-        data: { currentStock: { decrement: quantity } },
-      });
+      const updatedIngredient = await InventoryRepository.updateStock(data.ingredientId, quantity.negated(), tx);
 
-      const label = EXIT_REASON_LABELS[data.reason] ?? data.reason;
-      const movement = await tx.inventoryMovement.create({
-        data: {
+      const movement = await InventoryRepository.createMovement(
+        {
           ingredientId: data.ingredientId,
           type: 'exit',
           quantity: quantity.negated(),
           unitCost: ingredient.averageCost,
           referenceType: 'manual_exit',
-          notes: data.notes ? `${label} — ${data.notes}` : label,
+          reason: data.reason,
+          notes: data.notes,
           createdById: user.id,
         },
-      });
+        tx,
+      );
 
       return { ingredient: updatedIngredient, movement };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -288,6 +293,38 @@ export const InventoryService = {
     }
 
     return InventoryRepository.setActive(id, isActive);
+  },
+
+  async deleteIngredient(id: string, user: AuthUser) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.delete_ingredient')) {
+      throw new AuthorizationError('No tienes permiso para eliminar ingredientes.');
+    }
+
+    // Verify ingredient exists
+    const ingredient = await InventoryRepository.findById(id);
+    if (!ingredient) {
+      throw new NotFoundError('Ingrediente no encontrado.');
+    }
+
+    // Check for related records
+    const counts = await InventoryRepository.countRelations(id);
+    const blockers: string[] = [];
+    if (counts) {
+      if (counts.movements > 0) blockers.push(`${counts.movements} movimiento(s) de inventario`);
+      if (counts.purchaseItems > 0) blockers.push(`${counts.purchaseItems} compra(s)`);
+      if (counts.recipes > 0) blockers.push(`${counts.recipes} receta(s) de producto`);
+      if (counts.extraRecipes > 0) blockers.push(`${counts.extraRecipes} receta(s) de extra`);
+      if (counts.countItems > 0) blockers.push(`${counts.countItems} conteo(s) físico(s)`);
+    }
+
+    if (blockers.length > 0) {
+      throw new ConflictError(
+        `No se puede eliminar: el ingrediente tiene ${blockers.join(', ')} registrados. Desactívalo en su lugar.`
+      );
+    }
+
+    return InventoryRepository.delete(id);
   },
 
   async getUnits(user: AuthUser) {

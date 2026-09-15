@@ -70,10 +70,10 @@ export const useApplyAdjustments = (countId: string | null) => {
         });
       }
       queryClient.invalidateQueries({
-        queryKey: ['inventory-summary'],
+        queryKey: ['inventory', 'summary'],
       });
       queryClient.invalidateQueries({
-        queryKey: ['inventory-movements'],
+        queryKey: ['inventory', 'movements'],
       });
     },
   });

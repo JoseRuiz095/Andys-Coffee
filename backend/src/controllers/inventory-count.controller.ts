@@ -13,19 +13,19 @@ export const InventoryCountController = {
         success: true,
         data: count,
       });
-    } catch (error: any) {
-      if (error.name === 'AuthorizationError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
         return res.status(403).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Error creando conteo físico' });
+      throw error;
     }
   },
 
   async findById(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
 
       const count = await InventoryCountService.findById(id, user);
 
@@ -33,23 +33,23 @@ export const InventoryCountController = {
         success: true,
         data: count,
       });
-    } catch (error: any) {
-      if (error.name === 'AuthorizationError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
         return res.status(403).json({ error: error.message });
       }
 
-      if (error.name === 'NotFoundError') {
+      if (error instanceof Error && error.name === 'NotFoundError') {
         return res.status(404).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Error obteniendo conteo' });
+      throw error;
     }
   },
 
   async addItem(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;
-      const { countId } = req.params;
+      const { countId } = req.params as { countId: string };
       const { ingredientId, countedQuantity, notes } = req.body;
 
       const validation = inventoryCountValidator.addItem.safeParse({
@@ -75,27 +75,27 @@ export const InventoryCountController = {
         success: true,
         data: item,
       });
-    } catch (error: any) {
-      if (error.name === 'AuthorizationError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
         return res.status(403).json({ error: error.message });
       }
 
-      if (error.name === 'NotFoundError') {
+      if (error instanceof Error && error.name === 'NotFoundError') {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.name === 'ValidationError') {
+      if (error instanceof Error && error.name === 'ValidationError') {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Error agregando item a conteo' });
+      throw error;
     }
   },
 
   async completeCount(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;
-      const { countId } = req.params;
+      const { countId } = req.params as { countId: string };
 
       const count = await InventoryCountService.completeCount(countId, user);
 
@@ -103,27 +103,27 @@ export const InventoryCountController = {
         success: true,
         data: count,
       });
-    } catch (error: any) {
-      if (error.name === 'AuthorizationError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
         return res.status(403).json({ error: error.message });
       }
 
-      if (error.name === 'NotFoundError') {
+      if (error instanceof Error && error.name === 'NotFoundError') {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.name === 'ValidationError') {
+      if (error instanceof Error && error.name === 'ValidationError') {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Error completando conteo' });
+      throw error;
     }
   },
 
   async applyAdjustments(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;
-      const { countId } = req.params;
+      const { countId } = req.params as { countId: string };
 
       const count = await InventoryCountService.applyAdjustments(countId, user);
 
@@ -132,20 +132,20 @@ export const InventoryCountController = {
         data: count,
         message: 'Ajustes aplicados correctamente',
       });
-    } catch (error: any) {
-      if (error.name === 'AuthorizationError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
         return res.status(403).json({ error: error.message });
       }
 
-      if (error.name === 'NotFoundError') {
+      if (error instanceof Error && error.name === 'NotFoundError') {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.name === 'ValidationError') {
+      if (error instanceof Error && error.name === 'ValidationError') {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Error aplicando ajustes' });
+      throw error;
     }
   },
 };

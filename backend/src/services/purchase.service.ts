@@ -84,9 +84,7 @@ export const PurchaseService = {
 
     // Validate all ingredients exist
     const ingredientIds = data.items.map(item => item.ingredientId);
-    const ingredients = await prisma.ingredient.findMany({
-      where: { id: { in: ingredientIds } },
-    });
+    const ingredients = await PurchaseRepository.findIngredientsForPurchase(ingredientIds);
 
     if (ingredients.length !== ingredientIds.length) {
       throw new ValidationError('Algunos ingredientes no existen.');
@@ -149,16 +147,7 @@ export const PurchaseService = {
 
     return prisma.$transaction(async (tx) => {
       // Fetch purchase
-      const purchase = await tx.purchase.findUnique({
-        where: { id: purchaseId },
-        include: {
-          items: {
-            include: {
-              ingredient: true,
-            },
-          },
-        },
-      });
+      const purchase = await PurchaseRepository.findByIdWithItems(purchaseId, tx);
 
       if (!purchase) {
         throw new NotFoundError('Compra no encontrada.');
@@ -179,7 +168,6 @@ export const PurchaseService = {
         const ingredient = item.ingredient;
 
         // Calculate new average cost (weighted average)
-        // newAvgCost = (currentStock * currentCost + newQuantity * newCost) / (currentStock + newQuantity)
         const currentStock = new Prisma.Decimal(ingredient.currentStock);
         const currentCost = new Prisma.Decimal(ingredient.averageCost);
         const newQuantity = new Prisma.Decimal(item.quantity);
@@ -188,18 +176,17 @@ export const PurchaseService = {
         let newAverageCost: Prisma.Decimal;
 
         if (currentStock.greaterThan(0)) {
-          // Weighted average: (old_stock * old_cost + new_qty * new_cost) / total_stock
           const oldValue = currentStock.mul(currentCost);
           const newValue = newQuantity.mul(newUnitCost);
           const totalValue = oldValue.add(newValue);
           const totalStock = currentStock.add(newQuantity);
           newAverageCost = totalValue.div(totalStock);
         } else {
-          // If no stock, just use the new cost
           newAverageCost = newUnitCost;
         }
 
         // Update ingredient stock and cost
+        await PurchaseRepository.findIngredientsForPurchase([ingredient.id], tx);
         await tx.ingredient.update({
           where: { id: ingredient.id },
           data: {
@@ -229,22 +216,7 @@ export const PurchaseService = {
       }
 
       // Update purchase status
-      const updatedPurchase = await tx.purchase.update({
-        where: { id: purchaseId },
-        data: { status: 'received' },
-        include: {
-          items: {
-            include: {
-              ingredient: {
-                include: {
-                  unit: true,
-                },
-              },
-            },
-          },
-          supplier: true,
-        },
-      });
+      const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx);
 
       return updatedPurchase;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

@@ -144,4 +144,54 @@ export const SupplierRepository = {
       },
     });
   },
+
+  async update(id: string, data: { name?: string; phone?: string; email?: string; address?: string }) {
+    return prisma.supplier.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name.trim() }),
+        ...(data.phone !== undefined && { phone: data.phone?.trim() || null }),
+        ...(data.email !== undefined && { email: data.email?.trim() || null }),
+        ...(data.address !== undefined && { address: data.address?.trim() || null }),
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        address: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  },
+
+  async setActive(id: string, isActive: boolean) {
+    return prisma.supplier.update({
+      where: { id },
+      data: { isActive },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        address: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+  },
+
+  async delete(id: string) {
+    return prisma.supplier.delete({ where: { id } });
+  },
+
+  async countRelations(id: string) {
+    const result = await prisma.supplier.findUnique({
+      where: { id },
+      select: { _count: { select: { purchases: true } } },
+    });
+    return result?._count ?? null;
+  },
 };

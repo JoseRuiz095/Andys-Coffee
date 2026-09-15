@@ -274,6 +274,14 @@ export const InventoryController = {
           });
           return;
         }
+        if (target === 'sku' || target?.includes('sku')) {
+          res.status(409).json({
+            error: 'DUPLICATE_ERROR',
+            message: 'Ya existe un ingrediente con este SKU.',
+            details: { field: target },
+          });
+          return;
+        }
       }
 
       throw error;
@@ -336,6 +344,14 @@ export const InventoryController = {
           });
           return;
         }
+        if (target === 'sku' || target?.includes('sku')) {
+          res.status(409).json({
+            error: 'DUPLICATE_ERROR',
+            message: 'Ya existe otro ingrediente con este SKU.',
+            details: { field: target },
+          });
+          return;
+        }
       }
 
       throw error;
@@ -368,6 +384,37 @@ export const InventoryController = {
 
       if (error instanceof Error && error.name === 'NotFoundError') {
         res.status(404).json({ error: error.message });
+        return;
+      }
+
+      throw error;
+    }
+  },
+
+  async delete(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+      const { id } = req.params as { id: string };
+
+      await InventoryService.deleteIngredient(id, user);
+
+      res.json({
+        success: true,
+        message: 'Ingrediente eliminado correctamente.',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof Error && error.name === 'NotFoundError') {
+        res.status(404).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof Error && error.name === 'ConflictError') {
+        res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
         return;
       }
 

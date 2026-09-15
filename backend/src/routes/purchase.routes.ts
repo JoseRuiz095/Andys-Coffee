@@ -1,6 +1,7 @@
 import express from 'express';
 import { PurchaseController } from '../controllers/purchase.controller';
 import { requireAuth } from '../middleware/auth.middleware';
+import { checkPermission } from '../middleware/authorization';
 
 const router = express.Router();
 
@@ -11,12 +12,20 @@ router.use(requireAuth);
 router.get('/', PurchaseController.getAll);
 
 // Create new purchase
-router.post('/', PurchaseController.create);
+router.post(
+  '/',
+  checkPermission('inventory.create_entry'),
+  PurchaseController.create
+);
 
 // Get single purchase
 router.get('/:id', PurchaseController.getOne);
 
 // Receive purchase (update status and inventory)
-router.post('/:id/receive', PurchaseController.receivePurchase);
+router.post(
+  '/:id/receive',
+  checkPermission('inventory.create_entry'),
+  PurchaseController.receivePurchase
+);
 
 export default router;

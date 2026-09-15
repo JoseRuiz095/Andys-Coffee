@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { InventoryCountRepository } from '../repositories/inventory-count.repository';
+import { InventoryRepository } from '../repositories/inventory.repository';
 import { AuthUser } from './auth.service';
 
 class NotFoundError extends Error {
@@ -30,28 +32,9 @@ export const InventoryCountService = {
       throw new AuthorizationError('No tienes permiso para crear conteos físicos.');
     }
 
-    return prisma.inventoryCount.create({
-      data: {
-        createdById: user.id,
-        status: 'draft',
-      },
-      include: {
-        items: {
-          include: {
-            ingredient: {
-              include: {
-                unit: true,
-              },
-            },
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+    return InventoryCountRepository.create({
+      createdById: user.id,
+      status: 'draft',
     });
   },
 
@@ -61,32 +44,7 @@ export const InventoryCountService = {
       throw new AuthorizationError('No tienes permiso para ver conteos.');
     }
 
-    const count = await prisma.inventoryCount.findUnique({
-      where: { id },
-      include: {
-        items: {
-          include: {
-            ingredient: {
-              include: {
-                unit: true,
-              },
-            },
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        completedBy: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+    const count = await InventoryCountRepository.findById(id);
 
     if (!count) {
       throw new NotFoundError('Conteo no encontrado.');
@@ -108,9 +66,7 @@ export const InventoryCountService = {
     }
 
     // Verify count exists and is draft
-    const count = await prisma.inventoryCount.findUnique({
-      where: { id: countId },
-    });
+    const count = await InventoryCountRepository.findById(countId);
 
     if (!count) {
       throw new NotFoundError('Conteo no encontrado.');
@@ -121,9 +77,8 @@ export const InventoryCountService = {
     }
 
     // Get current stock
-    const ingredient = await prisma.ingredient.findUnique({
-      where: { id: ingredientId },
-    });
+    const ingredients = await InventoryCountRepository.findIngredientsForCount([ingredientId]);
+    const ingredient = ingredients[0];
 
     if (!ingredient) {
       throw new NotFoundError('Ingrediente no encontrado.');
@@ -134,34 +89,16 @@ export const InventoryCountService = {
     const difference = countedQty.minus(systemQty);
 
     // Create or update item
-    return prisma.inventoryCountItem.upsert({
-      where: {
-        inventoryCountId_ingredientId: {
-          inventoryCountId: countId,
-          ingredientId,
-        },
-      },
-      create: {
-        inventoryCountId: countId,
-        ingredientId,
+    return InventoryCountRepository.upsertItem(
+      countId,
+      ingredientId,
+      {
         systemQuantity: systemQty,
         countedQuantity: countedQty,
         difference,
         notes,
       },
-      update: {
-        countedQuantity: countedQty,
-        difference,
-        notes,
-      },
-      include: {
-        ingredient: {
-          include: {
-            unit: true,
-          },
-        },
-      },
-    });
+    );
   },
 
   async completeCount(countId: string, user: AuthUser) {
@@ -170,12 +107,7 @@ export const InventoryCountService = {
       throw new AuthorizationError('No tienes permiso para completar conteos.');
     }
 
-    const count = await prisma.inventoryCount.findUnique({
-      where: { id: countId },
-      include: {
-        items: true,
-      },
-    });
+    const count = await InventoryCountRepository.findByIdWithItems(countId);
 
     if (!count) {
       throw new NotFoundError('Conteo no encontrado.');
@@ -189,25 +121,7 @@ export const InventoryCountService = {
       throw new ValidationError('El conteo debe tener al menos un item.');
     }
 
-    return prisma.inventoryCount.update({
-      where: { id: countId },
-      data: {
-        status: 'completed',
-        completedAt: new Date(),
-        completedById: user.id,
-      },
-      include: {
-        items: {
-          include: {
-            ingredient: {
-              include: {
-                unit: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    return InventoryCountRepository.updateStatus(countId, 'completed', user.id);
   },
 
   async applyAdjustments(countId: string, user: AuthUser) {
@@ -217,16 +131,7 @@ export const InventoryCountService = {
     }
 
     return prisma.$transaction(async (tx) => {
-      const count = await tx.inventoryCount.findUnique({
-        where: { id: countId },
-        include: {
-          items: {
-            include: {
-              ingredient: true,
-            },
-          },
-        },
-      });
+      const count = await InventoryCountRepository.findByIdWithItems(countId, tx);
 
       if (!count) {
         throw new NotFoundError('Conteo no encontrado.');
@@ -236,58 +141,31 @@ export const InventoryCountService = {
         throw new ValidationError('Solo se pueden aplicar ajustes a conteos completados.');
       }
 
-      const inventoryMovements: Prisma.InventoryMovementCreateManyInput[] = [];
-
       // Apply adjustments for each item with difference
       for (const item of count.items) {
         if (item.difference.eq(0)) continue;
 
         // Update ingredient stock
-        await tx.ingredient.update({
-          where: { id: item.ingredientId },
-          data: {
-            currentStock: { increment: item.difference },
-          },
-        });
+        await InventoryRepository.updateStock(item.ingredientId, item.difference, tx);
 
         // Create inventory movement
-        inventoryMovements.push({
-          ingredientId: item.ingredientId,
-          type: 'adjustment',
-          quantity: item.difference,
-          unitCost: item.ingredient.averageCost,
-          referenceType: 'inventory_count',
-          referenceId: countId,
-          notes: `Ajuste por conteo físico: ${item.difference.toString()} ${item.ingredient.id}`,
-          createdById: user.id,
-        });
-      }
-
-      // Create movements
-      if (inventoryMovements.length > 0) {
-        await tx.inventoryMovement.createMany({
-          data: inventoryMovements,
-        });
+        await InventoryRepository.createMovement(
+          {
+            ingredientId: item.ingredientId,
+            type: 'adjustment',
+            quantity: item.difference,
+            unitCost: item.ingredient.averageCost,
+            referenceType: 'inventory_count',
+            referenceId: countId,
+            notes: `Ajuste por conteo físico: ${item.difference.toString()}`,
+            createdById: user.id,
+          },
+          tx,
+        );
       }
 
       // Update count status
-      return tx.inventoryCount.update({
-        where: { id: countId },
-        data: {
-          status: 'applied',
-        },
-        include: {
-          items: {
-            include: {
-              ingredient: {
-                include: {
-                  unit: true,
-                },
-              },
-            },
-          },
-        },
-      });
+      return InventoryCountRepository.updateStatus(countId, 'applied', undefined, tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 };
