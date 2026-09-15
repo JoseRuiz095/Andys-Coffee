@@ -114,6 +114,7 @@ export interface UseInventoryMovementsParams {
   type?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
 }
 
 export function useInventoryMovements(params: UseInventoryMovementsParams = {}) {

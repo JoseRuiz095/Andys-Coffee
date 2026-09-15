@@ -52,6 +52,46 @@ export const InventoryCountRepository = {
     });
   },
 
+  async findAll(page: number = 1, limit: number = 20, client: PrismaClient = prisma) {
+    const skip = (page - 1) * limit;
+
+    const [counts, total] = await Promise.all([
+      client.inventoryCount.findMany({
+        skip,
+        take: limit,
+        include: {
+          items: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          completedBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      client.inventoryCount.count(),
+    ]);
+
+    return {
+      data: counts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async create(
     data: { createdById: string; status: string },
     client: PrismaClient = prisma,

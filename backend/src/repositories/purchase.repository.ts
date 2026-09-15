@@ -70,6 +70,10 @@ export const PurchaseRepository = {
     };
   },
 
+  async delete(id: string) {
+    return prisma.purchase.delete({ where: { id } });
+  },
+
   async updateStatus(id: string, status: string) {
     return prisma.purchase.update({
       where: { id },

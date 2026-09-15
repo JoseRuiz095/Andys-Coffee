@@ -138,7 +138,7 @@ export const InventoryService = {
       throw new AuthorizationError('No tienes permiso para ver el historial de movimientos.');
     }
 
-    const { page, limit, ingredientId, type, startDate, endDate } = query;
+    const { page, limit, ingredientId, type, startDate, endDate, search } = query;
 
     // Validate ingredient exists if filtering by it
     if (ingredientId) {
@@ -155,6 +155,7 @@ export const InventoryService = {
       endDate ? new Date(endDate) : undefined,
       page,
       limit,
+      search,
     );
   },
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
@@ -8,9 +8,21 @@ import {
   useAddItem,
   useCompleteCount,
   useApplyAdjustments,
+  useCountsList,
 } from '../hooks/useInventoryCounts'
 import { useInventoryList } from '../hooks/useInventory'
+import { authStore } from '../../auth/store/auth.store'
 import axios from 'axios'
+
+const ACTIVE_COUNT_STORAGE_KEY = 'activeInventoryCountId'
+
+function readStoredCountId(): string | null {
+  try {
+    return sessionStorage.getItem(ACTIVE_COUNT_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError<{ message?: string; errors?: unknown }>(error)) {
@@ -25,14 +37,31 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export function InventoryPhysical() {
-  const [countId, setCountId] = useState<string | null>(null)
+  const { user } = authStore.getState()
+  const canCount = user?.permissions?.includes('inventory.physical_count') ?? false
+  const canAdjust = user?.permissions?.includes('inventory.adjust') ?? false
+
+  const [countId, setCountId] = useState<string | null>(() => readStoredCountId())
   const [selectedIngredientId, setSelectedIngredientId] = useState('')
   const [countedQty, setCountedQty] = useState('')
   const [notes, setNotes] = useState('')
   const [isConfirmingApply, setIsConfirmingApply] = useState(false)
 
+  useEffect(() => {
+    try {
+      if (countId) {
+        sessionStorage.setItem(ACTIVE_COUNT_STORAGE_KEY, countId)
+      } else {
+        sessionStorage.removeItem(ACTIVE_COUNT_STORAGE_KEY)
+      }
+    } catch {
+      // sessionStorage unavailable (private mode, etc.) - ignore
+    }
+  }, [countId])
+
   const { mutate: createCount, isPending: isCreating } = useCreateCount()
   const { data: count, isLoading: isLoadingCount } = useGetCount(countId)
+  const { data: recentCounts, isLoading: isLoadingRecent } = useCountsList({ limit: 10 })
   const { data: ingredients } = useInventoryList({
     page: 1,
     limit: 1000,
@@ -161,17 +190,58 @@ export function InventoryPhysical() {
       >
         <h1 className="mb-6 text-2xl font-bold">Conteos Físicos</h1>
 
+        {!canCount && (
+          <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+            <p className="text-sm font-medium text-yellow-800">
+              No tienes permiso para crear o editar conteos físicos. Contacta a un administrador.
+            </p>
+          </div>
+        )}
+
         <div className="rounded-lg bg-white p-6 text-center shadow">
           <p className="mb-6 text-gray-600">
             Crear un nuevo conteo físico para reconciliar el inventario del sistema con el real
           </p>
           <button
             onClick={handleCreateCount}
-            disabled={isCreating}
-            className="rounded-lg bg-[#5A804F] px-6 py-3 text-white hover:bg-[#4A6B3F] disabled:opacity-50 transition-colors"
+            disabled={isCreating || !canCount}
+            className="rounded-lg bg-[#5A804F] px-6 py-3 text-white hover:bg-[#4A6B3F] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
           >
             {isCreating ? 'Creando...' : 'Crear nuevo conteo'}
           </button>
+        </div>
+
+        <div className="mt-6 rounded-lg bg-white p-6 shadow">
+          <h2 className="mb-4 text-lg font-bold">Conteos recientes</h2>
+          {isLoadingRecent ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-12" />
+              ))}
+            </div>
+          ) : !recentCounts?.data.length ? (
+            <p className="text-sm text-gray-500">No hay conteos registrados aún.</p>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {recentCounts.data.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCountId(c.id)}
+                  className="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-gray-50"
+                  type="button"
+                >
+                  <div>
+                    <p className="font-medium text-gray-900">Conteo #{c.id.slice(0, 8)}</p>
+                    <p className="text-sm text-gray-500">
+                      {c.createdBy.name} · {new Date(c.createdAt).toLocaleDateString('es-ES')} ·{' '}
+                      {c.items.length} item(s)
+                    </p>
+                  </div>
+                  {getStatusBadge(c.status)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </motion.div>
     )
@@ -252,7 +322,7 @@ export function InventoryPhysical() {
       <AnimatePresence>
         {count.status === 'draft' && (
           <motion.div
-            className="mb-6 rounded-lg bg-white p-6 shadow"
+            className={`mb-6 rounded-lg bg-white p-6 shadow ${!canCount ? 'opacity-50 pointer-events-none' : ''}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -389,8 +459,8 @@ export function InventoryPhysical() {
         {count.status === 'draft' && count.items.length > 0 && (
           <motion.button
             onClick={handleCompleteCount}
-            disabled={isCompleting}
-            className="rounded-lg bg-amber-600 px-6 py-3 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            disabled={isCompleting || !canCount}
+            className="rounded-lg bg-amber-600 px-6 py-3 text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -399,15 +469,22 @@ export function InventoryPhysical() {
         )}
 
         {count.status === 'completed' && (
-          <motion.button
-            onClick={() => setIsConfirmingApply(true)}
-            disabled={isApplying}
-            className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {isApplying ? 'Aplicando...' : 'Aplicar ajustes'}
-          </motion.button>
+          <div className="flex-1">
+            {!canAdjust && (
+              <p className="mb-2 text-sm font-medium text-yellow-700">
+                No tienes permiso para aplicar ajustes de inventario.
+              </p>
+            )}
+            <motion.button
+              onClick={() => setIsConfirmingApply(true)}
+              disabled={isApplying || !canAdjust}
+              className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isApplying ? 'Aplicando...' : 'Aplicar ajustes'}
+            </motion.button>
+          </div>
         )}
 
         {count.status === 'applied' && (

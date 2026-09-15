@@ -8,6 +8,7 @@ import { useCreatePurchase, usePurchasesList, useSearchSuppliers } from '../hook
 import { useSearchIngredients } from '../hooks/useInventory'
 import { IngredientFormModal } from '../components/IngredientFormModal'
 import { SupplierFormModal } from '../components/SupplierFormModal'
+import { authStore } from '../../auth/store/auth.store'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20'
@@ -46,8 +47,14 @@ interface PurchaseItem {
 }
 
 export function InventoryAddEntry() {
+  const { user } = authStore.getState()
+  const canCreateEntry = user?.permissions?.includes('inventory.create_entry') ?? false
+  const canCreateIngredient = user?.permissions?.includes('inventory.create_ingredient') ?? false
+  const canManageSuppliers = user?.permissions?.includes('inventory.manage_suppliers') ?? false
+
   const [supplierId, setSupplier] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [tax, setTax] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [selectedIngredient, setSelectedIngredient] = useState('')
@@ -57,18 +64,31 @@ export function InventoryAddEntry() {
   const [isConfirming, setIsConfirming] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [ingredientSearch, setIngredientSearch] = useState('')
+  const [debouncedIngredientSearch, setDebouncedIngredientSearch] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false)
   const [supplierSearch, setSupplierSearch] = useState('')
+  const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState('')
   const [showSupplierResults, setShowSupplierResults] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [selectedSupplierData, setSelectedSupplierData] = useState<any>(null)
 
+  // Debounce de las búsquedas para no disparar una petición por cada tecla
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedIngredientSearch(ingredientSearch), 300)
+    return () => clearTimeout(timer)
+  }, [ingredientSearch])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSupplierSearch(supplierSearch), 300)
+    return () => clearTimeout(timer)
+  }, [supplierSearch])
+
   // Búsqueda dinámica de ingredientes
-  const { data: searchResults, isLoading: isSearching } = useSearchIngredients(ingredientSearch)
+  const { data: searchResults, isLoading: isSearching } = useSearchIngredients(debouncedIngredientSearch)
 
   // Búsqueda dinámica de proveedores
-  const { data: supplierResults, isLoading: isSearchingSuppliers } = useSearchSuppliers(supplierSearch)
+  const { data: supplierResults, isLoading: isSearchingSuppliers } = useSearchSuppliers(debouncedSupplierSearch)
 
   const { mutate: createPurchase, isPending: isCreating } = useCreatePurchase()
   const { refetch: refetchPurchases } = usePurchasesList({ status: 'draft', limit: 100 })
@@ -130,6 +150,16 @@ export function InventoryAddEntry() {
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index))
+
+    // Si el item eliminado era el que se estaba editando (o estaba antes de él),
+    // los índices del array se desplazan y editingIndex quedaría apuntando a otro item.
+    if (editingIndex !== null && index <= editingIndex) {
+      setEditingIndex(null)
+      setSelectedIngredient('')
+      setSelectedIngredientData(null)
+      setItemQuantity('')
+      setItemCost('')
+    }
   }
 
   const handleIngredientCreated = (ingredient: any) => {
@@ -161,6 +191,7 @@ export function InventoryAddEntry() {
         supplierId: supplierId || undefined,
         invoiceNumber: invoiceNumber || undefined,
         notes: notes || undefined,
+        tax: tax ? parseFloat(tax) : undefined,
         items,
       },
       {
@@ -168,6 +199,7 @@ export function InventoryAddEntry() {
           sileo.success({ title: 'Compra creada correctamente.', duration: 2000 })
           setSupplier('')
           setNotes('')
+          setTax('')
           setItems([])
           setIsConfirming(false)
           setEditingIndex(null)
@@ -186,7 +218,8 @@ export function InventoryAddEntry() {
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
-  const total = subtotal
+  const taxAmount = parseFloat(tax) || 0
+  const total = subtotal + taxAmount
 
   return (
     <motion.div
@@ -207,17 +240,30 @@ export function InventoryAddEntry() {
           <p className="text-gray-600">Registra una nueva compra de proveedores</p>
         </motion.div>
 
+        {!canCreateEntry && (
+          <motion.div
+            className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <p className="text-sm font-medium text-yellow-800">
+              No tienes permiso para registrar entradas de inventario. Contacta a un administrador.
+            </p>
+          </motion.div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Formulario */}
           <motion.div
-            className="lg:col-span-2 rounded-lg border border-gray-200 bg-white p-6"
+            className={`lg:col-span-2 rounded-lg border border-gray-200 bg-white p-6 ${!canCreateEntry ? 'opacity-50 pointer-events-none' : ''}`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
             {/* Información general */}
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Información de la compra</h2>
-            <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Proveedor - Búsqueda dinámica */}
               <div className="relative">
                 <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -238,6 +284,7 @@ export function InventoryAddEntry() {
                       setShowSupplierResults(true)
                     }}
                     onFocus={() => setShowSupplierResults(true)}
+                    onBlur={() => setTimeout(() => setShowSupplierResults(false), 150)}
                     className={TAILWIND_INPUT_CLASS}
                   />
 
@@ -258,7 +305,7 @@ export function InventoryAddEntry() {
                 </div>
 
                 <AnimatePresence>
-                  {showSupplierResults && !supplierId && (supplierSearch.length >= 2 || supplierResults?.length || 0 > 0) && (
+                  {showSupplierResults && !supplierId && (debouncedSupplierSearch.length >= 2 || supplierResults?.length || 0 > 0) && (
                     <motion.div
                       className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
                       initial={{ opacity: 0, y: -10 }}
@@ -294,21 +341,23 @@ export function InventoryAddEntry() {
                             </button>
                           ))}
                         </div>
-                      ) : supplierSearch.length >= 2 ? (
+                      ) : debouncedSupplierSearch.length >= 2 ? (
                         <div className="divide-y divide-gray-100">
                           <div className="p-3 text-center text-xs text-gray-500">
                             No encontramos proveedores
                           </div>
-                          <button
-                            onClick={() => {
-                              setIsSupplierModalOpen(true)
-                              setShowSupplierResults(false)
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
-                            type="button"
-                          >
-                            + Crear "{supplierSearch}"
-                          </button>
+                          {canManageSuppliers && (
+                            <button
+                              onClick={() => {
+                                setIsSupplierModalOpen(true)
+                                setShowSupplierResults(false)
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
+                              type="button"
+                            >
+                              + Crear "{supplierSearch}"
+                            </button>
+                          )}
                         </div>
                       ) : null}
                     </motion.div>
@@ -318,13 +367,29 @@ export function InventoryAddEntry() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Número de factura (Auto)
+                  Número de factura
                 </label>
                 <input
                   type="text"
                   value={invoiceNumber}
-                  readOnly
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-600 cursor-not-allowed"
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  placeholder="Ej: FAC-1234"
+                  className={TAILWIND_INPUT_CLASS}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  IVA / Impuestos (opcional)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={tax}
+                  onChange={(e) => setTax(e.target.value)}
+                  placeholder="0.00"
+                  className={TAILWIND_INPUT_CLASS}
                 />
               </div>
             </div>
@@ -353,6 +418,7 @@ export function InventoryAddEntry() {
                         setShowSearchResults(true)
                       }}
                       onFocus={() => setShowSearchResults(true)}
+                      onBlur={() => setTimeout(() => setShowSearchResults(false), 150)}
                       className={TAILWIND_INPUT_CLASS}
                     />
 
@@ -373,7 +439,7 @@ export function InventoryAddEntry() {
                   </div>
 
                   <AnimatePresence>
-                    {showSearchResults && !selectedIngredient && (ingredientSearch.length >= 2 || filteredSearchResults.length > 0) && (
+                    {showSearchResults && !selectedIngredient && (debouncedIngredientSearch.length >= 2 || filteredSearchResults.length > 0) && (
                       <motion.div
                         className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
                         initial={{ opacity: 0, y: -10 }}
@@ -410,21 +476,23 @@ export function InventoryAddEntry() {
                               </button>
                             ))}
                           </div>
-                        ) : ingredientSearch.length >= 2 ? (
+                        ) : debouncedIngredientSearch.length >= 2 ? (
                           <div className="divide-y divide-gray-100">
                             <div className="p-3 text-center text-xs text-gray-500">
                               No encontramos ingredientes exactos
                             </div>
-                            <button
-                              onClick={() => {
-                                setIsIngredientModalOpen(true)
-                                setShowSearchResults(false)
-                              }}
-                              className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
-                              type="button"
-                            >
-                              + Crear "{ingredientSearch}"
-                            </button>
+                            {canCreateIngredient && (
+                              <button
+                                onClick={() => {
+                                  setIsIngredientModalOpen(true)
+                                  setShowSearchResults(false)
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors text-blue-600 font-medium"
+                                type="button"
+                              >
+                                + Crear "{ingredientSearch}"
+                              </button>
+                            )}
                           </div>
                         ) : null}
                       </motion.div>
@@ -581,6 +649,16 @@ export function InventoryAddEntry() {
                     <span className="text-gray-600">Items:</span>
                     <span className="font-medium text-gray-900">{items.length}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                  </div>
+                  {taxAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">IVA:</span>
+                      <span className="font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-gray-200 pt-3 text-base font-semibold">
                     <span>Total:</span>
                     <span className="text-green-600">${total.toFixed(2)}</span>

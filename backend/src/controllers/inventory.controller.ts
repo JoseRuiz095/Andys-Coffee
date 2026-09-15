@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { InventoryService } from '../services/inventory.service';
 import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ingredientCreateSchema, ingredientUpdateSchema } from '../validators/inventory.validator';
 import { AuthUser } from '../services/auth.service';
-import { auditLog } from '../utils/logger';
 
 export const InventoryController = {
   async search(req: Request, res: Response) {

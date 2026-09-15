@@ -123,6 +123,7 @@ export const inventoryApi = {
     type?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
   } = {}) => {
     const response = await apiClient.get<PaginatedResponse<InventoryMovement>>(
       '/inventory/movements',

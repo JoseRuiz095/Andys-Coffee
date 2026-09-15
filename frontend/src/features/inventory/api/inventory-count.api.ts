@@ -37,7 +37,22 @@ export interface InventoryCount {
   appliedAt: string | null;
 }
 
+export interface PaginatedInventoryCounts {
+  data: InventoryCount[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export const InventoryCountAPI = {
+  async getAll(params: { page?: number; limit?: number } = {}): Promise<PaginatedInventoryCounts> {
+    const response = await apiClient.get('/inventory-counts', { params });
+    return response.data;
+  },
+
   async createCount(): Promise<InventoryCount> {
     const response = await apiClient.post('/inventory-counts');
     return response.data.data;

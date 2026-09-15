@@ -4,6 +4,27 @@ import { inventoryCountValidator } from '../validators/inventory-count.validator
 import { AuthUser } from '../services/auth.service';
 
 export const InventoryCountController = {
+  async getAll(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+      const { page = '1', limit = '20' } = req.query as { page?: string; limit?: string };
+
+      const result = await InventoryCountService.findAll(
+        user,
+        parseInt(page, 10),
+        parseInt(limit, 10),
+      );
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        return res.status(403).json({ error: error.message });
+      }
+
+      throw error;
+    }
+  },
+
   async createCount(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;

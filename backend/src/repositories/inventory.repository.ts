@@ -262,6 +262,7 @@ export const InventoryRepository = {
     endDate?: Date,
     page: number = 1,
     limit: number = 50,
+    search?: string,
   ) {
     const skip = (page - 1) * limit;
 
@@ -276,6 +277,14 @@ export const InventoryRepository = {
           },
         }
         : {}),
+      ...(search && {
+        ingredient: {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { sku: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      }),
     };
 
     const [movements, total] = await Promise.all([

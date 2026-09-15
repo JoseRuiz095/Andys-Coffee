@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
-import { useDraftPurchases, useReceivePurchase, usePurchaseById } from '../hooks/usePurchases'
+import { useDraftPurchases, useReceivePurchase, usePurchaseById, useDeletePurchase } from '../hooks/usePurchases'
+import { authStore } from '../../auth/store/auth.store'
 import axios from 'axios'
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -18,13 +19,18 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export function InventoryEntries() {
+  const { user } = authStore.getState()
+  const canReceive = user?.permissions?.includes('inventory.create_entry') ?? false
+
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<string | null>(null)
   const [isConfirmingReceive, setIsConfirmingReceive] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [searchSupplier, setSearchSupplier] = useState('')
 
   const { data: purchases, isLoading: isLoadingPurchases, error: purchasesError } = useDraftPurchases()
   const { data: selectedPurchase, isLoading: isLoadingDetail } = usePurchaseById(selectedPurchaseId || '')
   const { mutate: receivePurchase, isPending: isReceiving } = useReceivePurchase()
+  const { mutate: deletePurchase, isPending: isDeleting } = useDeletePurchase()
 
   const handleReceivePurchase = () => {
     if (!selectedPurchaseId) return
@@ -38,6 +44,25 @@ export function InventoryEntries() {
       onError: (error) => {
         sileo.error({
           title: 'Error al recibir la compra',
+          description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
+        })
+      },
+    })
+  }
+
+  const handleDeletePurchase = () => {
+    if (!selectedPurchaseId) return
+
+    deletePurchase(selectedPurchaseId, {
+      onSuccess: () => {
+        setIsConfirmingDelete(false)
+        setSelectedPurchaseId(null)
+        sileo.success({ title: 'Compra cancelada correctamente.', duration: 3000 })
+      },
+      onError: (error) => {
+        setIsConfirmingDelete(false)
+        sileo.error({
+          title: 'Error al cancelar la compra',
           description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
         })
       },
@@ -73,6 +98,19 @@ export function InventoryEntries() {
           <h1 className="mb-2 text-3xl font-bold text-gray-900">Entradas de Inventario</h1>
           <p className="text-gray-600">Recibir compras de proveedores</p>
         </motion.div>
+
+        {!canReceive && (
+          <motion.div
+            className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <p className="text-sm font-medium text-yellow-800">
+              No tienes permiso para recibir o cancelar entradas de inventario. Contacta a un administrador.
+            </p>
+          </motion.div>
+        )}
 
         {purchasesError && (
           <motion.div
@@ -302,23 +340,36 @@ export function InventoryEntries() {
                   </motion.div>
                 )}
 
-                {/* Receive button */}
+                {/* Receive / Cancel buttons */}
                 <AnimatePresence mode="wait">
-                  {!isConfirmingReceive ? (
-                    <motion.button
-                      key="receive-btn"
-                      onClick={() => setIsConfirmingReceive(true)}
-                      disabled={isReceiving}
-                      className="w-full rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
+                  {!isConfirmingReceive && !isConfirmingDelete ? (
+                    <motion.div
+                      key="action-btns"
+                      className="flex gap-2"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                     >
-                      {isReceiving ? 'Recibiendo...' : 'Recibir compra'}
-                    </motion.button>
-                  ) : (
+                      <motion.button
+                        onClick={() => setIsConfirmingReceive(true)}
+                        disabled={isReceiving || !canReceive}
+                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                      >
+                        {isReceiving ? 'Recibiendo...' : 'Recibir compra'}
+                      </motion.button>
+                      <motion.button
+                        onClick={() => setIsConfirmingDelete(true)}
+                        disabled={isDeleting || !canReceive}
+                        className="flex-1 rounded-lg border border-red-300 bg-white px-4 py-2 font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                      >
+                        Cancelar compra
+                      </motion.button>
+                    </motion.div>
+                  ) : isConfirmingReceive ? (
                     <motion.div
                       key="confirm-dialog"
                       className="space-y-2"
@@ -343,6 +394,39 @@ export function InventoryEntries() {
                         <motion.button
                           onClick={() => setIsConfirmingReceive(false)}
                           disabled={isReceiving}
+                          className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-900 transition-colors hover:bg-gray-300 disabled:opacity-50"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          Cancelar
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="confirm-delete-dialog"
+                      className="space-y-2"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      <p className="rounded-lg bg-red-50 p-3 text-sm text-gray-600">
+                        ¿Eliminar esta compra en borrador? Esta acción es irreversible y no afecta al
+                        inventario ya que aún no ha sido recibida.
+                      </p>
+                      <div className="flex gap-2">
+                        <motion.button
+                          onClick={handleDeletePurchase}
+                          disabled={isDeleting}
+                          className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          {isDeleting ? 'Eliminando...' : 'Confirmar eliminación'}
+                        </motion.button>
+                        <motion.button
+                          onClick={() => setIsConfirmingDelete(false)}
+                          disabled={isDeleting}
                           className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-900 transition-colors hover:bg-gray-300 disabled:opacity-50"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}

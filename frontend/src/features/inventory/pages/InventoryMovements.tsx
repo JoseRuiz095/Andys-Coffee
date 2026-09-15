@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useInventoryMovements } from '../hooks/useInventory'
@@ -38,9 +38,18 @@ export function InventoryMovements() {
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState<string>('')
   const [searchIngredient, setSearchIngredient] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchIngredient)
+      setPage(1)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchIngredient])
 
   const queryParams: UseInventoryMovementsParams = {
     page,
@@ -48,24 +57,14 @@ export function InventoryMovements() {
     type: filterType || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    search: debouncedSearch || undefined,
   };
 
   const { data, isLoading, error } = useInventoryMovements(queryParams);
 
   const handleSearch = useCallback((value: string) => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
     setSearchIngredient(value);
-    setPage(1);
-
-    const timer = setTimeout(() => {
-      // Query reruns automatically
-    }, 300);
-
-    setDebounceTimer(timer);
-  }, [debounceTimer]);
+  }, []);
 
   const handleTypeChange = (newType: string) => {
     setFilterType(newType);
@@ -81,14 +80,7 @@ export function InventoryMovements() {
     setPage(1);
   };
 
-  // Filter by ingredient name client-side (optional, since we could add server-side search)
-  let filteredMovements = data?.data || [];
-  if (searchIngredient) {
-    filteredMovements = filteredMovements.filter((m) =>
-      m.ingredient.name.toLowerCase().includes(searchIngredient.toLowerCase()) ||
-      (m.ingredient.sku && m.ingredient.sku.toLowerCase().includes(searchIngredient.toLowerCase()))
-    );
-  }
+  const movements = data?.data || [];
 
   if (error) {
     return (
@@ -259,7 +251,7 @@ export function InventoryMovements() {
                 <Skeleton key={i} className="h-12" />
               ))}
             </div>
-          ) : filteredMovements.length === 0 ? (
+          ) : movements.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-gray-500">No hay movimientos para mostrar</p>
             </div>
@@ -280,7 +272,7 @@ export function InventoryMovements() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredMovements.map((movement, i) => (
+                  {movements.map((movement, i) => (
                     <motion.tr
                       key={movement.id}
                       className="transition-colors hover:bg-gray-50"
@@ -364,7 +356,7 @@ export function InventoryMovements() {
             transition={{ duration: 0.3, delay: 0.2 }}
           >
             <p className="text-sm text-gray-600">
-              Mostrando {filteredMovements.length} de {data.pagination.total} movimientos
+              Mostrando {movements.length} de {data.pagination.total} movimientos
             </p>
             <div className="flex gap-2">
               <button

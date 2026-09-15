@@ -143,4 +143,35 @@ export const PurchaseController = {
       throw error;
     }
   },
+
+  async delete(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+      const { id } = req.params as { id: string };
+
+      await PurchaseService.deletePurchase(id, user);
+
+      res.json({
+        success: true,
+        message: 'Compra eliminada correctamente.',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NotFoundError') {
+        res.status(404).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof Error && error.name === 'ConflictError') {
+        res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
+        return;
+      }
+
+      throw error;
+    }
+  },
 };

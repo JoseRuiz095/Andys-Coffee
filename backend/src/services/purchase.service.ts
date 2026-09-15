@@ -39,6 +39,13 @@ class DuplicateError extends Error {
   }
 }
 
+class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 export const PurchaseService = {
   async findAll(user: AuthUser, status?: string, page: number = 1, limit: number = 20) {
     // Authorization
@@ -220,5 +227,24 @@ export const PurchaseService = {
 
       return updatedPurchase;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  },
+
+  async deletePurchase(id: string, user: AuthUser) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.create_entry')) {
+      throw new AuthorizationError('No tienes permiso para eliminar compras.');
+    }
+
+    const purchase = await PurchaseRepository.findById(id);
+
+    if (!purchase) {
+      throw new NotFoundError('Compra no encontrada.');
+    }
+
+    if (purchase.status !== 'draft') {
+      throw new ConflictError('Esta compra ya fue recibida y actualizó el inventario; no se puede eliminar.');
+    }
+
+    await PurchaseRepository.delete(id);
   },
 };

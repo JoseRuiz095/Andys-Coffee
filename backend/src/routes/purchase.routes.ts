@@ -28,4 +28,11 @@ router.post(
   PurchaseController.receivePurchase
 );
 
+// Delete a draft purchase (cancel before it's received)
+router.delete(
+  '/:id',
+  checkPermission('inventory.create_entry'),
+  PurchaseController.delete
+);
+
 export default router;

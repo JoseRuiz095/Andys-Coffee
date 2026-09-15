@@ -3,12 +3,21 @@ import { InventoryCountAPI } from '../api/inventory-count.api';
 
 const QUERY_KEY = 'inventory-counts';
 
+export const useCountsList = (params: { page?: number; limit?: number } = {}) => {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'list', params],
+    queryFn: () => InventoryCountAPI.getAll(params),
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
 export const useCreateCount = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => InventoryCountAPI.createCount(),
     onSuccess: (data) => {
       queryClient.setQueryData([QUERY_KEY, data.id], data);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] });
     },
   });
 };
@@ -55,6 +64,7 @@ export const useCompleteCount = (countId: string | null) => {
           queryKey: [QUERY_KEY, countId],
         });
       }
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] });
     },
   });
 };
@@ -69,6 +79,7 @@ export const useApplyAdjustments = (countId: string | null) => {
           queryKey: [QUERY_KEY, countId],
         });
       }
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] });
       queryClient.invalidateQueries({
         queryKey: ['inventory', 'summary'],
       });

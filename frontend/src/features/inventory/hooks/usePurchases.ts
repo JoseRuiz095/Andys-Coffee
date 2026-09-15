@@ -58,6 +58,17 @@ export function useReceivedPurchases() {
   });
 }
 
+export function useDeletePurchase() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => purchasesApi.deletePurchase(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+    },
+  });
+}
+
 export function useCreatePurchase() {
   const queryClient = useQueryClient();
 

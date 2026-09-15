@@ -136,6 +136,15 @@ export const purchasesApi = {
     return response.data;
   },
 
+  // Delete a draft purchase (cancel before it's received)
+  deletePurchase: async (id: string) => {
+    const response = await apiClient.delete<{
+      success: boolean;
+      message: string;
+    }>(`/purchases/${id}`);
+    return response.data;
+  },
+
   // Get single supplier by ID
   getSupplier: async (id: string) => {
     const response = await apiClient.get<Supplier>(`/suppliers/${id}`);

@@ -26,6 +26,15 @@ class AuthorizationError extends Error {
 }
 
 export const InventoryCountService = {
+  async findAll(user: AuthUser, page: number = 1, limit: number = 20) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.view')) {
+      throw new AuthorizationError('No tienes permiso para ver conteos.');
+    }
+
+    return InventoryCountRepository.findAll(page, limit);
+  },
+
   async createCount(user: AuthUser) {
     // Authorization
     if (!user.permissions?.includes('inventory.physical_count')) {

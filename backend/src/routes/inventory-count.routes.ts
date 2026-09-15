@@ -8,6 +8,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.post('/', checkPermission('inventory.physical_count'), InventoryCountController.createCount);
+router.get('/', InventoryCountController.getAll);
 router.get('/:id', InventoryCountController.findById);
 router.post('/:countId/items', checkPermission('inventory.physical_count'), InventoryCountController.addItem);
 router.post('/:countId/complete', checkPermission('inventory.physical_count'), InventoryCountController.completeCount);
