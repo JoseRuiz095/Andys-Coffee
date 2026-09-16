@@ -8,7 +8,6 @@ interface RoleFormModalProps {
   onClose: () => void
   onSuccess?: (role: any) => void
   editingRoleId?: string | null
-  builtInRoles?: string[]
 }
 
 export function RoleFormModal({
@@ -16,7 +15,6 @@ export function RoleFormModal({
   onClose,
   onSuccess,
   editingRoleId = null,
-  builtInRoles = ['ADMIN', 'CAJERO'],
 }: RoleFormModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -35,7 +33,7 @@ export function RoleFormModal({
     }
   }, [editingRole, isOpen])
 
-  const isBuiltIn = editingRole && builtInRoles.includes(editingRole.name)
+  const isBuiltIn = editingRole?.isSystem ?? false
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

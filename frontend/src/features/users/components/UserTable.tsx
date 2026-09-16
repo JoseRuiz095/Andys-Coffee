@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useUsersList, useSetUserActive, useDeleteUser } from '../hooks/useUsers'
+import { hasPermission } from '../../auth/utils/permissions'
 import { sileo } from 'sileo'
 import type { AuthUser } from '../../auth/types/auth.types'
 
@@ -11,8 +12,11 @@ interface UserTableProps {
 }
 
 export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTableProps) {
+  const canCreateUsers = hasPermission(currentUser, 'users.create')
+  const canUpdateUsers = hasPermission(currentUser, 'users.update')
+  const canDeleteUsers = hasPermission(currentUser, 'users.delete')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useUsersList({ page, limit: 10 })
+  const { data, isLoading, isError } = useUsersList({ page, limit: 10 })
   const { mutate: setActive, isPending: isTogglingActive } = useSetUserActive()
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
 
@@ -65,18 +69,37 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
     )
   }
 
+  if (isError) {
+    return (
+      <div className="rounded-lg border border-red-300 bg-red-50 p-6">
+        <h3 className="font-semibold text-red-800">Error al cargar usuarios</h3>
+        <p className="mt-2 text-sm text-red-700">
+          No se pudieron cargar los usuarios. Intenta de nuevo más tarde.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  }
+
   const users = data?.data || []
   const pagination = data?.pagination
 
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <button
-          onClick={onCreateUser}
-          className="rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f]"
-        >
-          Nuevo Usuario
-        </button>
+        {canCreateUsers && (
+          <button
+            onClick={onCreateUser}
+            className="rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f]"
+          >
+            Nuevo Usuario
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-[#E7E3DC]">
@@ -108,26 +131,32 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm space-x-2 flex">
-                  <button
-                    onClick={() => onEditUser(user.id)}
-                    className="text-[#5A804F] hover:underline"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleToggleActive(user.id, user.isActive)}
-                    disabled={isTogglingActive || user.id === currentUser?.id}
-                    className="text-[#5A804F] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {user.isActive ? 'Desactivar' : 'Activar'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    disabled={isDeleting || user.id === currentUser?.id}
-                    className="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Eliminar
-                  </button>
+                  {canUpdateUsers && (
+                    <button
+                      onClick={() => onEditUser(user.id)}
+                      className="text-[#5A804F] hover:underline"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {canUpdateUsers && (
+                    <button
+                      onClick={() => handleToggleActive(user.id, user.isActive)}
+                      disabled={isTogglingActive || user.id === currentUser?.id}
+                      className="text-[#5A804F] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {user.isActive ? 'Desactivar' : 'Activar'}
+                    </button>
+                  )}
+                  {canDeleteUsers && (
+                    <button
+                      onClick={() => handleDelete(user.id)}
+                      disabled={isDeleting || user.id === currentUser?.id}
+                      className="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

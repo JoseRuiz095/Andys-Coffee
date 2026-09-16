@@ -120,6 +120,11 @@ export const UserService = {
       throw new NotFoundError('Usuario no encontrado.');
     }
 
+    // Prevent self role change
+    if (data.roleId && id === user.id) {
+      throw new ValidationError('No puedes cambiar tu propio rol.');
+    }
+
     // If email is being updated, check for duplicates
     if (data.email) {
       const normalized = data.email.trim();

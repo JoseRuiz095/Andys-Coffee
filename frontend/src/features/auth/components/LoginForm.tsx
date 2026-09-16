@@ -48,7 +48,6 @@ export function LoginForm() {
           <Input
             type="email"
             name="email"
-            defaultValue="ejemplo@gmail.com"
             autoComplete="email"
             placeholder="ejemplo@gmail.com"
             className="w-full rounded-3xl border px-4 py-3 text-sm"
@@ -68,7 +67,6 @@ export function LoginForm() {
             <Input
               type={showPassword ? 'text' : 'password'}
               name="password"
-              defaultValue="password123"
               autoComplete="current-password"
               className="w-full rounded-3xl border px-4 py-3 pr-12 text-sm"
               style={{

@@ -15,3 +15,8 @@ export const changePasswordSchema = z.object({
 export const updateProfileSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido.').max(255),
 });
+
+export const loginSchema = z.object({
+  email: z.string().email('El email debe ser válido.').min(1, 'El email es requerido.'),
+  password: z.string().min(1, 'La contraseña es requerida.').max(72),
+});

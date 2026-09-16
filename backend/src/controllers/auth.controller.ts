@@ -1,39 +1,48 @@
 import type { Request, Response } from "express";
 import { authenticateUser, createJwtToken, type AuthUser } from "../services/auth.service";
+import { loginSchema } from "../validators/password.validator";
 import { auditLog } from "../utils/logger";
+import { ZodError } from "zod";
 
 export async function login(req: Request, res: Response) {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = loginSchema.parse(req.body);
 
-  if (typeof email !== "string" || typeof password !== "string") {
-    return res.status(400).json({ message: "Email y password son requeridos." });
+    const user = await authenticateUser(email, password);
+
+    if (!user) {
+      auditLog({ requestId: req.id, action: "LOGIN_FAILED", entity: "auth" }, "Authentication failed");
+      return res.status(401).json({ message: "Correo o contraseña incorrectos." });
+    }
+
+    const token = createJwtToken(user);
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+
+    auditLog({
+      requestId: req.id,
+      actor: { id: user.id, name: user.name, role: user.roleName },
+      action: "LOGIN_SUCCEEDED",
+      entity: "auth",
+      entityId: user.id,
+    }, "Authentication succeeded");
+
+    return res.json({ user });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        error: "Validación fallida",
+        statusCode: 400,
+        details: error.issues
+      });
+    }
+    throw error;
   }
-
-  const user = await authenticateUser(email, password);
-
-  if (!user) {
-    auditLog({ requestId: req.id, action: "LOGIN_FAILED", entity: "auth" }, "Authentication failed");
-    return res.status(401).json({ message: "Correo o contraseña incorrectos." });
-  }
-
-  const token = createJwtToken(user);
-
-  res.cookie("token", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 8 * 60 * 60 * 1000,
-  });
-
-  auditLog({
-    requestId: req.id,
-    actor: { id: user.id, name: user.name, role: user.roleName },
-    action: "LOGIN_SUCCEEDED",
-    entity: "auth",
-    entityId: user.id,
-  }, "Authentication succeeded");
-
-  return res.json({ user });
 }
 
 export function logout(req: Request, res: Response) {

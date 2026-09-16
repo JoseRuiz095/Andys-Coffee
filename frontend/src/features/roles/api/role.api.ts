@@ -10,6 +10,7 @@ export interface RoleData {
   id: string
   name: string
   description?: string
+  isSystem: boolean
   createdAt: string
   updatedAt: string
   _count: { users: number }

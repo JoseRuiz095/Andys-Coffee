@@ -16,6 +16,7 @@ import supplierRoutes from "./routes/supplier.routes";
 import userRoutes from "./routes/user.routes";
 import roleRoutes from "./routes/role.routes";
 import permissionRoutes from "./routes/permission.routes";
+import preferenceRoutes from "./routes/preference.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
@@ -120,6 +121,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/permissions", permissionRoutes);
+app.use("/api/preferences", preferenceRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

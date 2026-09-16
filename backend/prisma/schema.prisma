@@ -39,6 +39,7 @@ model Role {
   id          String           @id @default(uuid())
   name        String           @unique
   description String?
+  isSystem    Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   permissions RolePermission[]
@@ -626,4 +627,17 @@ model InventoryCountItem {
   @@unique([inventoryCountId, ingredientId], map: "inventoryCountItems_unique")
   @@index([inventoryCountId])
   @@map("inventory_count_items")
+}
+
+model SystemPreference {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string") // string, number, boolean, json
+  label     String?
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_preferences")
 }

@@ -95,9 +95,9 @@ export const RoleService = {
       throw new NotFoundError('Rol no encontrado.');
     }
 
-    // Prevent renaming built-in roles
+    // Prevent renaming built-in roles (using isSystem flag)
     if (data.name && existingRole.name !== data.name) {
-      if (existingRole.name === 'ADMIN' || existingRole.name === 'CAJERO') {
+      if (existingRole.isSystem) {
         throw new ValidationError('No se puede renombrar un rol del sistema.');
       }
 
@@ -126,7 +126,7 @@ export const RoleService = {
     }
 
     // Prevent deleting built-in roles
-    if (existingRole.name === 'ADMIN' || existingRole.name === 'CAJERO') {
+    if (existingRole.isSystem) {
       throw new ValidationError('No se puede eliminar un rol del sistema.');
     }
 
@@ -151,14 +151,28 @@ export const RoleService = {
       throw new NotFoundError('Rol no encontrado.');
     }
 
-    // Validate that all permission IDs exist
+    // Prevent modifying system role permissions unless you have explicit permission
+    if (existingRole.isSystem) {
+      if (!user.permissions?.includes('roles.manage_system_permissions')) {
+        throw new AuthorizationError('No tienes permiso para modificar los permisos de los roles del sistema.');
+      }
+    }
+
+    // Validate that all permission IDs exist and that actor possesses each permission
     if (permissionIds.length > 0) {
       const allPermissions = await PermissionRepository.findAll();
       const allPermissionIds = new Set(allPermissions.map((p) => p.id));
+      const allPermissionNames = new Map(allPermissions.map((p) => [p.id, p.name]));
 
       for (const permissionId of permissionIds) {
         if (!allPermissionIds.has(permissionId)) {
           throw new ValidationError(`El permiso con ID "${permissionId}" no existe.`);
+        }
+
+        // Check that actor possesses this permission
+        const permissionName = allPermissionNames.get(permissionId);
+        if (permissionName && !user.permissions?.includes(permissionName)) {
+          throw new AuthorizationError(`No tienes el permiso "${permissionName}" que intentas otorgar.`);
         }
       }
     }

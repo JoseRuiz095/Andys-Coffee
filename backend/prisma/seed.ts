@@ -533,10 +533,12 @@ const roles = [
   {
     name: "ADMIN",
     description: "Administrador del sistema",
+    isSystem: true,
   },
   {
     name: "CAJERO",
     description: "Usuario encargado de caja y ventas",
+    isSystem: true,
   },
 ];
 
@@ -549,6 +551,7 @@ const permissions = [
   { name: "users.create", description: "Crear usuarios" },
   { name: "users.update", description: "Actualizar usuarios" },
   { name: "users.delete", description: "Eliminar usuarios" },
+  { name: "roles.manage_system_permissions", description: "Gestionar permisos de roles del sistema" },
   { name: "products.read", description: "Consultar productos" },
   { name: "products.create", description: "Crear productos" },
   { name: "products.update", description: "Actualizar productos" },
