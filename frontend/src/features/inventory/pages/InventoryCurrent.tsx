@@ -85,9 +85,73 @@ export function InventoryCurrent() {
 
         {/* Stats */}
         <motion.div
+          className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          {/* Total de ingredientes */}
+          <div className="rounded-lg border border-gray-200 bg-white p-6">
+            <p className="text-sm font-medium text-gray-600">Total Ingredientes</p>
+            <p className="mt-2 text-3xl font-bold text-gray-900">{data?.pagination.total || 0}</p>
+            <p className="mt-1 text-xs text-gray-500">en el inventario</p>
+          </div>
+
+          {/* Normal */}
+          <div className="rounded-lg border border-green-200 bg-green-50 p-6">
+            <p className="text-sm font-medium text-green-800">Stock Normal</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">
+              {data?.data?.filter(ing => {
+                const current = Number(ing.currentStock);
+                const minimum = Number(ing.minimumStock);
+                return current > minimum && current > 0;
+              }).length || 0}
+            </p>
+            <p className="mt-1 text-xs text-green-700">sin problemas de stock</p>
+          </div>
+
+          {/* Stock Bajo */}
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-6">
+            <p className="text-sm font-medium text-yellow-800">Stock Bajo</p>
+            <p className="mt-2 text-3xl font-bold text-yellow-600">
+              {data?.data?.filter(ing => {
+                const current = Number(ing.currentStock);
+                const minimum = Number(ing.minimumStock);
+                return current > 0 && current <= minimum;
+              }).length || 0}
+            </p>
+            <p className="mt-1 text-xs text-yellow-700">requiere reorden</p>
+          </div>
+
+          {/* Agotado */}
+          <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+            <p className="text-sm font-medium text-red-800">Agotados</p>
+            <p className="mt-2 text-3xl font-bold text-red-600">
+              {data?.data?.filter(ing => Number(ing.currentStock) <= 0).length || 0}
+            </p>
+            <p className="mt-1 text-xs text-red-700">requiere reposición urgente</p>
+          </div>
+        </motion.div>
+
+        {/* Valor Total */}
+        <motion.div
+          className="mb-6 rounded-lg border-2 border-[#5A804F] bg-[#F0F7E8] p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.15 }}
+        >
+          <p className="text-sm font-medium text-[#5A804F]">Valor Total del Inventario</p>
+          <p className="mt-2 text-4xl font-bold text-[#5A804F]">
+            ${(data?.data?.reduce((sum, ing) => sum + (Number(ing.currentStock) * Number(ing.averageCost)), 0) || 0).toFixed(2)}
+          </p>
+          <p className="mt-1 text-xs text-[#6B8F5F]">costo total de stock en almacén</p>
+        </motion.div>
+
+        {/* Stats Original */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
         >
           <InventoryStats />
         </motion.div>
@@ -103,12 +167,13 @@ export function InventoryCurrent() {
 
         {/* Búsqueda y Filtros */}
         <motion.div
-          className="mb-6 rounded-lg border border-gray-200 bg-white p-4"
+          className="mb-6 rounded-lg border border-gray-200 bg-white p-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
+          transition={{ duration: 0.3, delay: 0.35 }}
         >
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <h3 className="mb-4 text-sm font-semibold text-gray-900">Filtrar Inventario</h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Búsqueda */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -139,31 +204,46 @@ export function InventoryCurrent() {
                 <option value="out_of_stock">Agotado</option>
               </select>
             </div>
+
+            {/* Botón Limpiar Filtros */}
+            {(search || status !== 'all') && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    handleSearch('');
+                    handleStatusChange('all');
+                  }}
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Info de filtros activos */}
           {(search || status !== 'all') && (
             <motion.div
-              className="flex items-center gap-2 text-sm text-gray-600"
+              className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 text-sm text-gray-600"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
             >
-              <span>Filtros activos:</span>
+              <span className="font-medium">Filtros activos:</span>
               {search && (
                 <button
                   onClick={() => handleSearch('')}
-                  className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 hover:bg-gray-200 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200 transition-colors"
                 >
-                  Búsqueda: "{search}" ✕
+                  🔍 "{search}" ✕
                 </button>
               )}
               {status !== 'all' && (
                 <button
                   onClick={() => handleStatusChange('all')}
-                  className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 hover:bg-gray-200 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-200 transition-colors"
                 >
-                  Estado: {status} ✕
+                  🏷️ {status === 'normal' ? 'Normal' : status === 'low_stock' ? 'Stock Bajo' : 'Agotado'} ✕
                 </button>
               )}
             </motion.div>
@@ -174,7 +254,7 @@ export function InventoryCurrent() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.25 }}
+          transition={{ duration: 0.3, delay: 0.4 }}
         >
           {isLoading ? (
             <div className="space-y-3 rounded-lg bg-white p-6">
@@ -196,7 +276,7 @@ export function InventoryCurrent() {
             className="mt-6 flex items-center justify-between"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
+            transition={{ duration: 0.3, delay: 0.45 }}
           >
             <p className="text-sm text-gray-600">
               Mostrando {data.pagination.limit} de {data.pagination.total} ingredientes

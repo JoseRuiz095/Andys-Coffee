@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import { PencilIcon } from '../../../components/ui/PencilIcon'
+import { XIcon } from '../../../components/ui/XIcon'
 import {
   useCreateCount,
   useGetCount,
   useAddItem,
+  useRemoveItem,
   useCompleteCount,
   useApplyAdjustments,
+  useDeleteCount,
   useCountsList,
 } from '../hooks/useInventoryCounts'
 import { useInventoryList } from '../hooks/useInventory'
@@ -43,9 +47,17 @@ export function InventoryPhysical() {
 
   const [countId, setCountId] = useState<string | null>(() => readStoredCountId())
   const [selectedIngredientId, setSelectedIngredientId] = useState('')
+  const [selectedIngredientData, setSelectedIngredientData] = useState<{ name: string; unit?: { abbreviation: string } } | null>(null)
+  const [ingredientSearch, setIngredientSearch] = useState('')
+  const [showIngredientResults, setShowIngredientResults] = useState(false)
   const [countedQty, setCountedQty] = useState('')
   const [notes, setNotes] = useState('')
   const [isConfirmingApply, setIsConfirmingApply] = useState(false)
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
+  const [isConfirmingDeleteCount, setIsConfirmingDeleteCount] = useState(false)
+  const [countsPage, setCountsPage] = useState(1)
+  const [countsStatusFilter, setCountsStatusFilter] = useState('all')
+  const [countsDateFilter, setCountsDateFilter] = useState(new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
     try {
@@ -61,7 +73,12 @@ export function InventoryPhysical() {
 
   const { mutate: createCount, isPending: isCreating } = useCreateCount()
   const { data: count, isLoading: isLoadingCount } = useGetCount(countId)
-  const { data: recentCounts, isLoading: isLoadingRecent } = useCountsList({ limit: 10 })
+  const { data: recentCounts, isLoading: isLoadingRecent } = useCountsList({
+    page: countsPage,
+    limit: 20,
+    status: countsStatusFilter !== 'all' ? countsStatusFilter : undefined,
+    date: countsDateFilter || undefined,
+  })
   const { data: ingredients } = useInventoryList({
     page: 1,
     limit: 1000,
@@ -69,16 +86,25 @@ export function InventoryPhysical() {
     search: undefined,
   })
   const { mutate: addItem, isPending: isAddingItem } = useAddItem(countId)
+  const { mutate: removeItem, isPending: isRemovingItem } = useRemoveItem(countId)
   const { mutate: completeCount, isPending: isCompleting } = useCompleteCount(countId)
   const { mutate: applyAdjustments, isPending: isApplying } = useApplyAdjustments(countId)
+  const { mutate: deleteCount, isPending: isDeletingCount } = useDeleteCount()
+
+  const resetItemForm = () => {
+    setSelectedIngredientId('')
+    setSelectedIngredientData(null)
+    setIngredientSearch('')
+    setShowIngredientResults(false)
+    setCountedQty('')
+    setNotes('')
+  }
 
   const handleCreateCount = () => {
     createCount(undefined, {
       onSuccess: (newCount) => {
         setCountId(newCount.id)
-        setSelectedIngredientId('')
-        setCountedQty('')
-        setNotes('')
+        resetItemForm()
         sileo.success({ title: 'Conteo creado correctamente.', duration: 3000 })
       },
       onError: (error) => {
@@ -90,6 +116,31 @@ export function InventoryPhysical() {
     })
   }
 
+  const handleSelectIngredient = (ing: { id: string; name: string; unit?: { abbreviation: string } }) => {
+    setSelectedIngredientId(ing.id)
+    setSelectedIngredientData({ name: ing.name, unit: ing.unit })
+    setIngredientSearch('')
+    setShowIngredientResults(false)
+
+    const existing = count?.items.find((i) => i.ingredientId === ing.id)
+    if (existing) {
+      setCountedQty(existing.countedQuantity.toString())
+      setNotes(existing.notes || '')
+    } else {
+      setCountedQty('')
+      setNotes('')
+    }
+  }
+
+  const handleEditItem = (item: { ingredientId: string; countedQuantity: number; notes: string | null; ingredient?: { name: string; unit?: { abbreviation: string } } }) => {
+    setSelectedIngredientId(item.ingredientId)
+    setSelectedIngredientData(item.ingredient ? { name: item.ingredient.name, unit: item.ingredient.unit } : null)
+    setIngredientSearch('')
+    setShowIngredientResults(false)
+    setCountedQty(item.countedQuantity.toString())
+    setNotes(item.notes || '')
+  }
+
   const handleAddItem = () => {
     if (!selectedIngredientId || !countedQty) {
       sileo.error({
@@ -99,6 +150,8 @@ export function InventoryPhysical() {
       return
     }
 
+    const isUpdating = count?.items.some((i) => i.ingredientId === selectedIngredientId) ?? false
+
     addItem(
       {
         ingredientId: selectedIngredientId,
@@ -107,10 +160,11 @@ export function InventoryPhysical() {
       },
       {
         onSuccess: () => {
-          setSelectedIngredientId('')
-          setCountedQty('')
-          setNotes('')
-          sileo.success({ title: 'Ingrediente agregado.', duration: 2000 })
+          resetItemForm()
+          sileo.success({
+            title: isUpdating ? 'Conteo del ingrediente actualizado.' : 'Ingrediente agregado.',
+            duration: 2000,
+          })
         },
         onError: (error) => {
           sileo.error({
@@ -120,6 +174,40 @@ export function InventoryPhysical() {
         },
       },
     )
+  }
+
+  const handleConfirmRemoveItem = (ingredientId: string) => {
+    removeItem(ingredientId, {
+      onSuccess: () => {
+        setDeletingItemId(null)
+        sileo.success({ title: 'Item eliminado del conteo.', duration: 2000 })
+      },
+      onError: (error) => {
+        setDeletingItemId(null)
+        sileo.error({
+          title: 'No se pudo eliminar el item',
+          description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
+        })
+      },
+    })
+  }
+
+  const handleDeleteCount = () => {
+    if (!countId) return
+    deleteCount(countId, {
+      onSuccess: () => {
+        setIsConfirmingDeleteCount(false)
+        setCountId(null)
+        sileo.success({ title: 'Conteo eliminado.', duration: 2000 })
+      },
+      onError: (error) => {
+        setIsConfirmingDeleteCount(false)
+        sileo.error({
+          title: 'No se pudo eliminar el conteo',
+          description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
+        })
+      },
+    })
   }
 
   const handleCompleteCount = () => {
@@ -213,6 +301,54 @@ export function InventoryPhysical() {
 
         <div className="mt-6 rounded-lg bg-white p-6 shadow">
           <h2 className="mb-4 text-lg font-bold">Conteos recientes</h2>
+
+          {/* Filtros */}
+          <div className="mb-4 flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Estado</label>
+              <select
+                value={countsStatusFilter}
+                onChange={(e) => {
+                  setCountsStatusFilter(e.target.value)
+                  setCountsPage(1)
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              >
+                <option value="all">Todos</option>
+                <option value="draft">Borrador</option>
+                <option value="completed">Completado</option>
+                <option value="applied">Aplicado</option>
+              </select>
+            </div>
+
+            <div className="flex-1 min-w-[200px]">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Fecha</label>
+              <input
+                type="date"
+                value={countsDateFilter}
+                onChange={(e) => {
+                  setCountsDateFilter(e.target.value)
+                  setCountsPage(1)
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setCountsDateFilter('')
+                  setCountsStatusFilter('all')
+                  setCountsPage(1)
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Ver todo el historial
+              </button>
+            </div>
+          </div>
+
+          {/* Lista */}
           {isLoadingRecent ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => (
@@ -222,25 +358,52 @@ export function InventoryPhysical() {
           ) : !recentCounts?.data.length ? (
             <p className="text-sm text-gray-500">No hay conteos registrados aún.</p>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {recentCounts.data.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCountId(c.id)}
-                  className="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-gray-50"
-                  type="button"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">Conteo #{c.id.slice(0, 8)}</p>
-                    <p className="text-sm text-gray-500">
-                      {c.createdBy.name} · {new Date(c.createdAt).toLocaleDateString('es-ES')} ·{' '}
-                      {c.items.length} item(s)
-                    </p>
-                  </div>
-                  {getStatusBadge(c.status)}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="mb-4 divide-y divide-gray-200">
+                {recentCounts.data.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCountId(c.id)}
+                    className="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-gray-50"
+                    type="button"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900">Conteo #{c.id.slice(0, 8)}</p>
+                      <p className="text-sm text-gray-500">
+                        {c.createdBy.name} · {new Date(c.createdAt).toLocaleDateString('es-ES')} ·{' '}
+                        {c.items.length} item(s)
+                      </p>
+                    </div>
+                    {getStatusBadge(c.status)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Paginación */}
+              {recentCounts.pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                  <button
+                    onClick={() => setCountsPage(Math.max(1, countsPage - 1))}
+                    disabled={countsPage === 1}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    ← Anterior
+                  </button>
+
+                  <span className="text-sm text-gray-600">
+                    Página {countsPage} de {recentCounts.pagination.totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCountsPage(Math.min(recentCounts.pagination.totalPages, countsPage + 1))}
+                    disabled={countsPage === recentCounts.pagination.totalPages}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </motion.div>
@@ -269,10 +432,18 @@ export function InventoryPhysical() {
     )
   }
 
-  const countedIngredients = new Set(count.items.map((i) => i.ingredientId));
-  const availableIngredients = (ingredients?.data || []).filter(
-    (ing) => !countedIngredients.has(ing.id),
-  );
+  const countedIngredientIds = new Set(count.items.map((i) => i.ingredientId));
+  const isEditingExisting = countedIngredientIds.has(selectedIngredientId);
+
+  const allIngredients = ingredients?.data || [];
+  const filteredIngredients = (
+    ingredientSearch.trim()
+      ? allIngredients.filter((ing) => {
+          const q = ingredientSearch.trim().toLowerCase();
+          return ing.name.toLowerCase().includes(q) || (ing.sku && ing.sku.toLowerCase().includes(q));
+        })
+      : allIngredients
+  ).filter((ing) => ing.id !== selectedIngredientId);
 
   return (
     <motion.div
@@ -285,6 +456,14 @@ export function InventoryPhysical() {
         <h1 className="text-2xl font-bold">Conteo Físico #{count.id.slice(0, 8)}</h1>
         <div className="flex items-center gap-2">
           {getStatusBadge(count.status)}
+          {count.status === 'draft' && canCount && (
+            <button
+              onClick={() => setIsConfirmingDeleteCount(true)}
+              className="rounded-lg border border-red-300 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+            >
+              Cancelar conteo
+            </button>
+          )}
           <button
             onClick={() => setCountId(null)}
             className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100 transition-colors"
@@ -330,23 +509,83 @@ export function InventoryPhysical() {
           >
             <h2 className="mb-4 text-lg font-bold">Agregar Ingrediente</h2>
 
+            {isEditingExisting && (
+              <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+                Este ingrediente ya está en el conteo — al guardar se actualizará su registro.
+              </div>
+            )}
+
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
+              <div className="relative">
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Ingrediente
                 </label>
-                <select
-                  value={selectedIngredientId}
-                  onChange={(e) => setSelectedIngredientId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
-                >
-                  <option value="">Seleccionar...</option>
-                  {availableIngredients.map((ing) => (
-                    <option key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.sku}) - Stock: {ing.currentStock} {ing.unit?.abbreviation}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={selectedIngredientId ? '' : 'Buscar por nombre o SKU...'}
+                    value={selectedIngredientId && selectedIngredientData ? selectedIngredientData.name : ingredientSearch}
+                    onChange={(e) => {
+                      setIngredientSearch(e.target.value)
+                      setSelectedIngredientId('')
+                      setSelectedIngredientData(null)
+                      setShowIngredientResults(true)
+                    }}
+                    onFocus={() => setShowIngredientResults(true)}
+                    onBlur={() => setTimeout(() => setShowIngredientResults(false), 150)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                  />
+                  {selectedIngredientId && (
+                    <button
+                      onClick={() => {
+                        setSelectedIngredientId('')
+                        setSelectedIngredientData(null)
+                        setIngredientSearch('')
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {showIngredientResults && !selectedIngredientId && (
+                    <motion.div
+                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      {filteredIngredients.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {filteredIngredients.map((ing) => (
+                            <button
+                              key={ing.id}
+                              onClick={() => handleSelectIngredient(ing)}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                              type="button"
+                            >
+                              <p className="text-sm font-medium text-gray-900">
+                                {ing.name}
+                                {ing.sku && <span className="ml-1 text-xs text-gray-500">({ing.sku})</span>}
+                                {countedIngredientIds.has(ing.id) && (
+                                  <span className="ml-1 text-xs font-normal text-blue-600">· ya contado</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Stock: {Number(ing.currentStock).toFixed(2)} {ing.unit?.abbreviation}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-center text-xs text-gray-500">No encontramos ingredientes</div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div>
@@ -373,20 +612,33 @@ export function InventoryPhysical() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Ej: dañado, encontrado en bodega..."
+                  maxLength={500}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
                 />
+                <p className="mt-1 text-xs text-gray-500">{notes.length}/500</p>
               </div>
             </div>
 
-            <motion.button
-              onClick={handleAddItem}
-              disabled={!selectedIngredientId || !countedQty || isAddingItem}
-              className="rounded-lg bg-[#5A804F] px-6 py-2 text-white hover:bg-[#4A6B3F] disabled:opacity-50 transition-colors"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {isAddingItem ? 'Agregando...' : 'Agregar item'}
-            </motion.button>
+            <div className="flex gap-2">
+              <motion.button
+                onClick={handleAddItem}
+                disabled={!selectedIngredientId || !countedQty || isAddingItem}
+                className="rounded-lg bg-[#5A804F] px-6 py-2 text-white hover:bg-[#4A6B3F] disabled:opacity-50 transition-colors"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isAddingItem ? 'Guardando...' : isEditingExisting ? 'Actualizar item' : 'Agregar item'}
+              </motion.button>
+              {isEditingExisting && (
+                <button
+                  onClick={resetItemForm}
+                  type="button"
+                  className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -411,6 +663,11 @@ export function InventoryPhysical() {
               <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
                 Notas
               </th>
+              {count.status === 'draft' && (
+                <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">
+                  Acciones
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -429,18 +686,43 @@ export function InventoryPhysical() {
                     <div className="text-sm text-gray-500">{item.ingredient?.sku}</div>
                   </td>
                   <td className="px-6 py-3">
-                    {item.systemQuantity} {item.ingredient?.unit?.abbreviation}
+                    {Number(item.systemQuantity).toFixed(2)} {item.ingredient?.unit?.abbreviation}
                   </td>
                   <td className="px-6 py-3">
-                    {item.countedQuantity} {item.ingredient?.unit?.abbreviation}
+                    {Number(item.countedQuantity).toFixed(2)} {item.ingredient?.unit?.abbreviation}
                   </td>
                   <td className={`px-6 py-3 ${getDifferenceColor(parseFloat(item.difference.toString()))}`}>
                     {parseFloat(item.difference.toString()) > 0 ? '+' : ''}
-                    {item.difference} {item.ingredient?.unit?.abbreviation}
+                    {Number(item.difference).toFixed(2)} {item.ingredient?.unit?.abbreviation}
                   </td>
                   <td className="px-6 py-3 text-sm text-gray-600">
                     {item.notes || '-'}
                   </td>
+                  {count.status === 'draft' && (
+                    <td className="px-6 py-3 text-right">
+                      {canCount && (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleEditItem(item)}
+                            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            type="button"
+                            title="Editar"
+                          >
+                            <PencilIcon size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeletingItemId(item.ingredientId)}
+                            disabled={isRemovingItem}
+                            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            type="button"
+                            title="Eliminar"
+                          >
+                            <XIcon size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </motion.tr>
               ))}
             </AnimatePresence>
@@ -534,6 +816,86 @@ export function InventoryPhysical() {
                   className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
                   {isApplying ? 'Aplicando...' : 'Confirmar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmar eliminación de item */}
+      <AnimatePresence>
+        {deletingItemId && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+            >
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">¿Quitar item del conteo?</h3>
+              <p className="mb-6 text-gray-600">
+                Se eliminará este ingrediente del conteo. Podrás volver a agregarlo si lo necesitas.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeletingItemId(null)}
+                  disabled={isRemovingItem}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => deletingItemId && handleConfirmRemoveItem(deletingItemId)}
+                  disabled={isRemovingItem}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isRemovingItem ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmar cancelación del conteo */}
+      <AnimatePresence>
+        {isConfirmingDeleteCount && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+            >
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">¿Cancelar este conteo?</h3>
+              <p className="mb-6 text-gray-600">
+                Esta acción es irreversible. Se eliminará el conteo y todos sus items registrados; el inventario no se ve afectado ya que aún no se aplicó.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsConfirmingDeleteCount(false)}
+                  disabled={isDeletingCount}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={handleDeleteCount}
+                  disabled={isDeletingCount}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isDeletingCount ? 'Eliminando...' : 'Eliminar conteo'}
                 </button>
               </div>
             </motion.div>

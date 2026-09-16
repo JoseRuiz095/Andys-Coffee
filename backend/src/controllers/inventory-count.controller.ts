@@ -7,12 +7,19 @@ export const InventoryCountController = {
   async getAll(req: Request, res: Response) {
     try {
       const user = req.user as AuthUser;
-      const { page = '1', limit = '20' } = req.query as { page?: string; limit?: string };
+      const { page = '1', limit = '20', status, date } = req.query as {
+        page?: string;
+        limit?: string;
+        status?: string;
+        date?: string;
+      };
 
       const result = await InventoryCountService.findAll(
         user,
         parseInt(page, 10),
         parseInt(limit, 10),
+        status,
+        date,
       );
 
       res.json(result);
@@ -107,6 +114,62 @@ export const InventoryCountController = {
 
       if (error instanceof Error && error.name === 'ValidationError') {
         return res.status(400).json({ error: error.message });
+      }
+
+      throw error;
+    }
+  },
+
+  async removeItem(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+      const { countId, ingredientId } = req.params as { countId: string; ingredientId: string };
+
+      await InventoryCountService.removeItem(countId, ingredientId, user);
+
+      res.json({
+        success: true,
+        message: 'Item eliminado del conteo.',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        return res.status(403).json({ error: error.message });
+      }
+
+      if (error instanceof Error && error.name === 'NotFoundError') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error instanceof Error && error.name === 'ValidationError') {
+        return res.status(400).json({ error: error.message });
+      }
+
+      throw error;
+    }
+  },
+
+  async delete(req: Request, res: Response) {
+    try {
+      const user = req.user as AuthUser;
+      const { id } = req.params as { id: string };
+
+      await InventoryCountService.deleteCount(id, user);
+
+      res.json({
+        success: true,
+        message: 'Conteo eliminado correctamente.',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        return res.status(403).json({ error: error.message });
+      }
+
+      if (error instanceof Error && error.name === 'NotFoundError') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error instanceof Error && error.name === 'ConflictError') {
+        return res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
       }
 
       throw error;

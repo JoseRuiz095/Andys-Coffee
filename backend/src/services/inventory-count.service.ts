@@ -25,14 +25,21 @@ class AuthorizationError extends Error {
   }
 }
 
+class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 export const InventoryCountService = {
-  async findAll(user: AuthUser, page: number = 1, limit: number = 20) {
+  async findAll(user: AuthUser, page: number = 1, limit: number = 20, status?: string, date?: string) {
     // Authorization
     if (!user.permissions?.includes('inventory.view')) {
       throw new AuthorizationError('No tienes permiso para ver conteos.');
     }
 
-    return InventoryCountRepository.findAll(page, limit);
+    return InventoryCountRepository.findAll(page, limit, status, date);
   },
 
   async createCount(user: AuthUser) {
@@ -108,6 +115,50 @@ export const InventoryCountService = {
         notes,
       },
     );
+  },
+
+  async removeItem(countId: string, ingredientId: string, user: AuthUser) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.physical_count')) {
+      throw new AuthorizationError('No tienes permiso para editar conteos.');
+    }
+
+    const count = await InventoryCountRepository.findByIdWithItems(countId);
+
+    if (!count) {
+      throw new NotFoundError('Conteo no encontrado.');
+    }
+
+    if (count.status !== 'draft') {
+      throw new ValidationError('No se pueden quitar items de un conteo que no está en draft.');
+    }
+
+    const item = count.items.find((i) => i.ingredientId === ingredientId);
+
+    if (!item) {
+      throw new NotFoundError('El ingrediente no está en este conteo.');
+    }
+
+    await InventoryCountRepository.deleteItem(countId, ingredientId);
+  },
+
+  async deleteCount(id: string, user: AuthUser) {
+    // Authorization
+    if (!user.permissions?.includes('inventory.physical_count')) {
+      throw new AuthorizationError('No tienes permiso para eliminar conteos.');
+    }
+
+    const count = await InventoryCountRepository.findById(id);
+
+    if (!count) {
+      throw new NotFoundError('Conteo no encontrado.');
+    }
+
+    if (count.status !== 'draft') {
+      throw new ConflictError('Este conteo ya fue completado o aplicado; no se puede eliminar.');
+    }
+
+    await InventoryCountRepository.delete(id);
   },
 
   async completeCount(countId: string, user: AuthUser) {

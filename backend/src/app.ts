@@ -13,6 +13,9 @@ import inventoryRoutes from "./routes/inventory.routes";
 import purchaseRoutes from "./routes/purchase.routes";
 import inventoryCountRoutes from "./routes/inventory-count.routes";
 import supplierRoutes from "./routes/supplier.routes";
+import userRoutes from "./routes/user.routes";
+import roleRoutes from "./routes/role.routes";
+import permissionRoutes from "./routes/permission.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
@@ -114,6 +117,9 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/inventory-counts", inventoryCountRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/roles", roleRoutes);
+app.use("/api/permissions", permissionRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

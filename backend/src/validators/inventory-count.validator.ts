@@ -6,6 +6,6 @@ export const inventoryCountValidator = {
     countedQuantity: z
       .number()
       .nonnegative('La cantidad debe ser mayor o igual a 0'),
-    notes: z.string().optional().nullable(),
+    notes: z.string().max(500).optional().nullable(),
   }),
 };

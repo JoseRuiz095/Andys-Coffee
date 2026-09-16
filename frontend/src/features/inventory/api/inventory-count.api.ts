@@ -48,7 +48,7 @@ export interface PaginatedInventoryCounts {
 }
 
 export const InventoryCountAPI = {
-  async getAll(params: { page?: number; limit?: number } = {}): Promise<PaginatedInventoryCounts> {
+  async getAll(params: { page?: number; limit?: number; status?: string; date?: string } = {}): Promise<PaginatedInventoryCounts> {
     const response = await apiClient.get('/inventory-counts', { params });
     return response.data;
   },
@@ -87,5 +87,13 @@ export const InventoryCountAPI = {
   async applyAdjustments(countId: string): Promise<InventoryCount> {
     const response = await apiClient.post(`/inventory-counts/${countId}/apply`);
     return response.data.data;
+  },
+
+  async removeItem(countId: string, ingredientId: string): Promise<void> {
+    await apiClient.delete(`/inventory-counts/${countId}/items/${ingredientId}`);
+  },
+
+  async deleteCount(countId: string): Promise<void> {
+    await apiClient.delete(`/inventory-counts/${countId}`);
   },
 };

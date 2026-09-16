@@ -52,11 +52,35 @@ export const InventoryCountRepository = {
     });
   },
 
-  async findAll(page: number = 1, limit: number = 20, client: PrismaClient = prisma) {
+  async findAll(
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    date?: string,
+    client: PrismaClient = prisma,
+  ) {
     const skip = (page - 1) * limit;
+
+    const where: Prisma.InventoryCountWhereInput = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (date) {
+      const dateObj = new Date(date);
+      const nextDay = new Date(dateObj);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      where.createdAt = {
+        gte: dateObj,
+        lt: nextDay,
+      };
+    }
 
     const [counts, total] = await Promise.all([
       client.inventoryCount.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -78,7 +102,7 @@ export const InventoryCountRepository = {
           createdAt: 'desc',
         },
       }),
-      client.inventoryCount.count(),
+      client.inventoryCount.count({ where }),
     ]);
 
     return {
@@ -183,6 +207,25 @@ export const InventoryCountRepository = {
         },
       },
     });
+  },
+
+  async deleteItem(
+    countId: string,
+    ingredientId: string,
+    client: PrismaClient = prisma,
+  ) {
+    return client.inventoryCountItem.delete({
+      where: {
+        inventoryCountId_ingredientId: {
+          inventoryCountId: countId,
+          ingredientId,
+        },
+      },
+    });
+  },
+
+  async delete(id: string, client: PrismaClient = prisma) {
+    return client.inventoryCount.delete({ where: { id } });
   },
 
   async findIngredientsForCount(

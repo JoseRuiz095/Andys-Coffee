@@ -3,7 +3,14 @@ import { InventoryCountAPI } from '../api/inventory-count.api';
 
 const QUERY_KEY = 'inventory-counts';
 
-export const useCountsList = (params: { page?: number; limit?: number } = {}) => {
+export interface UseCountsListParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  date?: string;
+}
+
+export const useCountsList = (params: UseCountsListParams = {}) => {
   return useQuery({
     queryKey: [QUERY_KEY, 'list', params],
     queryFn: () => InventoryCountAPI.getAll(params),
@@ -86,6 +93,30 @@ export const useApplyAdjustments = (countId: string | null) => {
       queryClient.invalidateQueries({
         queryKey: ['inventory', 'movements'],
       });
+    },
+  });
+};
+
+export const useRemoveItem = (countId: string | null) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ingredientId: string) => InventoryCountAPI.removeItem(countId!, ingredientId),
+    onSuccess: () => {
+      if (countId) {
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEY, countId],
+        });
+      }
+    },
+  });
+};
+
+export const useDeleteCount = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (countId: string) => InventoryCountAPI.deleteCount(countId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] });
     },
   });
 };

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { authenticateUser, createJwtToken } from "../services/auth.service";
+import { authenticateUser, createJwtToken, type AuthUser } from "../services/auth.service";
 import { auditLog } from "../utils/logger";
 
 export async function login(req: Request, res: Response) {
@@ -58,4 +58,59 @@ export async function getCurrentUser(req: Request, res: Response) {
 
 export function getCsrfToken(req: Request, res: Response) {
   return res.json({ token: req.csrfToken() });
+}
+
+export async function changePassword(req: Request, res: Response) {
+  try {
+    const { UserService } = await import('../services/user.service');
+    const { changePasswordSchema } = await import('../validators/password.validator');
+
+    const user = req.user as AuthUser;
+    const data = changePasswordSchema.parse(req.body);
+
+    await UserService.changeOwnPassword(user.id, data.currentPassword, data.newPassword);
+
+    return res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente.',
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') {
+      res.status(400).json({
+        error: 'Datos inválidos',
+        details: (error as any).flatten().fieldErrors,
+      });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+export async function updateProfile(req: Request, res: Response) {
+  try {
+    const { UserService } = await import('../services/user.service');
+    const { updateProfileSchema } = await import('../validators/password.validator');
+
+    const user = req.user as AuthUser;
+    const data = updateProfileSchema.parse(req.body);
+
+    const updatedUser = await UserService.updateOwnProfile(user.id, data);
+
+    return res.json({
+      success: true,
+      message: 'Perfil actualizado correctamente.',
+      user: updatedUser,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') {
+      res.status(400).json({
+        error: 'Datos inválidos',
+        details: (error as any).flatten().fieldErrors,
+      });
+      return;
+    }
+
+    throw error;
+  }
 }
