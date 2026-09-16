@@ -16,7 +16,8 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
   const canUpdateUsers = hasPermission(currentUser, 'users.update')
   const canDeleteUsers = hasPermission(currentUser, 'users.delete')
   const [page, setPage] = useState(1)
-  const { data, isLoading, isError } = useUsersList({ page, limit: 10 })
+  const [search, setSearch] = useState('')
+  const { data, isLoading, isError } = useUsersList({ page, limit: 10, search })
   const { mutate: setActive, isPending: isTogglingActive } = useSetUserActive()
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
 
@@ -92,7 +93,22 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex gap-3 items-center justify-between">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o email..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          className="px-4 py-2 border rounded-lg text-sm flex-1"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-text-primary)',
+          }}
+        />
         {canCreateUsers && (
           <button
             onClick={onCreateUser}

@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -9,7 +9,7 @@ export const loginLimiter = rateLimit({
   keyGenerator: (req) => {
     // Rate limit by IP + email for better granularity
     const email = req.body?.email || '';
-    const ip = req.ip || '';
+    const ip = ipKeyGenerator(req);
     return `${ip}-${email}`;
   },
   skip: (req) => {
@@ -32,7 +32,7 @@ export const changePasswordLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Rate limit by user ID from authenticated session
-    return (req as any).user?.id || req.ip || '';
+    return (req as any).user?.id || ipKeyGenerator(req) || '';
   },
   skip: (req) => {
     // Skip if not authenticated or not a password change request

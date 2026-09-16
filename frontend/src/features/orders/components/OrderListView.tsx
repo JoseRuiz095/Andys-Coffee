@@ -1,10 +1,12 @@
 import { Order, OrderStatus, mapOrderStatusToFrontend } from '../types/orders.types'
 import { OrderActions } from './OrderActions'
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
+import type { AuthUser } from '../../auth/types/auth.types';
 
 interface OrderListViewProps {
   orders: Order[]
   onStatusChange: (orderId: string, newStatus: OrderStatus) => void
+  currentUser: AuthUser | null
 }
 
 const statusStyles: Record<OrderStatus, { text: string; bg: string; color: string }> = {
@@ -15,7 +17,7 @@ const statusStyles: Record<OrderStatus, { text: string; bg: string; color: strin
   CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
 }
 
-export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
+export function OrderListView({ orders, onStatusChange, currentUser }: OrderListViewProps) {
   return (
     <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-xl border shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <table className="w-full text-sm">
@@ -67,6 +69,7 @@ export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
                   <OrderActions
                     order={order}
                     onStatusChange={(status) => onStatusChange(order.id, status)}
+                    currentUser={currentUser}
                   />
                 </td>
               </tr>

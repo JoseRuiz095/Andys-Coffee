@@ -11,11 +11,12 @@ import { RolePermissionMatrix } from '../../roles/components/RolePermissionMatri
 import { RoleFormModal } from '../../roles/components/RoleFormModal'
 import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
+import { SystemPreferencesForm } from '../../preferences'
 import { useRolesList } from '../../roles/hooks/useRoles'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'users' | 'roles' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -135,6 +136,13 @@ export function SettingsPage() {
                 onClick={() => setActiveTab('preferences')}
               />
               {canManageUsers && (
+                <NavTab
+                  label="Preferencias del Sistema"
+                  isActive={activeTab === 'system-preferences'}
+                  onClick={() => setActiveTab('system-preferences')}
+                />
+              )}
+              {canManageUsers && (
                 <>
                   <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
                   <p className="px-3 py-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-primary)' }}>Administración</p>
@@ -177,10 +185,20 @@ export function SettingsPage() {
             {activeTab === 'preferences' && (
               <div className="space-y-4">
                 <ContentHeader
-                  title="Preferencias del Sistema"
+                  title="Preferencias"
                   description="Personaliza tu experiencia de uso"
                 />
                 <PreferencesPanel isDark={isDark} onThemeChange={(mode) => setTheme(mode)} />
+              </div>
+            )}
+
+            {/* Preferencias del Sistema */}
+            {activeTab === 'system-preferences' && canManageUsers && (
+              <div
+                className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+              >
+                <SystemPreferencesForm />
               </div>
             )}
 

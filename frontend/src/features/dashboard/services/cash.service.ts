@@ -38,3 +38,11 @@ export async function closeCashSession(input: { closingAmount: number; reason?: 
   )
   return data.session
 }
+
+export async function correctCashClosing(sessionId: string, input: { closingAmount: number; comment?: string }): Promise<CashSession | null> {
+  const { data } = await apiClient.patch<{ session: CashSession | null }>(
+    `/cash-register/sessions/${sessionId}/closing`,
+    input,
+  )
+  return data.session
+}

@@ -3,19 +3,34 @@ import { OrdersHeader } from '../components/OrdersHeader';
 import { OrderStatus } from '../types/orders.types';
 import { OrdersGridView } from '../components/grid/OrdersGridView';
 import { OrderListView } from '../components/OrderListView';
+import { OrdersFilters } from '../components/OrdersFilters';
 import { MaximizeIcon } from '../../../components/ui/MaximizeIcon';
 import { useOrders } from '../hooks/useOrders';
 import { Spinner } from '@/shared/components/Spinner';
+import { authStore } from '../../auth/store/auth.store';
+import type { AuthUser } from '../../auth/types/auth.types';
 
 type ViewMode = 'grid' | 'list';
 
 export function OrdersPage() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user);
+
   const {
     orders,
     loading,
     error,
     updateStatus,
+    setSearch,
+    setStatus,
   } = useOrders();
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCurrentUser(authStore.getState().user);
+    };
+    window.addEventListener('auth:changed', handleAuthChange);
+    return () => window.removeEventListener('auth:changed', handleAuthChange);
+  }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -70,6 +85,11 @@ export function OrdersPage() {
     >
       <OrdersHeader pendingOrders={pendingOrders} />
 
+      <OrdersFilters
+        onSearchChange={setSearch}
+        onStatusChange={(status) => setStatus(status as any)}
+      />
+
       <div className="flex justify-end gap-2">
         <button
           onClick={toggleFullScreen}
@@ -109,9 +129,9 @@ export function OrdersPage() {
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : viewMode === 'grid' ? (
-        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} />
+        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} />
       ) : (
-        <OrderListView orders={orders} onStatusChange={handleStatusChange} />
+        <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} />
       )}
     </div>
   );

@@ -3,10 +3,12 @@ import type { Order, OrderStatus } from '../../types/orders.types';
 import { OrderActions } from '../OrderActions';
 import { mapOrderStatusToFrontend } from '../../types/orders.types';
 import { OrderStatus as BackendOrderStatus } from '../../types/backend.types';
+import type { AuthUser } from '../../../auth/types/auth.types';
 
 interface OrderGridCardProps {
   order: Order;
   onStatusChange: (id: string, status: OrderStatus) => void;
+  currentUser: AuthUser | null;
 }
 
 const statusStyles: Record<OrderStatus, { text: string; bg: string; color: string }> = {
@@ -23,7 +25,7 @@ function formatDuration(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-export function OrderGridCard({ order, onStatusChange }: OrderGridCardProps) {
+export function OrderGridCard({ order, onStatusChange, currentUser }: OrderGridCardProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(
     (new Date().getTime() - new Date(order.createdAt).getTime()) / 1000
   );
@@ -81,6 +83,7 @@ export function OrderGridCard({ order, onStatusChange }: OrderGridCardProps) {
         <OrderActions
           order={order}
           onStatusChange={(status) => onStatusChange(order.id, status)}
+          currentUser={currentUser}
         />
       </div>
     </div>

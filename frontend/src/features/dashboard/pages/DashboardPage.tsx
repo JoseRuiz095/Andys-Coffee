@@ -6,6 +6,7 @@ import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
 import { authStore } from '../../auth/store/auth.store'
 import type { AuthUser } from '../../auth/types/auth.types'
+import { hasPermission } from '../../auth/utils/permissions'
 import React from 'react'
 import { CoffeeIcon } from '../../../components/ui/coffee'
 import type { CoffeeIconHandle } from '../../../components/ui/coffee'
@@ -18,6 +19,7 @@ import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useNotifications } from '../hooks/useNotifications'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
 import { InventoryLayout } from '../../inventory'
+import { ProductsCatalogPage } from '../../products'
 import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
@@ -76,7 +78,21 @@ export function DashboardPage() {
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
   const notificationContainerRef = React.useRef<HTMLDivElement>(null)
 
-  const viewOrder = ['Venta', 'Dashboard', 'Ordenes', 'Inventario', 'Administracion']
+  // Define menu items with required permissions
+  const allMenuItems = [
+    { label: 'Venta', requiredPermission: 'sales.create' },
+    { label: 'Dashboard', requiredPermission: null },
+    { label: 'Ordenes', requiredPermission: 'sales.read' },
+    { label: 'Inventario', requiredPermission: 'inventory.view' },
+    { label: 'Administracion', requiredPermission: 'users.read' },
+  ]
+
+  // Filter menu items based on user permissions
+  const visibleMenuItems = allMenuItems.filter(
+    (item) => item.requiredPermission === null || hasPermission(currentUser, item.requiredPermission)
+  )
+
+  const viewOrder = allMenuItems.map((item) => item.label)
   const direction = prevActiveView ? (viewOrder.indexOf(activeView) > viewOrder.indexOf(prevActiveView) ? 1 : -1) : 1
 
   const {
@@ -501,10 +517,8 @@ export function DashboardPage() {
             animate="center"
             exit="exit"
             transition={{ duration: 0.3 }}
-            className="rounded-lg border border-gray-200 bg-white p-8 text-center"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Administración</h2>
-            <p className="text-gray-600">En desarrollo...</p>
+            <ProductsCatalogPage />
           </motion.div>
         )}
       </AnimatePresence>
@@ -564,32 +578,26 @@ export function DashboardPage() {
               backgroundColor: 'color-mix(in srgb, var(--color-surface) 80%, transparent)',
             }}
           >
-            {[
-              'Venta',
-              'Dashboard',
-              'Ordenes',
-              'Inventario',
-              'Administracion',
-            ].map((item) =>
+            {visibleMenuItems.map((item) =>
               isLoading ? (
-                <Skeleton key={item} className="h-4 w-20" />
+                <Skeleton key={item.label} className="h-4 w-20" />
               ) : (
                 <button
-                  key={item}
+                  key={item.label}
                   onClick={() => {
-                    if (item === 'Dashboard') {
+                    if (item.label === 'Dashboard') {
                       navigateTo(APP_ROUTES.dashboard)
                     } else {
-                      setActiveView(item)
+                      setActiveView(item.label)
                     }
                   }}
                   className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
                   style={{
-                    backgroundColor: activeView === item ? 'var(--color-primary)' : 'transparent',
-                    color: activeView === item ? 'var(--color-button-text)' : 'var(--color-text-primary)',
+                    backgroundColor: activeView === item.label ? 'var(--color-primary)' : 'transparent',
+                    color: activeView === item.label ? 'var(--color-button-text)' : 'var(--color-text-primary)',
                   }}
                 >
-                  {item}
+                  {item.label}
                 </button>
               ),
             )}
