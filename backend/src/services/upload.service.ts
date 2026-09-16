@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import sharp, { type Metadata } from 'sharp';
+import { logger } from '../utils/logger';
 
 const BUCKET_NAME = 'Img';
 const MAX_IMAGE_DIMENSION = 4096;
@@ -79,7 +80,9 @@ export const UploadService = {
         if (error) throw error;
       }
     } catch (error) {
-      console.error('Error al eliminar la imagen de Supabase:', error);
+      // Only the message is logged (not the raw error object), which could otherwise
+      // include request/response details from the Supabase client.
+      logger.error({ message: error instanceof Error ? error.message : String(error) }, 'Error al eliminar la imagen de Supabase');
     }
   },
 };

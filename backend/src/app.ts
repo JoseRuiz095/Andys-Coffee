@@ -18,6 +18,7 @@ import roleRoutes from "./routes/role.routes";
 import permissionRoutes from "./routes/permission.routes";
 import preferenceRoutes from "./routes/preference.routes";
 import { CSRF_SECRET } from "./config/csrf";
+import { CORS_ORIGINS, isProduction } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
 
@@ -27,7 +28,6 @@ import { randomUUID } from "node:crypto";
 };
 
 const app = express();
-const isProduction = process.env.NODE_ENV === "production";
 
 app.use((req, res, next) => {
   const suppliedRequestId = req.get("X-Request-ID");
@@ -41,18 +41,9 @@ app.use((req, res, next) => {
 // --- Security Configuration ---
 
 // 1. CORS Whitelist
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-if (isProduction && !process.env.CORS_ORIGINS) {
-  throw new Error("CORS_ORIGINS must be configured in production.");
-}
-
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || CORS_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

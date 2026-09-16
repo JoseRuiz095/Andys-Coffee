@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { authenticateUser, createJwtToken, type AuthUser } from "../services/auth.service";
 import { loginSchema } from "../validators/password.validator";
 import { auditLog } from "../utils/logger";
+import { isProduction } from "../config/app";
 import { ZodError } from "zod";
 
 export async function login(req: Request, res: Response) {
@@ -20,7 +21,7 @@ export async function login(req: Request, res: Response) {
     res.cookie("token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       maxAge: 8 * 60 * 60 * 1000,
     });
 
@@ -49,7 +50,7 @@ export function logout(req: Request, res: Response) {
   res.clearCookie("token", {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
   });
 
   auditLog({ requestId: req.id, action: "LOGOUT", entity: "auth" }, "Session logout requested");

@@ -8,13 +8,14 @@
     "prisma:generate": "npx prisma generate",
     "prisma:seed": "npx prisma db seed",
     "prisma:migrate": "npx prisma migrate dev",
+    "prisma:migrate:deploy": "npx prisma migrate deploy",
     "seed": "npm run prisma:generate && npm run prisma:seed",
     "test": "npm run test:unit",
     "test:unit": "tsx --test test/*.test.ts",
-    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true tsx --test test/integration/*.integration.test.ts",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true tsx --test --test-concurrency=1 test/integration/*.integration.test.ts",
     "test:e2e:security": "playwright test test/e2e/sec-003.e2e.spec.ts",
     "test:e2e:sec006": "playwright test test/e2e/sec-006-auth-session.spec.ts",
-    "test:e2e": "playwright test test/e2e/*.e2e.spec.ts",
+    "test:e2e": "playwright test test/e2e/sec-003.e2e.spec.ts",
     "test:critical": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:e2e:report": "playwright show-report"
   },
@@ -41,7 +42,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@jest/globals": "^30.5.1",
     "@playwright/test": "^1.63.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",

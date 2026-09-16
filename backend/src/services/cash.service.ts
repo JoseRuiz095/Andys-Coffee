@@ -1,5 +1,6 @@
 import { NotificationType, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { CASH_TIMEZONE } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
 import { UserRepository } from '../repositories/user.repository';
 import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput } from '../validators/cash.validator';
@@ -77,7 +78,7 @@ export const CashService = {
     const hour = Number(new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       hour12: false,
-      timeZone: process.env.CASH_TIMEZONE || 'America/Mexico_City',
+      timeZone: CASH_TIMEZONE,
     }).format(new Date()));
     if (hour < 14) return null;
     const session = await CashRepository.findActiveSession();

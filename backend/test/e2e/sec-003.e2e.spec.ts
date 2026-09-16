@@ -140,15 +140,19 @@ test.beforeAll(async () => {
   process.env.CORS_ORIGINS = `${frontendOrigin}`;
   process.env.NODE_ENV = "development";
 
-  const permission = await prisma.permission.upsert({
-    where: { name: "manage:products" },
-    update: {},
-    create: { name: "manage:products" },
-  });
+  // Matches the real permissions seeded in prisma/seed.ts and checked by
+  // product.routes.ts / ProductService (see products.integration.test.ts for the
+  // same fix and why "manage:products" was wrong).
+  const permissionNames = ["products.create", "products.update", "products.delete"];
+  const permissions = await Promise.all(
+    permissionNames.map((name) =>
+      prisma.permission.upsert({ where: { name }, update: {}, create: { name } })
+    ),
+  );
   const role = await prisma.role.create({
     data: {
       name: e2eRoleName,
-      permissions: { create: { permissionId: permission.id } },
+      permissions: { create: permissions.map((permission) => ({ permissionId: permission.id })) },
     },
   });
   e2eRoleId = role.id;
