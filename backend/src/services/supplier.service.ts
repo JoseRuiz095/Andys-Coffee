@@ -1,45 +1,6 @@
 import { SupplierRepository } from '../repositories/supplier.repository';
 import { AuthUser } from './auth.service';
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class DuplicateError extends Error {
-  public readonly type: 'INGREDIENT' | 'SUPPLIER';
-  public readonly existingId: string;
-
-  constructor(type: 'INGREDIENT' | 'SUPPLIER', message: string, existingId: string) {
-    super(message);
-    this.name = 'DuplicateError';
-    this.type = type;
-    this.existingId = existingId;
-  }
-}
-
-class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
+import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const SupplierService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, isActive?: boolean, search?: string) {

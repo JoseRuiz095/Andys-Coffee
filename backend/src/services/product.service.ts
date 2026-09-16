@@ -4,23 +4,10 @@ import { createProductSchema, filterQuerySchema, updateProductSchema } from '../
 import { z } from 'zod';
 import { UploadService } from './upload.service';
 import { auditLog } from '../utils/logger';
-import { prisma } from '../config/prisma';
+import { ProductRepository } from '../repositories/product.repository';
 import { AuthUser } from './auth.service';
-
-// Custom error for authorization checks within services
-class AuthorizationError extends Error {
-  constructor(message = 'El usuario no tiene permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
+import { AuthorizationError, NotFoundError } from '../utils/errors';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 // Helper to enforce permission checks consistently
 const ensureUserHasPermission = (user: AuthUser, permission: string) => {
@@ -32,7 +19,7 @@ const ensureUserHasPermission = (user: AuthUser, permission: string) => {
 export const ProductService = {
   async findAll(query: z.infer<typeof filterQuerySchema>) {
     const { page, limit } = query;
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const where: Prisma.ProductWhereInput = {
       ...(query.category && { categoryId: query.category }),
@@ -45,48 +32,22 @@ export const ProductService = {
       }),
     };
 
-    const [products, total] = await prisma.$transaction([
-      prisma.product.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          displayOrder: 'asc',
-        },
-        include: {
-          category: {
-            select: { id: true, name: true }
-          },
-        },
-      }),
-      prisma.product.count({ where }),
-    ]);
+    const { products, total } = await ProductRepository.findWithPagination(where, skip, limit);
 
     return {
       data: products,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 
   async findOne(id: string) {
-    return prisma.product.findUnique({
-      where: { id },
-      include: {
-        extras: { include: { extra: true } },
-        recipes: { include: { ingredient: true } },
-      },
-    });
+    return ProductRepository.findById(id);
   },
 
   async create(productData: z.infer<typeof createProductSchema>, user: AuthUser, requestId?: string) {
-    ensureUserHasPermission(user, 'manage:products');
-    const newProduct = await prisma.product.create({
-      data: { ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? `SKU-${randomUUID()}` },
+    ensureUserHasPermission(user, 'products.create');
+    const newProduct = await ProductRepository.create({
+      ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? `SKU-${randomUUID()}`,
     });
     auditLog({
       requestId,
@@ -99,20 +60,16 @@ export const ProductService = {
   },
 
   async update(id: string, productData: z.infer<typeof updateProductSchema>, user: AuthUser, requestId?: string) {
-    ensureUserHasPermission(user, 'manage:products');
+    ensureUserHasPermission(user, 'products.update');
 
-    const originalProduct = await prisma.product.findUnique({
-      where: { id },
-      select: { price: true, cost: true, isActive: true, imageUrl: true },
-    });
+    const originalProduct = await ProductRepository.findAuditFieldsById(id);
 
     if (!originalProduct) {
       throw new NotFoundError('Producto no encontrado.');
     }
 
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: { ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? undefined },
+    const updatedProduct = await ProductRepository.update(id, {
+      ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? undefined,
     });
 
     const changes: Record<string, { from: any; to: any }> = {};
@@ -144,12 +101,9 @@ export const ProductService = {
   },
 
   async remove(id: string, user: AuthUser, requestId?: string) {
-    ensureUserHasPermission(user, 'manage:products');
+    ensureUserHasPermission(user, 'products.delete');
 
-    const productToDelete = await prisma.product.findUnique({
-      where: { id },
-      select: { imageUrl: true },
-    });
+    const productToDelete = await ProductRepository.findImageById(id);
 
     if (!productToDelete) {
       throw new NotFoundError('Producto no encontrado.');
@@ -163,9 +117,7 @@ export const ProductService = {
       entityId: id,
     }, 'Product deleted');
 
-    await prisma.product.delete({
-      where: { id },
-    });
+    await ProductRepository.delete(id);
 
     if (productToDelete?.imageUrl) {
       await UploadService.deleteProductImage(productToDelete.imageUrl);

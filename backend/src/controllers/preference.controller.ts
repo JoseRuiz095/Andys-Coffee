@@ -4,7 +4,7 @@ import { preferenceSchema, updatePreferenceSchema } from '../validators/preferen
 import type { AuthUser } from '../services/auth.service';
 
 export async function listPreferences(req: Request, res: Response) {
-  const user = (req as any).user as AuthUser;
+  const user = req.user as AuthUser;
 
   try {
     const preferences = await PreferenceService.getAllPreferences(user);
@@ -18,7 +18,7 @@ export async function listPreferences(req: Request, res: Response) {
 }
 
 export async function getPreference(req: Request, res: Response) {
-  const user = (req as any).user as AuthUser;
+  const user = req.user as AuthUser;
   const key = req.params.key as string;
 
   try {
@@ -36,7 +36,7 @@ export async function getPreference(req: Request, res: Response) {
 }
 
 export async function updatePreference(req: Request, res: Response) {
-  const user = (req as any).user as AuthUser;
+  const user = req.user as AuthUser;
   const data = updatePreferenceSchema.parse(req.body);
 
   try {
@@ -61,7 +61,7 @@ export async function updatePreference(req: Request, res: Response) {
 }
 
 export async function deletePreference(req: Request, res: Response) {
-  const user = (req as any).user as AuthUser;
+  const user = req.user as AuthUser;
   const key = req.params.key as string;
 
   try {

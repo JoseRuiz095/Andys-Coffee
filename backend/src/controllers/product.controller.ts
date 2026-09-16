@@ -4,14 +4,7 @@ import { UploadService } from '../services/upload.service';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthUser } from '../services/auth.service';
-
-// Custom error for authorization
-class AuthorizationError extends Error {
-  constructor(message = 'Acción no autorizada.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
+import { AuthorizationError } from '../utils/errors';
 
 const getAuthenticatedUser = (req: Request): AuthUser => {
   if (!req.user) {

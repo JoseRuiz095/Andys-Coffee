@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
@@ -184,7 +185,7 @@ export const InventoryRepository = {
     limit: number,
     where: Prisma.IngredientWhereInput = {},
   ) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const [ingredients, total] = await Promise.all([
       prisma.ingredient.findMany({
@@ -215,21 +216,17 @@ export const InventoryRepository = {
 
     return {
       data: ingredients,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 
   async findLowStock() {
-    // Find ingredients where currentStock <= minimumStock
+    // Find ingredients where currentStock <= minimumStock, filtered in the query itself
+    // instead of fetching every active ingredient and comparing in JavaScript.
     return prisma.ingredient.findMany({
       where: {
         isActive: true,
-        // Using raw SQL comparison: currentStock <= minimumStock
+        currentStock: { lte: prisma.ingredient.fields.minimumStock },
       },
       select: {
         id: true,
@@ -249,10 +246,7 @@ export const InventoryRepository = {
       orderBy: {
         currentStock: 'asc',
       },
-    }).then(ingredients =>
-      ingredients.filter(ing => ing.currentStock.lte ? ing.currentStock.lte(ing.minimumStock) :
-        new Prisma.Decimal(ing.currentStock).lte(ing.minimumStock))
-    );
+    });
   },
 
   async findMovements(
@@ -264,7 +258,7 @@ export const InventoryRepository = {
     limit: number = 50,
     search?: string,
   ) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const where: Prisma.InventoryMovementWhereInput = {
       ...(ingredientId && { ingredientId }),
@@ -329,26 +323,13 @@ export const InventoryRepository = {
 
     return {
       data: movements,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 
   async getTotalInventoryValue() {
-    const result = await prisma.ingredient.aggregate({
-      _sum: {
-        currentStock: true,
-        averageCost: true,
-      },
-      where: {
-        isActive: true,
-      },
-    });
-
+    // Prisma's aggregate _sum can only sum a single column, not a product of two
+    // (currentStock * averageCost), so the per-row value has to be computed here.
     const ingredients = await prisma.ingredient.findMany({
       where: { isActive: true },
       select: {
@@ -590,6 +571,29 @@ export const InventoryRepository = {
         reason: true,
         notes: true,
         createdAt: true,
+      },
+    });
+  },
+
+  async createMovements(
+    data: Prisma.InventoryMovementCreateManyInput[],
+    client: PrismaClient = prisma,
+  ) {
+    if (data.length === 0) return { count: 0 };
+    return client.inventoryMovement.createMany({ data });
+  },
+
+  async updateStockAndCost(
+    ingredientId: string,
+    quantityChange: Prisma.Decimal | number,
+    newAverageCost: Prisma.Decimal | number,
+    client: PrismaClient = prisma,
+  ) {
+    return client.ingredient.update({
+      where: { id: ingredientId },
+      data: {
+        currentStock: { increment: quantityChange },
+        averageCost: new Prisma.Decimal(newAverageCost),
       },
     });
   },

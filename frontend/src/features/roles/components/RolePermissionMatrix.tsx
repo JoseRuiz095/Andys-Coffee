@@ -53,15 +53,16 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
 
   if (rolesError || permissionsError) {
     return (
-      <div className="rounded-lg border border-red-300 bg-red-50 p-6">
-        <h3 className="font-semibold text-red-800">Error al cargar datos</h3>
-        <p className="mt-2 text-sm text-red-700">
+      <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Error al cargar datos</h3>
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           {rolesError && 'No se pudieron cargar los roles. '}
           {permissionsError && 'No se pudieron cargar los permisos.'}
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white"
+          style={{ backgroundColor: 'var(--color-primary)' }}
         >
           Reintentar
         </button>
@@ -73,15 +74,15 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
   const permissionsList = permissions || []
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#E7E3DC]">
-      <table className="w-full">
+    <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+      <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
         <thead>
-          <tr className="bg-[#FDFBF7] border-b border-[#E7E3DC]">
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280]">
+          <tr className="border-b" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--color-text-secondary)' }}>
               Permiso
             </th>
             {rolesList.map((role) => (
-              <th key={role.id} className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280]">
+              <th key={role.id} className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--color-text-secondary)' }}>
                 <div className="flex flex-col items-center gap-2">
                   <span>{role.name}</span>
                   {canDeleteRoles && !role.isSystem && (
@@ -100,10 +101,10 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
         </thead>
         <tbody>
           {permissionsList.map((permission) => (
-            <tr key={permission.id} className="border-t border-[#E7E3DC] hover:bg-[#FDFBF7]">
+            <tr key={permission.id} className="border-t" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
               <td className="px-4 py-3 text-sm">
-                <p className="font-semibold text-[#2C211D]">{permission.name}</p>
-                <p className="text-xs text-[#6B7280]">{permission.description}</p>
+                <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{permission.name}</p>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{permission.description}</p>
               </td>
               {rolesList.map((role) => {
                 const rolePermissionIds = role.permissions.map((p) => p.permission.id)

@@ -194,6 +194,10 @@ model InventoryUnit {
 model Ingredient {
   id            String              @id @default(dbgenerated("(gen_random_uuid())::text"))
   name          String
+  // Physically a partial index (WHERE sku IS NOT NULL) from an earlier raw-SQL migration;
+  // functionally equivalent to a plain @unique on a nullable column (Postgres unique
+  // indexes already allow multiple NULLs), so `prisma migrate diff` reports a harmless
+  // false-positive here. See 20260916000000_sync_schema_drift/migration.sql.
   sku           String?              @unique(map: "ingredients_sku_unique")
   unitId        String
   currentStock  Decimal             @default(0) @db.Decimal(14, 4)
@@ -211,6 +215,13 @@ model Ingredient {
 
   @@index([isActive], map: "ingredients_active_idx")
   // @@index([currentStock, minimumStock], map: "inventory_low_stock_idx", where: raw("(\"isActive\" = true)"))
+  // The following exist in the database via raw-SQL migration
+  // 20260914000000_add_duplicate_prevention_indexes but can't be declared here: Prisma's
+  // schema syntax doesn't support expression/partial indexes on LOWER(TRIM(name)). Do not
+  // "fix" the drift reported by `prisma migrate diff` for these — recreating them without
+  // the expression/WHERE clause would create a different, non-equivalent index.
+  //   ingredients_name_normalized_unique: UNIQUE (LOWER(TRIM(name))) WHERE "isActive" = true
+  //   ingredients_name_search_idx: INDEX (LOWER(TRIM(name))) WHERE "isActive" = true
   @@map("ingredients")
 }
 
@@ -274,6 +285,10 @@ model Supplier {
   purchases Purchase[]
 
   @@index([isActive], map: "suppliers_active_idx")
+  // Same as Ingredient above: these exist via raw-SQL migration
+  // 20260914000000_add_duplicate_prevention_indexes and can't be declared here.
+  //   suppliers_name_normalized_unique: UNIQUE (LOWER(TRIM(name))) WHERE "isActive" = true
+  //   suppliers_name_search_idx: INDEX (LOWER(TRIM(name))) WHERE "isActive" = true
   @@map("suppliers")
 }
 

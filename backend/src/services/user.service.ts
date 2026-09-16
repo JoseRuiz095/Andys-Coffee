@@ -1,46 +1,7 @@
 import bcrypt from 'bcrypt';
 import { UserRepository } from '../repositories/user.repository';
 import { AuthUser } from './auth.service';
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class DuplicateError extends Error {
-  public readonly type: 'USER';
-  public readonly existingId: string;
-
-  constructor(message: string, existingId: string) {
-    super(message);
-    this.name = 'DuplicateError';
-    this.type = 'USER';
-    this.existingId = existingId;
-  }
-}
-
-class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
+import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const UserService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, isActive?: boolean, search?: string, roleId?: string) {
@@ -95,7 +56,7 @@ export const UserService = {
     // Check if user with same email already exists
     const existing = await UserRepository.findByEmailNormalized(data.email);
     if (existing) {
-      throw new DuplicateError(`Ya existe un usuario con el email "${existing.email}".`, existing.id);
+      throw new DuplicateError('USER', `Ya existe un usuario con el email "${existing.email}".`, existing.id);
     }
 
     // Hash password
@@ -130,19 +91,15 @@ export const UserService = {
       const normalized = data.email.trim();
       const duplicate = await UserRepository.findByEmailNormalized(normalized);
       if (duplicate && duplicate.id !== id) {
-        throw new DuplicateError(`Ya existe otro usuario con el email "${duplicate.email}".`, duplicate.id);
+        throw new DuplicateError('USER', `Ya existe otro usuario con el email "${duplicate.email}".`, duplicate.id);
       }
     }
 
     // If changing roleId away from ADMIN and is the last active admin, prevent
     if (data.roleId && existingUser.role?.name === 'ADMIN' && data.roleId !== existingUser.roleId) {
-      const adminRole = await UserRepository.findById(id); // re-fetch to be sure
-      if (adminRole && adminRole.role?.name === 'ADMIN') {
-        // Count active admins
-        const activeAdminCount = await UserRepository.countActiveAdmins(existingUser.roleId);
-        if (activeAdminCount <= 1) {
-          throw new ConflictError('No se puede cambiar el rol del último administrador activo.');
-        }
+      const activeAdminCount = await UserRepository.countActiveAdmins(existingUser.roleId);
+      if (activeAdminCount <= 1) {
+        throw new ConflictError('No se puede cambiar el rol del último administrador activo.');
       }
     }
 
@@ -200,6 +157,14 @@ export const UserService = {
       if (activeAdminCount <= 1) {
         throw new ConflictError('No puedes eliminar al último administrador activo.');
       }
+    }
+
+    // Prevent deleting a user with existing history (orders, purchases, movements, etc.)
+    const counts = await UserRepository.countRelations(id);
+    if (counts && Object.values(counts).some((count) => count > 0)) {
+      throw new ConflictError(
+        'No se puede eliminar: el usuario tiene historial de actividad registrado. Desactívalo en su lugar.'
+      );
     }
 
     return UserRepository.delete(id);

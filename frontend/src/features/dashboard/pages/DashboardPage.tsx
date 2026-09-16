@@ -512,8 +512,19 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#FCF8EF_0%,_#F7F2E8_100%)]">
-      <header className="relative z-50 border-b border-[#E7E3DC] bg-[#FDFBF7]/95 px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6">
+    <div
+      className="min-h-screen"
+      style={{
+        background: 'radial-gradient(circle at top, var(--color-surface) 0%, var(--color-background) 100%)',
+      }}
+    >
+      <header
+        className="relative z-50 border-b px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'color-mix(in srgb, var(--color-surface) 96%, transparent)',
+        }}
+      >
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {isLoading ? (
@@ -523,7 +534,13 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <div className="flex h-15 w-15 items-center justify-center rounded-2xl border border-[#E7E3DC] bg-[#F3E8D6] p-2 shadow-sm">
+                <div
+                  className="flex h-15 w-15 items-center justify-center rounded-2xl border p-2 shadow-sm"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-background)',
+                  }}
+                >
                   <img
                     src={brandLogo}
                     alt="Andys Coffee"
@@ -531,16 +548,22 @@ export function DashboardPage() {
                   />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-[#2C211D]">
+                  <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     {displayName}
                   </div>
-                  <div className="text-xs text-[#6B7280]">{roleLabel}</div>
+                  <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{roleLabel}</div>
                 </div>
               </>
             )}
           </div>
 
-          <nav className="flex flex-wrap items-center gap-2 rounded-full border border-[#E7E3DC] bg-white/80 px-3 py-2 shadow-sm sm:gap-3">
+          <nav
+            className="flex flex-wrap items-center gap-2 rounded-full border px-3 py-2 shadow-sm sm:gap-3"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'color-mix(in srgb, var(--color-surface) 80%, transparent)',
+            }}
+          >
             {[
               'Venta',
               'Dashboard',
@@ -560,11 +583,11 @@ export function DashboardPage() {
                       setActiveView(item)
                     }
                   }}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeView === item
-                      ? 'bg-[#5A804F] text-white shadow-sm'
-                      : 'text-[#4B5563] hover:bg-[#F2EFE8] hover:text-[#5A804F]'
-                  }`}
+                  className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+                  style={{
+                    backgroundColor: activeView === item ? 'var(--color-primary)' : 'transparent',
+                    color: activeView === item ? 'var(--color-button-text)' : 'var(--color-text-primary)',
+                  }}
                 >
                   {item}
                 </button>

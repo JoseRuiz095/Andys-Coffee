@@ -6,38 +6,21 @@ import {
   updateOrderStatusSchema,
 } from '../validators/order.validator';
 import { prisma } from '../config/prisma';
+import { OrderRepository } from '../repositories/order.repository';
+import { UserRepository } from '../repositories/user.repository';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { auditLog } from '../utils/logger';
 import { calculateBestPromotion, type PricingPromotion } from './pricing.service';
+import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 // --- Custom Errors for Service Layer ---
-
-class AuthorizationError extends Error {
-  constructor(message = 'El usuario no tiene permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
 
 class StateTransitionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StateTransitionError';
-  }
-}
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
   }
 }
 
@@ -69,7 +52,7 @@ async function applyPromotions(
 export const OrderService = {
   async findAll(query: z.infer<typeof filterQuerySchema>, user: AuthUser) {
     const { page, limit } = query;
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const where: Prisma.OrderWhereInput = {
       ...(query.status && { status: query.status }),
@@ -86,56 +69,16 @@ export const OrderService = {
       where.createdById = user.id;
     }
 
-    const [orders, total] = await prisma.$transaction([
-      prisma.order.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          items: {
-            include: {
-              extras: true,
-            }
-          },
-          payments: true,
-        },
-      }),
-      prisma.order.count({ where }),
-    ]);
+    const { orders, total } = await OrderRepository.findWithPagination(where, skip, limit);
 
     return {
       data: orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 
   async findOne(id: string, user: AuthUser) {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: {
-        items: {
-          include: {
-            extras: true,
-            product: true
-          }
-        },
-        payments: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-          }
-        }
-      },
-    });
+    const order = await OrderRepository.findById(id);
 
     if (!order) {
       return null; // Not found
@@ -270,86 +213,90 @@ export const OrderService = {
     const comboIds = items.map(item => item.comboId).filter(Boolean) as string[];
     const extraIds = items.flatMap(item => item.extras?.map(e => e.extraId) || []).filter(Boolean);
 
-    const [dbProducts, dbCombosWithItems, dbExtras, productExtras, activePromotions] = await Promise.all([
-      prisma.product.findMany({
-        where: { id: { in: productIds }, isActive: true },
-        select: { id: true, name: true, categoryId: true, price: true, cost: true },
-      }),
-      prisma.combo.findMany({
-        where: {
-          id: { in: comboIds },
-          isActive: true,
-          items: { every: { product: { isActive: true } } },
-          OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
-        },
-        include: {
-          items: {
-            select: {
-              productId: true,
-              quantity: true,
-              product: { select: { id: true, name: true, cost: true, isActive: true } },
-            },
-          },
-        },
-      }),
-      prisma.extra.findMany({
-        where: { id: { in: extraIds }, isActive: true },
-        select: { id: true, name: true, price: true, cost: true },
-      }),
-      prisma.productExtra.findMany({
-        where: {
-          OR: productIds.flatMap((productId) => extraIds.map((extraId) => ({ productId, extraId }))),
-        },
-      }),
-      prisma.promotion.findMany({
-        where: {
-          isActive: true,
-          startDate: { lte: today },
-          endDate: { gte: today },
-          OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
-        },
-        select: {
-          id: true,
-          type: true,
-          discountValue: true,
-          buyQuantity: true,
-          getQuantity: true,
-          products: { select: { productId: true } },
-          categories: { select: { categoryId: true } },
-        },
-      }),
-    ]);
-
-    const productsMap = new Map(dbProducts.map(p => [p.id, p]));
-    const combosMap = new Map(dbCombosWithItems.map(c => [c.id, c]));
-    const extrasMap = new Map(dbExtras.map(e => [e.id, e]));
-
-    if (productIds.some((id) => !productsMap.has(id))) {
-      throw new ValidationError('Uno o más productos no existen o están inactivos.');
-    }
-    if (comboIds.some((id) => !combosMap.has(id))) {
-      throw new ValidationError('Uno o más combos no existen, están inactivos o no están disponibles hoy.');
-    }
-    if (extraIds.some((id) => !extrasMap.has(id))) {
-      throw new ValidationError('Uno o más extras no existen o están inactivos.');
-    }
-    const validProductExtras = new Set(productExtras.map(({ productId, extraId }) => `${productId}:${extraId}`));
-    for (const item of items) {
-      if (!item.productId) continue;
-      for (const extra of item.extras ?? []) {
-        if (!validProductExtras.has(`${item.productId}:${extra.extraId}`)) {
-          throw new ValidationError(`El extra ${extra.extraId} no pertenece al producto ${item.productId}.`);
-        }
-      }
-    }
-
     try {
-      return await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
       const existingOrder = await tx.order.findFirst({
         where: { createdById: userId, idempotencyKey },
         include: { items: { include: { extras: true } }, payments: true },
       });
-      if (existingOrder) return existingOrder;
+      if (existingOrder) return { order: existingOrder, wasCreated: false as const };
+
+      // Product/combo/extra/promotion data is read inside the transaction (not before it)
+      // so Serializable isolation covers price/isActive against concurrent changes: a price
+      // update or deactivation committed after this point conflicts here instead of silently
+      // producing an order built from stale data.
+      const [dbProducts, dbCombosWithItems, dbExtras, productExtras, activePromotions] = await Promise.all([
+        tx.product.findMany({
+          where: { id: { in: productIds }, isActive: true },
+          select: { id: true, name: true, categoryId: true, price: true, cost: true },
+        }),
+        tx.combo.findMany({
+          where: {
+            id: { in: comboIds },
+            isActive: true,
+            items: { every: { product: { isActive: true } } },
+            OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
+          },
+          include: {
+            items: {
+              select: {
+                productId: true,
+                quantity: true,
+                product: { select: { id: true, name: true, cost: true, isActive: true } },
+              },
+            },
+          },
+        }),
+        tx.extra.findMany({
+          where: { id: { in: extraIds }, isActive: true },
+          select: { id: true, name: true, price: true, cost: true },
+        }),
+        tx.productExtra.findMany({
+          where: {
+            OR: productIds.flatMap((productId) => extraIds.map((extraId) => ({ productId, extraId }))),
+          },
+        }),
+        tx.promotion.findMany({
+          where: {
+            isActive: true,
+            startDate: { lte: today },
+            endDate: { gte: today },
+            OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
+          },
+          select: {
+            id: true,
+            type: true,
+            discountValue: true,
+            buyQuantity: true,
+            getQuantity: true,
+            products: { select: { productId: true } },
+            categories: { select: { categoryId: true } },
+          },
+        }),
+      ]);
+
+      const productsMap = new Map(dbProducts.map(p => [p.id, p]));
+      const combosMap = new Map(dbCombosWithItems.map(c => [c.id, c]));
+      const extrasMap = new Map(dbExtras.map(e => [e.id, e]));
+
+      if (productIds.some((id) => !productsMap.has(id))) {
+        throw new ValidationError('Uno o más productos no existen o están inactivos.');
+      }
+      if (comboIds.some((id) => !combosMap.has(id))) {
+        throw new ValidationError('Uno o más combos no existen, están inactivos o no están disponibles hoy.');
+      }
+      if (extraIds.some((id) => !extrasMap.has(id))) {
+        throw new ValidationError('Uno o más extras no existen o están inactivos.');
+      }
+      const validProductExtras = new Set(productExtras.map(({ productId, extraId }) => `${productId}:${extraId}`));
+      for (const item of items) {
+        if (!item.productId) continue;
+        for (const extra of item.extras ?? []) {
+          if (!validProductExtras.has(`${item.productId}:${extra.extraId}`)) {
+            throw new ValidationError(`El extra ${extra.extraId} no pertenece al producto ${item.productId}.`);
+          }
+        }
+      }
 
       const openCashSession = await tx.cashSession.findFirst({
         where: { status: 'open', ...(cashSessionId ? { id: cashSessionId } : {}) },
@@ -531,33 +478,6 @@ export const OrderService = {
         });
       }
 
-      // Notify relevant users
-      const usersToNotify = await tx.user.findMany({
-        where: {
-          isActive: true,
-          role: {
-            name: {
-              in: ['ADMIN', 'CAJERO'],
-              mode: 'insensitive',
-            },
-          },
-        },
-        select: { id: true },
-      });
-
-      if (usersToNotify.length > 0) {
-        await NotificationService.createNotification(
-          {
-            title: 'Nuevo Pedido',
-            message: `Se ha creado un nuevo pedido: #${order.orderNumber.toString()} por ${finalCustomerName}.`,
-            type: 'NEW_ORDER',
-            referenceId: updatedOrder.id,
-          },
-          usersToNotify.map((user) => user.id),
-          tx
-        );
-      }
-
       auditLog({
         requestId,
         actor: { id: userId },
@@ -567,8 +487,30 @@ export const OrderService = {
         amount: finalTotal.toFixed(2),
       }, 'Order created');
 
-        return updatedOrder;
+        return { order: updatedOrder, wasCreated: true as const };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      // Notifications are dispatched after the transaction commits (not inside it) so
+      // that writing to an unrelated NotificationRecipient row can't contribute to a
+      // serialization conflict on the sales transaction, and only for a freshly created
+      // order (not an idempotent replay of an already-committed one).
+      if (result.wasCreated) {
+        const usersToNotify = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
+
+        if (usersToNotify.length > 0) {
+          await NotificationService.createNotification(
+            {
+              title: 'Nuevo Pedido',
+              message: `Se ha creado un nuevo pedido: #${result.order.orderNumber.toString()} por ${result.order.customerName}.`,
+              type: 'NEW_ORDER',
+              referenceId: result.order.id,
+            },
+            usersToNotify.map((user) => user.id),
+          );
+        }
+      }
+
+      return result.order;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) {
         return OrderService.create(orderData, userId, idempotencyKey, attempt + 1, requestId);

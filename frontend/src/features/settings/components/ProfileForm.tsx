@@ -31,29 +31,35 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-[#E7E3DC] bg-white p-6">
-      <h3 className="mb-4 text-lg font-semibold text-[#2C211D]">Mi Perfil</h3>
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-lg border p-6"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+    >
+      <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Mi Perfil</h3>
 
       <div className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#4B5563]">Nombre</label>
+          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Nombre</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-[#E7E3DC] bg-white px-4 py-3 text-sm text-[#2C211D] focus:outline-none focus:ring-2 focus:ring-[#5A804F]/20"
+            className="w-full rounded-lg border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A804F]/20"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#4B5563]">Email</label>
+          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Email</label>
           <input
             type="email"
             value={currentUser?.email || ''}
             disabled
-            className="w-full rounded-lg border border-[#E7E3DC] bg-[#FDFBF7] px-4 py-3 text-sm text-[#6B7280] cursor-not-allowed"
+            className="w-full rounded-lg border px-4 py-3 text-sm cursor-not-allowed"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text-secondary)' }}
           />
-          <p className="mt-1 text-xs text-[#6B7280]">El email no puede ser modificado.</p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>El email no puede ser modificado.</p>
         </div>
       </div>
 
@@ -61,7 +67,8 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
         <button
           type="submit"
           disabled={isPending || name.trim() === currentUser?.name}
-          className="rounded-lg bg-[#5A804F] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4a6a3f] disabled:opacity-50"
+          className="rounded-lg px-6 py-3 text-sm font-semibold shadow-sm transition disabled:opacity-50"
+          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
         >
           {isPending ? 'Guardando...' : 'Guardar Cambios'}
         </button>

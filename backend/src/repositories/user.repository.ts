@@ -1,23 +1,8 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 export const UserRepository = {
-  async findAll(where: Prisma.UserWhereInput = {}) {
-    return prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isActive: true,
-        roleId: true,
-        role: { select: { id: true, name: true } },
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { name: 'asc' },
-    });
-  },
 
   async findById(id: string) {
     return prisma.user.findUnique({
@@ -70,7 +55,7 @@ export const UserRepository = {
   },
 
   async findWithPagination(page: number, limit: number, where: Prisma.UserWhereInput = {}) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -94,12 +79,7 @@ export const UserRepository = {
 
     return {
       data: users,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 
@@ -180,6 +160,37 @@ export const UserRepository = {
     return prisma.user.delete({ where: { id } });
   },
 
+  async findWithPermissionsForAuth(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        roleId: true,
+        isActive: true,
+        role: {
+          select: {
+            name: true,
+            permissions: {
+              select: { permission: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+  },
+
+  async findActiveByRoleNames(roleNames: string[]) {
+    return prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { name: { in: roleNames, mode: 'insensitive' } },
+      },
+      select: { id: true },
+    });
+  },
+
   async countActiveAdmins(adminRoleId: string) {
     return prisma.user.count({
       where: {
@@ -187,5 +198,29 @@ export const UserRepository = {
         isActive: true,
       },
     });
+  },
+
+  async countRelations(id: string) {
+    const result = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        _count: {
+          select: {
+            createdOrders: true,
+            createdPurchases: true,
+            inventoryMovements: true,
+            createdCashMovements: true,
+            createdExpenses: true,
+            openedCashSessions: true,
+            closedCashSessions: true,
+            inventoryCountsCreated: true,
+            inventoryCountsCompleted: true,
+            createdPayments: true,
+            auditLogs: true,
+          },
+        },
+      },
+    });
+    return result?._count ?? null;
   },
 };

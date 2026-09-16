@@ -29,7 +29,7 @@ export function SettingsPage() {
   const [showUserModal, setShowUserModal] = React.useState(false)
   const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null)
   const [showRoleModal, setShowRoleModal] = React.useState(false)
-  const { mode, toggleTheme } = useTheme()
+  const { mode, setTheme } = useTheme()
   const { data: roles } = useRolesList()
   const isDark = mode === 'dark'
 
@@ -68,23 +68,45 @@ export function SettingsPage() {
   const canCreateRoles = hasPermission(currentUser, 'users.create')
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#FCF8EF_0%,_#F7F2E8_100%)]">
+    <div
+      className="min-h-screen"
+      style={{
+        background: 'radial-gradient(circle at top, var(--color-surface) 0%, var(--color-background) 100%)',
+      }}
+    >
       {/* Header */}
-      <header className="border-b border-[#E7E3DC] bg-[#FDFBF7]/95 px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6">
+      <header
+        className="border-b px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'color-mix(in srgb, var(--color-surface) 95%, transparent)',
+        }}
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-15 w-15 items-center justify-center rounded-2xl border border-[#E7E3DC] bg-[#F3E8D6] p-2 shadow-sm">
+            <div
+              className="flex h-15 w-15 items-center justify-center rounded-2xl border p-2 shadow-sm"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+              }}
+            >
               <img src={brandLogo} alt="Andys Coffee" className="h-8 w-auto object-contain" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#2C211D]">Configuración</p>
-              <p className="text-xs text-[#6B7280]">{currentUser?.roleName || 'Usuario'}</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Configuración</p>
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{currentUser?.roleName || 'Usuario'}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => navigateTo(APP_ROUTES.dashboard)}
-            className="rounded-full border border-[#E7E3DC] bg-white px-4 py-2 text-sm font-medium text-[#4B5563] shadow-sm transition hover:border-[#5A804F]/40 hover:bg-[#F2EFE8] hover:text-[#5A804F]"
+            className="rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text-primary)',
+            }}
           >
             Volver al dashboard
           </button>
@@ -95,7 +117,13 @@ export function SettingsPage() {
         <div className="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-4">
           {/* Sidebar Navigation */}
           <nav className="lg:col-span-1">
-            <div className="space-y-1 rounded-2xl border border-[#E7E3DC] bg-white p-3 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
+            <div
+              className="space-y-1 rounded-2xl border p-3 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+              }}
+            >
               <NavTab
                 label="Mi Perfil"
                 isActive={activeTab === 'profile'}
@@ -108,8 +136,8 @@ export function SettingsPage() {
               />
               {canManageUsers && (
                 <>
-                  <div className="my-2 border-t border-[#E7E3DC]" />
-                  <p className="px-3 py-2 text-xs font-semibold uppercase text-[#5A804F]">Administración</p>
+                  <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
+                  <p className="px-3 py-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-primary)' }}>Administración</p>
                   <NavTab
                     label="Usuarios"
                     isActive={activeTab === 'users'}
@@ -152,7 +180,7 @@ export function SettingsPage() {
                   title="Preferencias del Sistema"
                   description="Personaliza tu experiencia de uso"
                 />
-                <PreferencesPanel isDark={isDark} onThemeToggle={toggleTheme} />
+                <PreferencesPanel isDark={isDark} onThemeChange={(mode) => setTheme(mode)} />
               </div>
             )}
 
@@ -163,7 +191,10 @@ export function SettingsPage() {
                   title="Gestión de Usuarios"
                   description="Crea, edita y gestiona usuarios del sistema"
                 />
-                <div className="rounded-2xl border border-[#E7E3DC] bg-white p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
                   <UserTable
                     currentUser={currentUser}
                     onEditUser={(userId) => {
@@ -199,7 +230,10 @@ export function SettingsPage() {
                   title="Roles y Permisos"
                   description="Define y gestiona los roles y sus permisos"
                 />
-                <div className="rounded-2xl border border-[#E7E3DC] bg-white p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
                   <RolePermissionMatrix currentUser={currentUser} />
                   {canCreateRoles && (
                     <div className="mt-6 flex justify-end">
@@ -238,18 +272,22 @@ export function SettingsPage() {
                   title="Sesión"
                   description="Cierra tu sesión actual"
                 />
-                <div className="rounded-2xl border border-[#E7E3DC] bg-white p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-[#2C211D]">Cerrar sesión</h3>
-                      <p className="mt-1 text-sm text-[#6B7280]">
+                      <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Cerrar sesión</h3>
+                      <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                         {currentUser?.email || 'Sin correo registrado'} · {currentUser?.roleName || 'Usuario'}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="rounded-xl bg-[#2C211D] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#3A2A24]"
+                      className="rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition"
+                      style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
                     >
                       Cerrar sesión
                     </button>
@@ -269,11 +307,11 @@ function NavTab({ label, isActive, onClick }: { label: string; isActive: boolean
   return (
     <button
       onClick={onClick}
-      className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
-        isActive
-          ? 'bg-[#5A804F]/10 text-[#5A804F]'
-          : 'text-[#4B5563] hover:bg-[#FDFBF7]'
-      }`}
+      className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+      style={{
+        backgroundColor: isActive ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent',
+        color: isActive ? 'var(--color-primary)' : 'var(--color-text-primary)',
+      }}
     >
       {label}
     </button>
@@ -282,38 +320,64 @@ function NavTab({ label, isActive, onClick }: { label: string; isActive: boolean
 
 function ContentHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-2xl border border-[#E7E3DC] bg-[#FDFBF7] p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
-      <h2 className="text-2xl font-semibold text-[#2C211D]">{title}</h2>
-      <p className="mt-2 text-sm text-[#6B7280]">{description}</p>
+    <div
+      className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+    >
+      <h2 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</h2>
+      <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{description}</p>
     </div>
   )
 }
 
-function PreferencesPanel({ isDark, onThemeToggle }: { isDark: boolean; onThemeToggle: () => void }) {
+function PreferencesPanel({ isDark, onThemeChange }: { isDark: boolean; onThemeChange: (mode: 'light' | 'dark') => void }) {
+  const options: Array<{ value: 'light' | 'dark'; label: string }> = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+  ]
+
   return (
-    <div className="rounded-2xl border border-[#E7E3DC] bg-white p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]">
+    <div
+      className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+    >
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4 border-b border-[#E7E3DC] pb-4">
+        <div className="flex items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
           <div>
-            <h3 className="font-semibold text-[#2C211D]">Tema</h3>
-            <p className="text-sm text-[#6B7280]">
+            <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Tema</h3>
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               {isDark ? 'Modo oscuro activado' : 'Modo claro activado'}
             </p>
           </div>
-          <button
-            onClick={onThemeToggle}
-            className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
-              isDark ? 'bg-[#5A804F]' : 'bg-[#E7E3DC]'
-            }`}
-          >
-            <span
-              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                isDark ? 'translate-x-7' : 'translate-x-1'
-              }`}
-            />
-          </button>
         </div>
-        <p className="text-xs text-[#6B7280]">
+
+        <div
+          className="grid grid-cols-2 gap-2 rounded-xl border p-1"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}
+        >
+          {options.map((option) => {
+            const selected = isDark === (option.value === 'dark')
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onThemeChange(option.value)}
+                className="rounded-lg px-4 py-3 text-sm font-semibold transition"
+                style={{
+                  backgroundColor: selected ? 'var(--color-primary)' : 'transparent',
+                  color: selected ? 'var(--color-button-text)' : 'var(--color-text-primary)',
+                  boxShadow: selected ? '0 4px 10px rgba(90, 128, 79, 0.2)' : 'none',
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
           Personaliza la apariencia de la interfaz. Los cambios se aplican inmediatamente.
         </p>
       </div>

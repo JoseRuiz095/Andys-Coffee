@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { PurchaseService } from '../services/purchase.service';
 import { createPurchaseSchema } from '../validators/purchase.validator';
 import { AuthUser } from '../services/auth.service';
+import { DuplicateError } from '../utils/errors';
+import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
 export const PurchaseController = {
   async getAll(req: Request, res: Response) {
@@ -82,16 +84,8 @@ export const PurchaseController = {
         return;
       }
 
-      if (error instanceof Error && error.name === 'DuplicateError') {
-        const duplicateError = error as any;
-        res.status(409).json({
-          error: 'DUPLICATE_ERROR',
-          message: error.message,
-          details: {
-            type: duplicateError.type,
-            existingId: duplicateError.existingId,
-          },
-        });
+      if (error instanceof DuplicateError) {
+        sendDuplicateErrorResponse(res, error);
         return;
       }
 

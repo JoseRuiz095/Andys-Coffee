@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { UserService } from '../services/user.service';
 import { userListSchema, userCreateSchema, userUpdateSchema, setActiveSchema } from '../validators/user.validator';
 import { AuthUser } from '../services/auth.service';
+import { DuplicateError } from '../utils/errors';
+import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
 export const UserController = {
   async getAll(req: Request, res: Response) {
@@ -77,16 +79,8 @@ export const UserController = {
         return;
       }
 
-      if (error instanceof Error && error.name === 'DuplicateError') {
-        const duplicateError = error as any;
-        res.status(409).json({
-          error: 'DUPLICATE_ERROR',
-          message: error.message,
-          details: {
-            type: duplicateError.type,
-            existingId: duplicateError.existingId,
-          },
-        });
+      if (error instanceof DuplicateError) {
+        sendDuplicateErrorResponse(res, error);
         return;
       }
 
@@ -131,16 +125,8 @@ export const UserController = {
         return;
       }
 
-      if (error instanceof Error && error.name === 'DuplicateError') {
-        const duplicateError = error as any;
-        res.status(409).json({
-          error: 'DUPLICATE_ERROR',
-          message: error.message,
-          details: {
-            type: duplicateError.type,
-            existingId: duplicateError.existingId,
-          },
-        });
+      if (error instanceof DuplicateError) {
+        sendDuplicateErrorResponse(res, error);
         return;
       }
 

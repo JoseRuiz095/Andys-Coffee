@@ -1,26 +1,6 @@
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { AuthUser } from './auth.service';
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
+import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const PreferenceService = {
   async getAllPreferences(user: AuthUser) {

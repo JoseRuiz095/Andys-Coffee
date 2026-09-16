@@ -1,23 +1,8 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 export const SupplierRepository = {
-  async findAll(where: Prisma.SupplierWhereInput = {}) {
-    return prisma.supplier.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        address: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { name: 'asc' },
-    });
-  },
 
   async findById(id: string) {
     return prisma.supplier.findUnique({
@@ -92,7 +77,7 @@ export const SupplierRepository = {
   },
 
   async findWithPagination(page: number, limit: number, where: Prisma.SupplierWhereInput = {}) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const [suppliers, total] = await Promise.all([
       prisma.supplier.findMany({
@@ -115,12 +100,7 @@ export const SupplierRepository = {
 
     return {
       data: suppliers,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 

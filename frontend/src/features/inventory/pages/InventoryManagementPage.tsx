@@ -17,7 +17,8 @@ export function InventoryManagementPage() {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-50 p-4 md:p-6"
+      className="min-h-screen p-4 md:p-6"
+      style={{ backgroundColor: 'var(--color-background)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -30,13 +31,14 @@ export function InventoryManagementPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h1 className="mb-1 text-2xl md:text-3xl font-bold text-gray-900">Gestión de Inventario</h1>
-          <p className="text-sm md:text-base text-gray-600">Administra ingredientes y proveedores</p>
+          <h1 className="mb-1 text-2xl md:text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Gestión de Inventario</h1>
+          <p className="text-sm md:text-base" style={{ color: 'var(--color-text-secondary)' }}>Administra ingredientes y proveedores</p>
         </motion.div>
 
         {/* Tabs */}
         <motion.div
-          className="mb-6 border-b border-gray-200 overflow-x-auto"
+          className="mb-6 border-b overflow-x-auto"
+          style={{ borderColor: 'var(--color-border)' }}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
@@ -48,17 +50,15 @@ export function InventoryManagementPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 md:px-6 py-3 font-medium transition-colors relative whitespace-nowrap text-sm md:text-base flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? 'text-[#5A804F]'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  className="px-4 md:px-6 py-3 font-medium transition-colors relative whitespace-nowrap text-sm md:text-base flex items-center gap-2"
+                  style={{ color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}
                 >
                   <IconComponent size={20} />
                   {tab.label}
                   {activeTab === tab.id && (
                     <motion.div
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5A804F]"
+                      className="absolute bottom-0 left-0 right-0 h-0.5"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
                       layoutId="activeTab"
                     />
                   )}

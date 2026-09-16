@@ -10,7 +10,11 @@ import { prisma } from "../../src/config/prisma";
 
 const integrationEnabled = process.env.RUN_INTEGRATION_TESTS === "true";
 const testId = randomUUID();
-const permissionName = "manage:products";
+// Matches the real permissions seeded in prisma/seed.ts and checked by product.routes.ts /
+// ProductService. "manage:products" (the previous value here) doesn't exist in the seed
+// data and isn't grantable through the role-management UI — using it masked a real bug
+// where ProductService checked a permission the route layer never granted.
+const permissionNames = ["products.create", "products.update", "products.delete"];
 const roleName = `integration-role-${testId}`;
 const managerEmail = `manager-${testId}@example.com`;
 const viewerEmail = `viewer-${testId}@example.com`;
@@ -60,15 +64,15 @@ async function requestProduct(
 before(async () => {
   if (!integrationEnabled) return;
 
-  const permission = await prisma.permission.upsert({
-    where: { name: permissionName },
-    update: {},
-    create: { name: permissionName },
-  });
+  const permissions = await Promise.all(
+    permissionNames.map((name) =>
+      prisma.permission.upsert({ where: { name }, update: {}, create: { name } })
+    ),
+  );
   const role = await prisma.role.create({
     data: {
       name: roleName,
-      permissions: { create: { permissionId: permission.id } },
+      permissions: { create: permissions.map((permission) => ({ permissionId: permission.id })) },
     },
   });
 
@@ -101,7 +105,7 @@ before(async () => {
     roleId: managerRole.id,
     roleName: managerRole.name,
     isActive: true,
-    permissions: [permissionName],
+    permissions: permissionNames,
   };
   viewer = {
     id: viewerRecord.id,
@@ -142,7 +146,7 @@ test("rechaza la mutación de productos sin autenticación con 401", { skip: !in
   }
 });
 
-test("rechaza la mutación de productos sin manage:products con 403", { skip: !integrationEnabled }, async () => {
+test("rechaza la mutación de productos sin los permisos products.*", { skip: !integrationEnabled }, async () => {
   for (const [path, method, body] of [
     ["/api/products", "POST", JSON.stringify({ name: "Viewer Product", price: 10, cost: 5 })],
     [`/api/products/${randomUUID()}`, "PATCH", JSON.stringify({ name: "Viewer Product" })],
@@ -153,7 +157,7 @@ test("rechaza la mutación de productos sin manage:products con 403", { skip: !i
   }
 });
 
-test("permite crear, actualizar y eliminar productos con manage:products", { skip: !integrationEnabled }, async () => {
+test("permite crear, actualizar y eliminar productos con los permisos products.*", { skip: !integrationEnabled }, async () => {
   const createResponse = await requestProduct("/api/products", {
     method: "POST",
     body: JSON.stringify({ name: "Integration Product", price: 25, cost: 8, sku: productSku }),

@@ -1,6 +1,7 @@
 import { NotificationType, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
+import { UserRepository } from '../repositories/user.repository';
 import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput } from '../validators/cash.validator';
 import { NotificationService } from './notification.service';
 
@@ -17,7 +18,7 @@ export const CashService = {
   },
 
   async closeSession(closedById: string, input: CloseCashSessionInput): Promise<CashSessionWithDetails | null> {
-    return prismaTransaction(async (tx) => {
+    const closedSession = await prismaTransaction(async (tx) => {
       const session = await CashRepository.findActiveSessionInTransaction(tx);
       if (!session) return null;
 
@@ -27,27 +28,30 @@ export const CashService = {
         throw new CashBusinessRuleError('Debes indicar un motivo cuando existe una diferencia.');
       }
 
-      const closedSession = await CashRepository.closeActiveSession(
+      return CashRepository.closeActiveSession(
         tx,
+        session,
         closedById,
         closingAmount,
         input.reason ?? 'Cierre de caja sin diferencia',
         input.comment,
       );
-
-      if (closedSession) {
-        const differenceLabel = closedSession.difference?.isNegative()
-          ? `-$${closedSession.difference.abs().toFixed(2)}`
-          : `$${closedSession.difference?.toFixed(2) ?? '0.00'}`;
-        await createCashNotification(tx, {
-          title: 'Cierre de caja confirmado',
-          message: `La caja ${closedSession.cashRegister.name} fue cerrada. Efectivo contado: $${closingAmount.toFixed(2)}. Diferencia: ${differenceLabel}.`,
-          referenceId: closedSession.id,
-        });
-      }
-
-      return closedSession;
     });
+
+    // Dispatched after the transaction commits so an unrelated notification write
+    // can't contribute to a serialization conflict on the cash-closing transaction.
+    if (closedSession) {
+      const differenceLabel = closedSession.difference?.isNegative()
+        ? `-$${closedSession.difference.abs().toFixed(2)}`
+        : `$${closedSession.difference?.toFixed(2) ?? '0.00'}`;
+      await createCashNotification({
+        title: 'Cierre de caja confirmado',
+        message: `La caja ${closedSession.cashRegister.name} fue cerrada. Efectivo contado: $${closedSession.closingAmount?.toFixed(2) ?? '0.00'}. Diferencia: ${differenceLabel}.`,
+        referenceId: closedSession.id,
+      });
+    }
+
+    return closedSession;
   },
 
   async correctClosing(correctedById: string, sessionId: string, input: CorrectCashClosingInput): Promise<CashSessionWithDetails> {
@@ -87,7 +91,7 @@ export const CashService = {
 
   async openSession(input: OpenCashSessionInput, openedById: string): Promise<CashSessionWithDetails> {
     try {
-      return await prismaTransaction(async (tx) => {
+      const session = await prismaTransaction(async (tx) => {
         const register = await CashRepository.findActiveRegister(tx, input.cashRegisterId);
         if (!register) {
           throw new CashBusinessRuleError('No hay una caja activa disponible.');
@@ -98,20 +102,21 @@ export const CashService = {
           throw new CashBusinessRuleError('Ya existe una sesión abierta para esta caja.');
         }
 
-        const session = await CashRepository.createSessionWithOpening(tx, {
+        return CashRepository.createSessionWithOpening(tx, {
           cashRegisterId: register.id,
           openedById,
           openingAmount: new Prisma.Decimal(input.openingAmount),
         });
-
-        await createCashNotification(tx, {
-          title: 'Apertura de caja confirmada',
-          message: `La caja ${session.cashRegister.name} fue abierta por ${session.openedBy.name}. Fondo inicial: $${session.openingAmount.toFixed(2)}.`,
-          referenceId: session.id,
-        });
-
-        return session;
       });
+
+      // Dispatched after the transaction commits, same reasoning as closeSession.
+      await createCashNotification({
+        title: 'Apertura de caja confirmada',
+        message: `La caja ${session.cashRegister.name} fue abierta por ${session.openedBy.name}. Fondo inicial: $${session.openingAmount.toFixed(2)}.`,
+        referenceId: session.id,
+      });
+
+      return session;
     } catch (error) {
       if (error instanceof CashBusinessRuleError) {
         throw error;
@@ -133,20 +138,12 @@ async function prismaTransaction<T>(callback: (tx: Prisma.TransactionClient) => 
 }
 
 async function createCashNotification(
-  tx: Prisma.TransactionClient,
   data: { title: string; message: string; referenceId: string },
 ) {
-  const recipients = await tx.user.findMany({
-    where: {
-      isActive: true,
-      role: { name: { in: ['ADMIN', 'CAJERO'], mode: 'insensitive' } },
-    },
-    select: { id: true },
-  });
+  const recipients = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
 
   await NotificationService.createNotification(
     { ...data, type: NotificationType.GENERAL },
     recipients.map(({ id }) => id),
-    tx,
   );
 }

@@ -3,34 +3,7 @@ import { prisma } from '../config/prisma';
 import { InventoryCountRepository } from '../repositories/inventory-count.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
 import { AuthUser } from './auth.service';
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const InventoryCountService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, status?: string, date?: string) {

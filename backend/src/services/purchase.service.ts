@@ -3,48 +3,10 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { PurchaseRepository } from '../repositories/purchase.repository';
 import { SupplierRepository } from '../repositories/supplier.repository';
+import { InventoryRepository } from '../repositories/inventory.repository';
 import { createPurchaseSchema } from '../validators/purchase.validator';
 import { AuthUser } from './auth.service';
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class DuplicateError extends Error {
-  public readonly type: 'INGREDIENT' | 'SUPPLIER';
-  public readonly existingId: string;
-
-  constructor(type: 'INGREDIENT' | 'SUPPLIER', message: string, existingId: string) {
-    super(message);
-    this.name = 'DuplicateError';
-    this.type = type;
-    this.existingId = existingId;
-  }
-}
-
-class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
+import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const PurchaseService = {
   async findAll(user: AuthUser, status?: string, page: number = 1, limit: number = 20) {
@@ -89,11 +51,14 @@ export const PurchaseService = {
       }
     }
 
-    // Validate all ingredients exist
+    // Validate all ingredients exist. Compared against the unique ID count (not the raw
+    // items length) because a purchase may legitimately list the same ingredient on more
+    // than one line, and findIngredientsForPurchase returns one row per distinct ingredient.
     const ingredientIds = data.items.map(item => item.ingredientId);
+    const uniqueIngredientIds = new Set(ingredientIds);
     const ingredients = await PurchaseRepository.findIngredientsForPurchase(ingredientIds);
 
-    if (ingredients.length !== ingredientIds.length) {
+    if (ingredients.length !== uniqueIngredientIds.size) {
       throw new ValidationError('Algunos ingredientes no existen.');
     }
 
@@ -109,37 +74,23 @@ export const PurchaseService = {
     const total = subtotal.add(tax);
 
     // Create purchase with items
-    const purchase = await prisma.purchase.create({
-      data: {
-        supplierId: data.supplierId,
-        invoiceNumber: data.invoiceNumber,
-        notes: data.notes,
-        subtotal,
-        tax,
-        total,
-        createdById: user.id,
-        items: {
-          createMany: {
-            data: data.items.map(item => ({
-              ingredientId: item.ingredientId,
-              quantity: new Prisma.Decimal(item.quantity),
-              unitCost: new Prisma.Decimal(item.unitCost),
-              total: new Prisma.Decimal(item.quantity).mul(new Prisma.Decimal(item.unitCost)),
-            })),
-          },
+    const purchase = await PurchaseRepository.create({
+      supplier: data.supplierId ? { connect: { id: data.supplierId } } : undefined,
+      invoiceNumber: data.invoiceNumber,
+      notes: data.notes,
+      subtotal,
+      tax,
+      total,
+      createdBy: { connect: { id: user.id } },
+      items: {
+        createMany: {
+          data: data.items.map(item => ({
+            ingredientId: item.ingredientId,
+            quantity: new Prisma.Decimal(item.quantity),
+            unitCost: new Prisma.Decimal(item.unitCost),
+            total: new Prisma.Decimal(item.quantity).mul(new Prisma.Decimal(item.unitCost)),
+          })),
         },
-      },
-      include: {
-        items: {
-          include: {
-            ingredient: {
-              include: {
-                unit: true,
-              },
-            },
-          },
-        },
-        supplier: true,
       },
     });
 
@@ -168,39 +119,42 @@ export const PurchaseService = {
         throw new ValidationError('La compra no tiene items.');
       }
 
-      // Process each item
+      // Process each item. Running stock/cost per ingredient is tracked locally
+      // so that a purchase with the same ingredient on multiple lines computes
+      // the weighted average against the value left by the previous line,
+      // instead of against the stale snapshot fetched before the loop started.
       const inventoryMovements: Prisma.InventoryMovementCreateManyInput[] = [];
+      const runningState = new Map<string, { stock: Prisma.Decimal; cost: Prisma.Decimal }>();
 
       for (const item of purchase.items) {
         const ingredient = item.ingredient;
 
-        // Calculate new average cost (weighted average)
-        const currentStock = new Prisma.Decimal(ingredient.currentStock);
-        const currentCost = new Prisma.Decimal(ingredient.averageCost);
+        const previous = runningState.get(ingredient.id) ?? {
+          stock: new Prisma.Decimal(ingredient.currentStock),
+          cost: new Prisma.Decimal(ingredient.averageCost),
+        };
         const newQuantity = new Prisma.Decimal(item.quantity);
         const newUnitCost = new Prisma.Decimal(item.unitCost);
 
         let newAverageCost: Prisma.Decimal;
 
-        if (currentStock.greaterThan(0)) {
-          const oldValue = currentStock.mul(currentCost);
+        if (previous.stock.greaterThan(0)) {
+          const oldValue = previous.stock.mul(previous.cost);
           const newValue = newQuantity.mul(newUnitCost);
           const totalValue = oldValue.add(newValue);
-          const totalStock = currentStock.add(newQuantity);
+          const totalStock = previous.stock.add(newQuantity);
           newAverageCost = totalValue.div(totalStock);
         } else {
           newAverageCost = newUnitCost;
         }
 
-        // Update ingredient stock and cost
-        await PurchaseRepository.findIngredientsForPurchase([ingredient.id], tx);
-        await tx.ingredient.update({
-          where: { id: ingredient.id },
-          data: {
-            currentStock: { increment: item.quantity },
-            averageCost: newAverageCost,
-          },
+        runningState.set(ingredient.id, {
+          stock: previous.stock.add(newQuantity),
+          cost: newAverageCost,
         });
+
+        // Update ingredient stock and cost
+        await InventoryRepository.updateStockAndCost(ingredient.id, item.quantity, newAverageCost, tx);
 
         // Create inventory movement record
         inventoryMovements.push({
@@ -216,11 +170,7 @@ export const PurchaseService = {
       }
 
       // Create all movements
-      if (inventoryMovements.length > 0) {
-        await tx.inventoryMovement.createMany({
-          data: inventoryMovements,
-        });
-      }
+      await InventoryRepository.createMovements(inventoryMovements, tx);
 
       // Update purchase status
       const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx);

@@ -45,17 +45,12 @@ export const CashRepository = {
 
   async closeActiveSession(
     tx: Prisma.TransactionClient,
+    session: { id: string; expectedAmount: Prisma.Decimal },
     closedById: string,
     closingAmount: Prisma.Decimal,
     reason: string,
     comment?: string,
   ): Promise<CashSessionWithDetails | null> {
-    const session = await tx.cashSession.findFirst({
-      where: { status: 'open' },
-      orderBy: { openedAt: 'desc' },
-    });
-    if (!session) return null;
-
     const difference = closingAmount.sub(session.expectedAmount);
     const closedSession = await tx.cashSession.update({
       where: { id: session.id },

@@ -21,10 +21,13 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
   const { text, bg, color } = statusStyles[mapOrderStatusToFrontend(order.status)]
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#E7E3DC] bg-white shadow-md transition-shadow hover:shadow-lg">
+    <div
+      className="overflow-hidden rounded-xl border shadow-md transition-shadow hover:shadow-lg"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+    >
       <div className="p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-[#2C211D]">
+          <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
             Orden #{order.orderNumber}
           </h3>
           <div className="flex items-center gap-3">
@@ -38,7 +41,7 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
             </span>
           </div>
         </div>
-        <p className="text-sm text-[#6B7280]">
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           {new Date(order.createdAt).toLocaleString('es-ES', {
             hour: '2-digit',
             minute: '2-digit',
@@ -46,11 +49,11 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
         </p>
       </div>
 
-      <div className="border-t border-[#E7E3DC] p-5">
+      <div className="border-t p-5" style={{ borderColor: 'var(--color-border)' }}>
         <div className="space-y-3">
           {order.items.map((item) => (
             <div key={item.id} className="flex items-start gap-4">
-              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[#F2EFE8]">
+              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-background)' }}>
                 {item.product?.imageUrl && (
                   <img
                     src={getSupabaseImageUrl(item.product.imageUrl, 'Img', 'public')}
@@ -60,16 +63,16 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
                 )}
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-[#2C211D]">
+                <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                   {item.quantity}x {item.productName}
                 </p>
                 {item.extras && item.extras.length > 0 && (
-                  <p className="text-sm text-[#6B7280]">
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     {item.extras.join(', ')}
                   </p>
                 )}
                 {item.notes && (
-                  <p className="text-sm text-[#6B7280]">Nota: {item.notes}</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Nota: {item.notes}</p>
                 )}
               </div>
             </div>
@@ -77,7 +80,7 @@ export function OrderCard({ order, onStatusChange, isNew }: OrderCardProps) {
         </div>
       </div>
 
-      <div className="border-t border-[#E7E3DC] p-5">
+      <div className="border-t p-5" style={{ borderColor: 'var(--color-border)' }}>
         <OrderActions
           order={order}
           onStatusChange={(status) => onStatusChange(order.id, status)}

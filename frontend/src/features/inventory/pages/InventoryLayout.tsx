@@ -42,76 +42,76 @@ export function InventoryLayout() {
   return (
     <div>
       {/* Sub-navigation */}
-      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white overflow-x-auto">
+      <div className="sticky top-0 z-10 border-b overflow-x-auto" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         <div className="mx-auto max-w-7xl px-6">
           <nav className="flex gap-1 min-w-max md:min-w-0">
             <button
               onClick={() => handleViewChange('current')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'current'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'current' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'current' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Inventario Actual
             </button>
             <button
               onClick={() => handleViewChange('management')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'management'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'management' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'management' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Gestión de Inventario
             </button>
             <button
               onClick={() => handleViewChange('add-entry')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'add-entry'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'add-entry' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'add-entry' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Agregar Entrada
             </button>
             <button
               onClick={() => handleViewChange('entries')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'entries'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'entries' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'entries' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Entradas
             </button>
             <button
               onClick={() => handleViewChange('movements')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'movements'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'movements' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'movements' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Movimientos
             </button>
             <button
               onClick={() => handleViewChange('physical')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'physical'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'physical' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'physical' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Conteos Físicos
             </button>
             <button
               onClick={() => handleViewChange('exits')}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                activeView === 'exits'
-                  ? 'border-[#5A804F] text-[#5A804F]'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'exits' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'exits' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
             >
               Salidas Manuales
             </button>

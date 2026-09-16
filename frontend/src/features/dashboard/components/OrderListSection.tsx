@@ -36,7 +36,7 @@ export function OrderListSection({
 }: OrderListSectionProps) {
   if (isLoading) {
     return (
-      <div className="rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
+      <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         <div className="mb-4 flex items-center justify-between">
           <Skeleton className="h-5 w-24" />
           <Skeleton className="h-4 w-12" />
@@ -56,10 +56,10 @@ export function OrderListSection({
   }
 
   return (
-    <div className="rounded-[1.5rem] border border-[#E7E3DC] bg-[#FDFBF7] p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]">
+    <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold text-[#2C211D]">Lista de órdenes</h3>
-        <span className="text-xs text-[#6B7280]">Ver todo</span>
+        <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Lista de órdenes</h3>
+        <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Ver todo</span>
       </div>
 
       <div className="space-y-3">
@@ -67,14 +67,14 @@ export function OrderListSection({
           <div
             key={order.id}
             onClick={() => onSelectOrder?.(order.id)}
-            className={`cursor-pointer rounded-lg border p-3 transition-colors ${
-              selectedOrderId === order.id
-                ? 'border-[#5A804F] bg-[#D9E3D6]'
-                : 'border-[#E7E3DC] hover:bg-[#F2EFE8]'
-            }`}
+            className="cursor-pointer rounded-lg border p-3 transition-colors"
+            style={{
+              borderColor: selectedOrderId === order.id ? 'var(--color-primary)' : 'var(--color-border)',
+              backgroundColor: selectedOrderId === order.id ? 'var(--color-surface)' : 'var(--color-surface)',
+            }}
           >
-            <div className="font-medium text-[#2C211D]">{order.customerName}</div>
-            <div className="text-xs text-[#6B7280]">
+            <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{order.customerName}</div>
+            <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
               #{order.orderNumber}
             </div>
             <div className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>

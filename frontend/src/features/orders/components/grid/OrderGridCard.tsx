@@ -44,12 +44,12 @@ export function OrderGridCard({ order, onStatusChange }: OrderGridCardProps) {
   const { text, bg, color } = statusStyles[frontendStatus];
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-[#E7E3DC] bg-white p-4 shadow-md">
+    <div className="flex h-full flex-col rounded-xl border p-4 shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-bold text-[#2C211D]">
+        <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
           Orden #{order.orderNumber}
           {order.customerName && (
-            <span className="ml-2 text-base font-medium text-[#6B7280]">
+            <span className="ml-2 text-base font-medium" style={{ color: 'var(--color-text-secondary)' }}>
               ({order.customerName})
             </span>
           )}
@@ -77,7 +77,7 @@ export function OrderGridCard({ order, onStatusChange }: OrderGridCardProps) {
         <p className="text-sm text-gray-500">minutos</p>
       </div>
 
-       <div className="border-t border-[#E7E3DC] mt-4 pt-4">
+       <div className="border-t mt-4 pt-4" style={{ borderColor: 'var(--color-border)' }}>
         <OrderActions
           order={order}
           onStatusChange={(status) => onStatusChange(order.id, status)}

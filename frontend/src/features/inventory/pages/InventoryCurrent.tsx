@@ -43,14 +43,16 @@ export function InventoryCurrent() {
   if (error) {
     return (
       <motion.div
-        className="min-h-screen bg-gray-50 p-6"
+        className="min-h-screen p-6"
+        style={{ backgroundColor: 'var(--color-background)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
         <div className="mx-auto max-w-7xl">
           <motion.div
-            className="rounded-lg border border-red-200 bg-red-50 p-6"
+            className="rounded-lg border p-6"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -66,7 +68,8 @@ export function InventoryCurrent() {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-50 p-6"
+      className="min-h-screen p-6"
+      style={{ backgroundColor: 'var(--color-background)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -79,8 +82,8 @@ export function InventoryCurrent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">Inventario Actual</h1>
-          <p className="text-gray-600">Control de ingredientes y suministros</p>
+          <h1 className="mb-2 text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Inventario Actual</h1>
+          <p style={{ color: 'var(--color-text-secondary)' }}>Control de ingredientes y suministros</p>
         </motion.div>
 
         {/* Stats */}
@@ -91,60 +94,61 @@ export function InventoryCurrent() {
           transition={{ duration: 0.3, delay: 0.1 }}
         >
           {/* Total de ingredientes */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <p className="text-sm font-medium text-gray-600">Total Ingredientes</p>
-            <p className="mt-2 text-3xl font-bold text-gray-900">{data?.pagination.total || 0}</p>
-            <p className="mt-1 text-xs text-gray-500">en el inventario</p>
+          <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Total Ingredientes</p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{data?.pagination.total || 0}</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>en el inventario</p>
           </div>
 
           {/* Normal */}
-          <div className="rounded-lg border border-green-200 bg-green-50 p-6">
-            <p className="text-sm font-medium text-green-800">Stock Normal</p>
-            <p className="mt-2 text-3xl font-bold text-green-600">
+          <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Normal</p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>
               {data?.data?.filter(ing => {
                 const current = Number(ing.currentStock);
                 const minimum = Number(ing.minimumStock);
                 return current > minimum && current > 0;
               }).length || 0}
             </p>
-            <p className="mt-1 text-xs text-green-700">sin problemas de stock</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>sin problemas de stock</p>
           </div>
 
           {/* Stock Bajo */}
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-6">
-            <p className="text-sm font-medium text-yellow-800">Stock Bajo</p>
-            <p className="mt-2 text-3xl font-bold text-yellow-600">
+          <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Bajo</p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>
               {data?.data?.filter(ing => {
                 const current = Number(ing.currentStock);
                 const minimum = Number(ing.minimumStock);
                 return current > 0 && current <= minimum;
               }).length || 0}
             </p>
-            <p className="mt-1 text-xs text-yellow-700">requiere reorden</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>requiere reorden</p>
           </div>
 
           {/* Agotado */}
-          <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-            <p className="text-sm font-medium text-red-800">Agotados</p>
-            <p className="mt-2 text-3xl font-bold text-red-600">
+          <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Agotados</p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>
               {data?.data?.filter(ing => Number(ing.currentStock) <= 0).length || 0}
             </p>
-            <p className="mt-1 text-xs text-red-700">requiere reposición urgente</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>requiere reposición urgente</p>
           </div>
         </motion.div>
 
         {/* Valor Total */}
         <motion.div
-          className="mb-6 rounded-lg border-2 border-[#5A804F] bg-[#F0F7E8] p-6"
+          className="mb-6 rounded-lg border-2 p-6"
+          style={{ borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-surface)' }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.15 }}
         >
-          <p className="text-sm font-medium text-[#5A804F]">Valor Total del Inventario</p>
-          <p className="mt-2 text-4xl font-bold text-[#5A804F]">
+          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>Valor Total del Inventario</p>
+          <p className="mt-2 text-4xl font-bold" style={{ color: 'var(--color-primary)' }}>
             ${(data?.data?.reduce((sum, ing) => sum + (Number(ing.currentStock) * Number(ing.averageCost)), 0) || 0).toFixed(2)}
           </p>
-          <p className="mt-1 text-xs text-[#6B8F5F]">costo total de stock en almacén</p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>costo total de stock en almacén</p>
         </motion.div>
 
         {/* Stats Original */}
@@ -167,16 +171,17 @@ export function InventoryCurrent() {
 
         {/* Búsqueda y Filtros */}
         <motion.div
-          className="mb-6 rounded-lg border border-gray-200 bg-white p-6"
+          className="mb-6 rounded-lg border p-6"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.35 }}
         >
-          <h3 className="mb-4 text-sm font-semibold text-gray-900">Filtrar Inventario</h3>
+          <h3 className="mb-4 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Filtrar Inventario</h3>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Búsqueda */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
                 Buscar por nombre o SKU
               </label>
               <input
@@ -184,19 +189,21 @@ export function InventoryCurrent() {
                 placeholder="Ej: Café, CAF-001..."
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
               />
             </div>
 
             {/* Estado Selector */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
                 Filtrar por estado
               </label>
               <select
                 value={status}
                 onChange={(e) => handleStatusChange(e.target.value as typeof status)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
               >
                 <option value="all">Todos</option>
                 <option value="normal">Normal</option>
@@ -213,7 +220,8 @@ export function InventoryCurrent() {
                     handleSearch('');
                     handleStatusChange('all');
                   }}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="w-full rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text-primary)' }}
                 >
                   Limpiar filtros
                 </button>

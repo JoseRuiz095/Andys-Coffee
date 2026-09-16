@@ -1,9 +1,28 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
 export const PurchaseRepository = {
+  async create(data: Prisma.PurchaseCreateInput, client: PrismaClient = prisma) {
+    return client.purchase.create({
+      data,
+      include: {
+        items: {
+          include: {
+            ingredient: {
+              include: {
+                unit: true,
+              },
+            },
+          },
+        },
+        supplier: true,
+      },
+    });
+  },
+
   async findById(id: string) {
     return prisma.purchase.findUnique({
       where: { id },
@@ -33,7 +52,7 @@ export const PurchaseRepository = {
     page: number = 1,
     limit: number = 20,
   ) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const where = status ? { status } : {};
 
@@ -61,12 +80,7 @@ export const PurchaseRepository = {
 
     return {
       data: purchases,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 

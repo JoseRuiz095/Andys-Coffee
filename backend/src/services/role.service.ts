@@ -1,45 +1,6 @@
 import { RoleRepository, PermissionRepository } from '../repositories/role.repository';
 import { AuthUser } from './auth.service';
-
-class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-class AuthorizationError extends Error {
-  constructor(message = 'No tienes permiso para realizar esta acción.') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
-
-class DuplicateError extends Error {
-  public readonly type: 'ROLE';
-  public readonly existingId: string;
-
-  constructor(message: string, existingId: string) {
-    super(message);
-    this.name = 'DuplicateError';
-    this.type = 'ROLE';
-    this.existingId = existingId;
-  }
-}
-
-class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
+import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const RoleService = {
   async findAll(user: AuthUser) {
@@ -76,7 +37,7 @@ export const RoleService = {
     // Check if role with same name already exists
     const existing = await RoleRepository.findByNameNormalized(data.name);
     if (existing) {
-      throw new DuplicateError(`Ya existe un rol con el nombre "${existing.name}".`, existing.id);
+      throw new DuplicateError('ROLE', `Ya existe un rol con el nombre "${existing.name}".`, existing.id);
     }
 
     return RoleRepository.create({
@@ -105,7 +66,7 @@ export const RoleService = {
       const normalized = data.name.trim();
       const duplicate = await RoleRepository.findByNameNormalized(normalized);
       if (duplicate && duplicate.id !== id) {
-        throw new DuplicateError(`Ya existe otro rol con el nombre "${duplicate.name}".`, duplicate.id);
+        throw new DuplicateError('ROLE', `Ya existe otro rol con el nombre "${duplicate.name}".`, duplicate.id);
       }
     }
 

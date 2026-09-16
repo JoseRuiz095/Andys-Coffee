@@ -17,15 +17,15 @@ const statusStyles: Record<OrderStatus, { text: string; bg: string; color: strin
 
 export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-xl border border-[#E7E3DC] bg-white shadow-md">
+    <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-xl border shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <table className="w-full text-sm">
-        <thead className="border-b border-[#E7E3DC] bg-[#FDFBF7]">
+        <thead className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <tr>
-            <th className="p-4 text-left font-bold text-[#2C211D]">Orden #</th>
-            <th className="p-4 text-left font-bold text-[#2C211D]">Estado</th>
-            <th className="p-4 text-left font-bold text-[#2C211D]">Hora</th>
-            <th className="p-4 text-left font-bold text-[#2C211D]">Items</th>
-            <th className="p-4 text-right font-bold text-[#2C211D]">Acciones</th>
+            <th className="p-4 text-left font-bold" style={{ color: 'var(--color-text-primary)' }}>Orden #</th>
+            <th className="p-4 text-left font-bold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
+            <th className="p-4 text-left font-bold" style={{ color: 'var(--color-text-primary)' }}>Hora</th>
+            <th className="p-4 text-left font-bold" style={{ color: 'var(--color-text-primary)' }}>Items</th>
+            <th className="p-4 text-right font-bold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -43,9 +43,10 @@ export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
             return (
               <tr
                 key={order.id}
-                className="border-b border-[#E7E3DC] last:border-b-0 hover:bg-[#FDFBF7]"
+                className="border-b last:border-b-0"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
               >
-                <td className="p-4 font-medium text-[#2C211D]">
+                <td className="p-4 font-medium" style={{ color: 'var(--color-text-primary)' }}>
                   #{order.orderNumber}
                 </td>
                 <td className="p-4">
@@ -55,13 +56,13 @@ export function OrderListView({ orders, onStatusChange }: OrderListViewProps) {
                     {text}
                   </span>
                 </td>
-                <td className="p-4 text-[#6B7280]">
+                <td className="p-4" style={{ color: 'var(--color-text-secondary)' }}>
                   {new Date(order.createdAt).toLocaleTimeString('es-ES', {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
                 </td>
-                <td className="p-4 text-[#2C211D]">{truncatedSummary}</td>
+                <td className="p-4" style={{ color: 'var(--color-text-primary)' }}>{truncatedSummary}</td>
                 <td className="p-4 text-right">
                   <OrderActions
                     order={order}

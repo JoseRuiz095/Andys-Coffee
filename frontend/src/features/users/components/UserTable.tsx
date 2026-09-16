@@ -71,14 +71,15 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-red-300 bg-red-50 p-6">
-        <h3 className="font-semibold text-red-800">Error al cargar usuarios</h3>
-        <p className="mt-2 text-sm text-red-700">
+      <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Error al cargar usuarios</h3>
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           No se pudieron cargar los usuarios. Intenta de nuevo más tarde.
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white"
+          style={{ backgroundColor: 'var(--color-primary)' }}
         >
           Reintentar
         </button>
@@ -95,30 +96,31 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
         {canCreateUsers && (
           <button
             onClick={onCreateUser}
-            className="rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f]"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: 'var(--color-primary)' }}
           >
             Nuevo Usuario
           </button>
         )}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#E7E3DC]">
-        <table className="w-full">
-          <thead className="bg-[#FDFBF7] border-b border-[#E7E3DC]">
+      <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+        <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
+          <thead className="border-b" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#2C211D]">Nombre</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#2C211D]">Email</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#2C211D]">Rol</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#2C211D]">Estado</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#2C211D]">Acciones</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Nombre</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Email</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Rol</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className="border-t border-[#E7E3DC] hover:bg-[#FDFBF7]">
-                <td className="px-4 py-3 text-sm text-[#2C211D]">{user.name}</td>
-                <td className="px-4 py-3 text-sm text-[#6B7280]">{user.email}</td>
-                <td className="px-4 py-3 text-sm text-[#2C211D]">{user.role.name}</td>
+              <tr key={user.id} className="border-t" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.name}</td>
+                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.email}</td>
+                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.role.name}</td>
                 <td className="px-4 py-3 text-sm">
                   <span
                     className={`inline-block px-2 py-1 rounded text-xs font-medium ${
@@ -134,7 +136,8 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
                   {canUpdateUsers && (
                     <button
                       onClick={() => onEditUser(user.id)}
-                      className="text-[#5A804F] hover:underline"
+                      className="hover:underline"
+                      style={{ color: 'var(--color-primary)' }}
                     >
                       Editar
                     </button>
@@ -143,7 +146,8 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
                     <button
                       onClick={() => handleToggleActive(user.id, user.isActive)}
                       disabled={isTogglingActive || user.id === currentUser?.id}
-                      className="text-[#5A804F] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ color: 'var(--color-primary)' }}
                     >
                       {user.isActive ? 'Desactivar' : 'Activar'}
                     </button>
@@ -166,21 +170,23 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
 
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex justify-between items-center">
-          <span className="text-sm text-[#6B7280]">
+          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Página {pagination.page} de {pagination.totalPages}
           </span>
           <div className="space-x-2">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="px-3 py-1 rounded border border-[#E7E3DC] text-sm disabled:opacity-50"
+              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
             >
               Anterior
             </button>
             <button
               onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
               disabled={page === pagination.totalPages}
-              className="px-3 py-1 rounded border border-[#E7E3DC] text-sm disabled:opacity-50"
+              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
             >
               Siguiente
             </button>

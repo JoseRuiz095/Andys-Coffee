@@ -60,38 +60,43 @@ export function OrdersPage() {
   return (
     <div
       ref={containerRef}
-      className={`space-y-6 bg-[#FDFBF7] p-6 ${
-        isFullScreen
-          ? 'h-full'
-          : 'rounded-[1.5rem] border border-[#E7E3DC] shadow-[0_20px_50px_rgba(45,33,29,0.06)]'
-      }`}
+      className="space-y-6 p-6"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        border: isFullScreen ? 'none' : '1px solid var(--color-border)',
+        borderRadius: isFullScreen ? undefined : '1.5rem',
+        boxShadow: isFullScreen ? 'none' : '0 20px 50px rgba(45,33,29,0.06)',
+      }}
     >
       <OrdersHeader pendingOrders={pendingOrders} />
 
       <div className="flex justify-end gap-2">
         <button
           onClick={toggleFullScreen}
-          className="p-2 rounded-lg bg-white border border-[#E7E3DC]"
+          className="p-2 rounded-lg border"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
-          <MaximizeIcon className="h-5 w-5 text-[#2C211D]" />
+          <MaximizeIcon className="h-5 w-5" style={{ color: 'var(--color-text-primary)' }} />
         </button>
         <button
           onClick={() => setViewMode('grid')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
-            viewMode === 'grid'
-              ? 'bg-[#2C211D] text-white'
-              : 'bg-white text-[#2C211D] border border-[#E7E3DC]'
-          }`}
+          className="px-4 py-2 rounded-lg text-sm font-semibold border"
+          style={{
+            backgroundColor: viewMode === 'grid' ? 'var(--color-primary)' : 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: viewMode === 'grid' ? 'var(--color-button-text)' : 'var(--color-text-primary)',
+          }}
         >
           Grid
         </button>
         <button
           onClick={() => setViewMode('list')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
-            viewMode === 'list'
-              ? 'bg-[#2C211D] text-white'
-              : 'bg-white text-[#2C211D] border border-[#E7E3DC]'
-          }`}
+          className="px-4 py-2 rounded-lg text-sm font-semibold border"
+          style={{
+            backgroundColor: viewMode === 'list' ? 'var(--color-primary)' : 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: viewMode === 'list' ? 'var(--color-button-text)' : 'var(--color-text-primary)',
+          }}
         >
           Lista
         </button>

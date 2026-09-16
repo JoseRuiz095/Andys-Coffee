@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { InventoryService } from '../services/inventory.service';
 import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ingredientCreateSchema, ingredientUpdateSchema } from '../validators/inventory.validator';
 import { AuthUser } from '../services/auth.service';
+import { DuplicateError } from '../utils/errors';
+import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
 export const InventoryController = {
   async search(req: Request, res: Response) {
@@ -249,16 +251,8 @@ export const InventoryController = {
         return;
       }
 
-      if (error instanceof Error && error.name === 'DuplicateError') {
-        const duplicateError = error as any;
-        res.status(409).json({
-          error: 'DUPLICATE_ERROR',
-          message: error.message,
-          details: {
-            type: duplicateError.type,
-            existingId: duplicateError.existingId,
-          },
-        });
+      if (error instanceof DuplicateError) {
+        sendDuplicateErrorResponse(res, error);
         return;
       }
 
@@ -319,16 +313,8 @@ export const InventoryController = {
         return;
       }
 
-      if (error instanceof Error && error.name === 'DuplicateError') {
-        const duplicateError = error as any;
-        res.status(409).json({
-          error: 'DUPLICATE_ERROR',
-          message: error.message,
-          details: {
-            type: duplicateError.type,
-            existingId: duplicateError.existingId,
-          },
-        });
+      if (error instanceof DuplicateError) {
+        sendDuplicateErrorResponse(res, error);
         return;
       }
 

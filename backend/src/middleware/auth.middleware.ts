@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyJwtToken } from "../services/auth.service";
-import { prisma } from "../config/prisma";
+import { UserRepository } from "../repositories/user.repository";
 
 function getTokenFromCookie(cookieHeader: string | undefined): string | undefined {
   if (!cookieHeader) {
@@ -43,24 +43,7 @@ export async function requireAuth(
     }
 
     // Lightweight DB check to ensure user exists and is active
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        roleId: true,
-        isActive: true,
-        role: {
-          select: {
-            name: true,
-            permissions: {
-              select: { permission: { select: { name: true } } },
-            },
-          },
-        },
-      },
-    });
+    const user = await UserRepository.findWithPermissionsForAuth(userId);
 
     if (!user || !user.isActive) {
       return res.status(401).json({ message: "Sesión inválida o usuario inactivo." });

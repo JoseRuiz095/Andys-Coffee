@@ -6,9 +6,7 @@ import { Request, Response, NextFunction } from 'express';
  */
 export const checkPermission = (requiredPermission: string) => {
   return async (req: Request, res: Response, next: NextFunction) => {
-    // @ts-ignore - Asumimos que un middleware de autenticación previo
-    // ya ha validado el JWT y ha adjuntado el payload del usuario a `req.user`.
-    const user = req.user as { id: string; permissions: string[] } | undefined;
+    const user = req.user;
 
     if (!user?.permissions) {
       return res.status(401).json({ message: 'No autenticado o token inválido.' });

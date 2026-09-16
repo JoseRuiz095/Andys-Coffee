@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
@@ -59,7 +60,7 @@ export const InventoryCountRepository = {
     date?: string,
     client: PrismaClient = prisma,
   ) {
-    const skip = (page - 1) * limit;
+    const skip = paginationOffset(page, limit);
 
     const where: Prisma.InventoryCountWhereInput = {};
 
@@ -107,12 +108,7 @@ export const InventoryCountRepository = {
 
     return {
       data: counts,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(page, limit, total),
     };
   },
 

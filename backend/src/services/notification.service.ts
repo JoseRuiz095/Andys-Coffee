@@ -66,6 +66,9 @@ export const NotificationService = {
           createdAt: 'desc',
         },
       },
+      // Bounded to the most recent notifications; this list otherwise grows
+      // unbounded for the lifetime of the account.
+      take: 200,
     });
   },
 
