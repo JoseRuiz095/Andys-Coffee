@@ -30,6 +30,11 @@ export const SupplierController = {
         return;
       }
 
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
       throw error;
     }
   },
@@ -43,6 +48,11 @@ export const SupplierController = {
 
       res.json(supplier);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
       if (error instanceof Error && error.name === 'NotFoundError') {
         res.status(404).json({ error: error.message });
         return;
@@ -66,6 +76,11 @@ export const SupplierController = {
 
       res.json(results);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AuthorizationError') {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+
       if (error instanceof Error && error.name === 'ValidationError') {
         res.status(400).json({ error: error.message });
         return;

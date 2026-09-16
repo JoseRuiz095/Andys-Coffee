@@ -1,10 +1,15 @@
+import { Prisma } from '@prisma/client';
 import { SupplierRepository } from '../repositories/supplier.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const SupplierService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, isActive?: boolean, search?: string) {
-    const where: any = {};
+    if (!user.permissions?.includes('inventory.view')) {
+      throw new AuthorizationError('No tienes permiso para ver proveedores.');
+    }
+
+    const where: Prisma.SupplierWhereInput = {};
     if (isActive !== undefined) {
       where.isActive = isActive;
     }
@@ -18,6 +23,10 @@ export const SupplierService = {
   },
 
   async findById(id: string, user: AuthUser) {
+    if (!user.permissions?.includes('inventory.view')) {
+      throw new AuthorizationError('No tienes permiso para ver proveedores.');
+    }
+
     const supplier = await SupplierRepository.findById(id);
 
     if (!supplier) {
@@ -28,6 +37,10 @@ export const SupplierService = {
   },
 
   async search(query: string, user: AuthUser) {
+    if (!user.permissions?.includes('inventory.view')) {
+      throw new AuthorizationError('No tienes permiso para ver proveedores.');
+    }
+
     if (!query || query.trim().length < 2) {
       throw new ValidationError('La búsqueda debe tener al menos 2 caracteres.');
     }

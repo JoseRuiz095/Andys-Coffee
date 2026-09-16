@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
@@ -9,7 +10,7 @@ export const UserService = {
       throw new AuthorizationError('No tienes permiso para consultar usuarios.');
     }
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
     if (isActive !== undefined) {
       where.isActive = isActive;
     }
