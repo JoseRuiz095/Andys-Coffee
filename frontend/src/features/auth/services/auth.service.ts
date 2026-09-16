@@ -70,3 +70,13 @@ export async function getCurrentUser(): Promise<AuthUser> {
 export async function logout(): Promise<void> {
   await apiClient.post('/auth/logout')
 }
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  const response = await apiClient.post('/auth/change-password', { currentPassword, newPassword })
+  return response.data
+}
+
+export async function updateProfile(name: string): Promise<{ success: boolean; message: string; user: AuthUser }> {
+  const response = await apiClient.patch('/auth/profile', { name })
+  return response.data
+}
