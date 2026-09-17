@@ -5,6 +5,7 @@ import {
   type PaymentRangeRow,
   type CogsRangeRow,
   type ExpenseRangeRow,
+  type FixedExpenseSettings,
 } from '../repositories/income-statement.repository';
 import {
   getZonedDayBoundaries,
@@ -42,6 +43,7 @@ export interface DayFinancialSummary {
     costoVenta: number;
     gananciaBruta: number;
     gastos: number;
+    gastosOperativosFijos: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -101,6 +103,7 @@ export interface PeriodTotals {
   costoVenta: number;
   gananciaBruta: number;
   gastos: number;
+  gastosOperativosFijos: number;
   gananciaNeta: number;
   ahorro: number;
   fondoNegocio: number;
@@ -124,6 +127,7 @@ export interface DayCore {
   totalCogs: Prisma.Decimal;
   grossProfit: Prisma.Decimal;
   totalExpenses: Prisma.Decimal;
+  fixedOperatingExpenses: Prisma.Decimal;
   netProfit: Prisma.Decimal;
   openingFund: Prisma.Decimal;
   expectedCash: Prisma.Decimal | null;
@@ -147,7 +151,7 @@ function round2(value: Prisma.Decimal): Prisma.Decimal {
   return value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
-export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPercentages): DayCore {
+export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPercentages, fixedExpenseRate: Prisma.Decimal = ZERO): DayCore {
   const cashPayments = rows.payments.filter((p) => p.method === 'cash');
   const transferPayments = rows.payments.filter((p) => p.method === 'transfer');
   const otherPayments = rows.payments.filter((p) => p.method !== 'cash' && p.method !== 'transfer');
@@ -161,10 +165,12 @@ export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPer
   const grossProfit = totalRevenue.minus(totalCogs);
 
   const totalExpenses = sumDecimals(rows.expenses, (e) => e.amount);
-  const netProfit = grossProfit.minus(totalExpenses);
 
   const openingFund = sumDecimals(rows.sessions, (s) => s.openingAmount);
   const hadOperation = rows.sessions.length > 0 || rows.payments.length > 0 || rows.expenses.length > 0;
+
+  const fixedOperatingExpenses = hadOperation ? fixedExpenseRate : ZERO;
+  const netProfit = grossProfit.minus(totalExpenses).minus(fixedOperatingExpenses);
 
   const openSessionsCount = rows.sessions.filter((s) => s.status === 'open').length;
   let expectedCash: Prisma.Decimal | null = null;
@@ -202,6 +208,7 @@ export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPer
     totalCogs,
     grossProfit,
     totalExpenses,
+    fixedOperatingExpenses,
     netProfit,
     openingFund,
     expectedCash,
@@ -237,6 +244,7 @@ function buildSummaryDto(
       costoVenta: core.totalCogs.toNumber(),
       gananciaBruta: core.grossProfit.toNumber(),
       gastos: core.totalExpenses.toNumber(),
+      gastosOperativosFijos: core.fixedOperatingExpenses.toNumber(),
       gananciaNeta: core.netProfit.toNumber(),
     },
     conciliacion: {
@@ -294,12 +302,59 @@ export function shouldCarryForwardAccumulated(core: DayCore): boolean {
   return !core.hadOperation || core.netProfit.lessThanOrEqualTo(0);
 }
 
+/** Converts a final persisted IncomeStatementDailySnapshot to a DayFinancialSummary. */
+function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof incomeStatementRepository.findSnapshot>>): DayFinancialSummary {
+  if (!snapshot) throw new Error(`Snapshot for ${dateStr} not found`);
+  return {
+    date: dateStr,
+    hadOperation: snapshot.hadOperation,
+    movimientos: {
+      ingresosEfectivo: snapshot.cashRevenue.toNumber(),
+      ingresosTransferencia: snapshot.transferRevenue.toNumber(),
+      ingresosOtros: snapshot.otherRevenue.toNumber(),
+      ingresosTotales: snapshot.totalRevenue.toNumber(),
+      costoVenta: snapshot.totalCogs.toNumber(),
+      gananciaBruta: snapshot.grossProfit.toNumber(),
+      gastos: snapshot.totalExpenses.toNumber(),
+      gastosOperativosFijos: snapshot.fixedExpensesAmount.toNumber(),
+      gananciaNeta: snapshot.netProfit.toNumber(),
+    },
+    conciliacion: {
+      fondoInicial: snapshot.openingFund.toNumber(),
+      efectivoEsperado: snapshot.expectedCash?.toNumber() ?? null,
+      efectivoReal: snapshot.actualCash?.toNumber() ?? null,
+      diferencia: snapshot.cashDifference?.toNumber() ?? null,
+      estado: (snapshot.cashStatus as CashStatus) ?? null,
+      sessionsCount: snapshot.sessionsCount,
+      openSessionsCount: snapshot.openSessionsCount,
+    },
+    distribucion: {
+      ahorro: snapshot.savingsAmount.toNumber(),
+      fondoNegocio: snapshot.businessFundAmount.toNumber(),
+      surtido: snapshot.suppliesAmount.toNumber(),
+      porcentajes: {
+        ahorro: snapshot.savingsPercentUsed.toNumber(),
+        fondoNegocio: snapshot.businessFundPercentUsed.toNumber(),
+        surtido: snapshot.suppliesPercentUsed.toNumber(),
+      },
+    },
+    saldosAcumulados: {
+      ahorroAcumulado: snapshot.savingsAccumulated.toNumber(),
+      fondoNegocioAcumulado: snapshot.businessFundAccumulated.toNumber(),
+      surtidoAcumulado: snapshot.suppliesAccumulated.toNumber(),
+    },
+  };
+}
+
 /**
  * Computes DayFinancialSummary for every date in `dateStrs` (must be in
  * ascending chronological order). Fetches each data source exactly once for
  * the whole span, then buckets rows into per-day subsets in memory — never
  * one query per day. Accumulated saldos chain day-to-day in memory; only the
  * first day looks up its starting point from the last finalized snapshot.
+ *
+ * IMPORTANT: Final snapshots are frozen and reused — they are NOT recomputed with
+ * live config (distribution %, fixed-expense rate) to preserve historical accuracy.
  */
 async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): Promise<DayFinancialSummary[]> {
   if (dateStrs.length === 0) return [];
@@ -307,16 +362,19 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
   const { start } = getZonedDayBoundaries(dateStrs[0]);
   const { end } = getZonedDayBoundaries(dateStrs[dateStrs.length - 1]);
 
-  const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot] = await Promise.all([
+  const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot, finalSnapshots, fixedExpenseRate] = await Promise.all([
     incomeStatementRepository.findSessionsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findPaymentsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findCogsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findExpensesInRange(start, end, cashRegisterId),
     incomeStatementRepository.getDistributionPreferences(),
     incomeStatementRepository.findLatestFinalSnapshotBefore(dateStrs[0]),
+    incomeStatementRepository.findFinalSnapshotsInRange(start, end),
+    incomeStatementRepository.getDailyFixedExpenseTotal(),
   ]);
 
   const byDay = bucketRows(dateStrs, sessions, payments, cogsRows, expenses);
+  const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [s.date.toISOString().split('T')[0], s]));
   const today = getTodayInZone();
 
   let runningSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
@@ -326,55 +384,74 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
   const summaries: DayFinancialSummary[] = [];
 
   for (const dateStr of dateStrs) {
-    const rows = byDay.get(dateStr)!;
-    const core = computeDayCore(rows, percentages);
+    const existingFinalSnapshot = finalSnapshotsByDate.get(dateStr);
+    let summary: DayFinancialSummary;
 
-    const carryForward = shouldCarryForwardAccumulated(core);
-    if (!carryForward) {
-      runningSavings = runningSavings.plus(core.savingsAmount);
-      runningBusinessFund = runningBusinessFund.plus(core.businessFundAmount);
-      runningSupplies = runningSupplies.plus(core.suppliesAmount);
-    }
+    if (existingFinalSnapshot && existingFinalSnapshot.isFinal) {
+      // Frozen final snapshot — use it as-is, don't recalculate
+      summary = snapshotToSummary(dateStr, existingFinalSnapshot);
+      // Advance accumulated saldos using stored values (which already account for 0-distribution days)
+      runningSavings = new Prisma.Decimal(summary.saldosAcumulados.ahorroAcumulado);
+      runningBusinessFund = new Prisma.Decimal(summary.saldosAcumulados.fondoNegocioAcumulado);
+      runningSupplies = new Prisma.Decimal(summary.saldosAcumulados.surtidoAcumulado);
+    } else {
+      // New day or non-final day — recompute
+      const rows = byDay.get(dateStr)!;
+      const core = computeDayCore(rows, percentages, fixedExpenseRate);
 
-    const accumulated = {
-      savingsAccumulated: runningSavings,
-      businessFundAccumulated: runningBusinessFund,
-      suppliesAccumulated: runningSupplies,
-    };
+      const carryForward = shouldCarryForwardAccumulated(core);
+      if (!carryForward) {
+        runningSavings = runningSavings.plus(core.savingsAmount);
+        runningBusinessFund = runningBusinessFund.plus(core.businessFundAmount);
+        runningSupplies = runningSupplies.plus(core.suppliesAmount);
+      }
 
-    const isFinal = dateStr < today && (core.sessionsCount === 0 || core.openSessionsCount === 0);
-    if (isFinal) {
-      // Write-through cache: only persisted once a day is truly closed out, so a snapshot is never
-      // written for "today" or for a day that still has an open cash session.
-      await incomeStatementRepository.upsertSnapshot(dateStr, {
-        hadOperation: core.hadOperation,
-        openingFund: core.openingFund,
-        cashRevenue: core.cashRevenue,
-        transferRevenue: core.transferRevenue,
-        otherRevenue: core.otherRevenue,
-        totalRevenue: core.totalRevenue,
-        totalCogs: core.totalCogs,
-        grossProfit: core.grossProfit,
-        totalExpenses: core.totalExpenses,
-        netProfit: core.netProfit,
-        expectedCash: core.expectedCash,
-        actualCash: core.actualCash,
-        cashDifference: core.cashDifference,
-        cashStatus: core.cashStatus,
-        savingsAmount: core.savingsAmount,
-        businessFundAmount: core.businessFundAmount,
-        suppliesAmount: core.suppliesAmount,
+      const accumulated = {
         savingsAccumulated: runningSavings,
         businessFundAccumulated: runningBusinessFund,
         suppliesAccumulated: runningSupplies,
-        savingsPercentUsed: new Prisma.Decimal(percentages.savingsPercent),
-        businessFundPercentUsed: new Prisma.Decimal(percentages.businessFundPercent),
-        suppliesPercentUsed: new Prisma.Decimal(percentages.suppliesPercent),
-        isFinal: true,
-      });
+      };
+
+      const isFinal = dateStr < today && (core.sessionsCount === 0 || core.openSessionsCount === 0);
+      if (isFinal) {
+        // Write-through cache: only persisted once a day is truly closed out, so a snapshot is never
+        // written for "today" or for a day that still has an open cash session.
+        await incomeStatementRepository.upsertSnapshot(dateStr, {
+          hadOperation: core.hadOperation,
+          openingFund: core.openingFund,
+          cashRevenue: core.cashRevenue,
+          transferRevenue: core.transferRevenue,
+          otherRevenue: core.otherRevenue,
+          totalRevenue: core.totalRevenue,
+          totalCogs: core.totalCogs,
+          grossProfit: core.grossProfit,
+          totalExpenses: core.totalExpenses,
+          netProfit: core.netProfit,
+          expectedCash: core.expectedCash,
+          actualCash: core.actualCash,
+          cashDifference: core.cashDifference,
+          cashStatus: core.cashStatus,
+          fixedExpensesAmount: core.fixedOperatingExpenses,
+          fixedExpenseRateUsed: fixedExpenseRate,
+          sessionsCount: core.sessionsCount,
+          openSessionsCount: core.openSessionsCount,
+          savingsAmount: core.savingsAmount,
+          businessFundAmount: core.businessFundAmount,
+          suppliesAmount: core.suppliesAmount,
+          savingsAccumulated: runningSavings,
+          businessFundAccumulated: runningBusinessFund,
+          suppliesAccumulated: runningSupplies,
+          savingsPercentUsed: new Prisma.Decimal(percentages.savingsPercent),
+          businessFundPercentUsed: new Prisma.Decimal(percentages.businessFundPercent),
+          suppliesPercentUsed: new Prisma.Decimal(percentages.suppliesPercent),
+          isFinal: true,
+        });
+      }
+
+      summary = buildSummaryDto(dateStr, core, percentages, accumulated);
     }
 
-    summaries.push(buildSummaryDto(dateStr, core, percentages, accumulated));
+    summaries.push(summary);
   }
 
   return summaries;
@@ -392,6 +469,7 @@ function computeTotals(days: DayFinancialSummary[]): PeriodTotals {
     costoVenta: sum((d) => d.movimientos.costoVenta),
     gananciaBruta: sum((d) => d.movimientos.gananciaBruta),
     gastos: sum((d) => d.movimientos.gastos),
+    gastosOperativosFijos: sum((d) => d.movimientos.gastosOperativosFijos),
     gananciaNeta: sum((d) => d.movimientos.gananciaNeta),
     ahorro: sum((d) => d.distribucion.ahorro),
     fondoNegocio: sum((d) => d.distribucion.fondoNegocio),
@@ -422,27 +500,34 @@ export const incomeStatementService = {
 
   async getDayDetail(dateStr: string, cashRegisterId?: string): Promise<DayDetailResponse> {
     const { start, end } = getZonedDayBoundaries(dateStr);
-    const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot] = await Promise.all([
+    const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot, finalSnapshot, fixedExpenseRate] = await Promise.all([
       incomeStatementRepository.findSessionsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findPaymentsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findCogsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findExpensesInRange(start, end, cashRegisterId),
       incomeStatementRepository.getDistributionPreferences(),
       incomeStatementRepository.findLatestFinalSnapshotBefore(dateStr),
+      incomeStatementRepository.findSnapshot(dateStr),
+      incomeStatementRepository.getDailyFixedExpenseTotal(),
     ]);
 
-    const core = computeDayCore({ sessions, payments, cogsRows, expenses }, percentages);
-    const carryForward = shouldCarryForwardAccumulated(core);
-    const prevSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
-    const prevBusinessFund = prevSnapshot?.businessFundAccumulated ?? ZERO;
-    const prevSupplies = prevSnapshot?.suppliesAccumulated ?? ZERO;
-    const accumulated = {
-      savingsAccumulated: carryForward ? prevSavings : prevSavings.plus(core.savingsAmount),
-      businessFundAccumulated: carryForward ? prevBusinessFund : prevBusinessFund.plus(core.businessFundAmount),
-      suppliesAccumulated: carryForward ? prevSupplies : prevSupplies.plus(core.suppliesAmount),
-    };
-
-    const summary = buildSummaryDto(dateStr, core, percentages, accumulated);
+    let summary: DayFinancialSummary;
+    if (finalSnapshot && finalSnapshot.isFinal) {
+      // Use frozen final snapshot for movimientos/distribucion/saldos, but fetch live session/expense details
+      summary = snapshotToSummary(dateStr, finalSnapshot);
+    } else {
+      const core = computeDayCore({ sessions, payments, cogsRows, expenses }, percentages, fixedExpenseRate);
+      const carryForward = shouldCarryForwardAccumulated(core);
+      const prevSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
+      const prevBusinessFund = prevSnapshot?.businessFundAccumulated ?? ZERO;
+      const prevSupplies = prevSnapshot?.suppliesAccumulated ?? ZERO;
+      const accumulated = {
+        savingsAccumulated: carryForward ? prevSavings : prevSavings.plus(core.savingsAmount),
+        businessFundAccumulated: carryForward ? prevBusinessFund : prevBusinessFund.plus(core.businessFundAmount),
+        suppliesAccumulated: carryForward ? prevSupplies : prevSupplies.plus(core.suppliesAmount),
+      };
+      summary = buildSummaryDto(dateStr, core, percentages, accumulated);
+    }
 
     const breakdownMap = new Map<string, { amount: Prisma.Decimal; count: number }>();
     for (const p of payments) {
@@ -506,5 +591,47 @@ export const incomeStatementService = {
     }
     const daySummaries = await computeDaySequence(days, cashRegisterId);
     return { from, to, days: daySummaries, totals: computeTotals(daySummaries) };
+  },
+
+  async getFixedExpenseSettings() {
+    return incomeStatementRepository.getFixedExpenseConcepts();
+  },
+
+  async upsertFixedExpenseConcept(slug: string, input: { label: string; amount: number }) {
+    return incomeStatementRepository.upsertFixedExpenseConcept(slug, input);
+  },
+
+  async deleteFixedExpenseConcept(slug: string) {
+    return incomeStatementRepository.deleteFixedExpenseConcept(slug);
+  },
+
+  async updateAccumulatedBalances(
+    dateStr: string,
+    input: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number },
+  ) {
+    const today = getTodayInZone();
+    if (dateStr < today) {
+      throw new IncomeStatementBusinessRuleError('No se pueden editar saldos acumulados de días pasados.');
+    }
+
+    // Validate that none of the balances are negative
+    if (input.ahorroAcumulado < 0 || input.fondoNegocioAcumulado < 0 || input.surtidoAcumulado < 0) {
+      throw new IncomeStatementBusinessRuleError('Los saldos acumulados no pueden ser negativos.');
+    }
+
+    // Get the current day's financial summary to check netProfit
+    const daySummary = await this.getDayFinancials(dateStr);
+    const totalAccumulated = input.ahorroAcumulado + input.fondoNegocioAcumulado + input.surtidoAcumulado;
+
+    // Warning: accumulated balances should generally be reasonable relative to day's net profit
+    // This is a soft check to warn about suspicious values but not block valid corrections
+    if (daySummary.movimientos.gananciaNeta > 0 && totalAccumulated - (daySummary.saldosAcumulados.ahorroAcumulado + daySummary.saldosAcumulados.fondoNegocioAcumulado + daySummary.saldosAcumulados.surtidoAcumulado) > daySummary.movimientos.gananciaNeta * 2) {
+      throw new IncomeStatementBusinessRuleError(
+        'Los saldos acumulados aumentan más del doble de la ganancia neta del día. Verifica los valores.',
+      );
+    }
+
+    await incomeStatementRepository.updateAccumulatedBalances(dateStr, input);
+    return this.getDayFinancials(dateStr);
   },
 };

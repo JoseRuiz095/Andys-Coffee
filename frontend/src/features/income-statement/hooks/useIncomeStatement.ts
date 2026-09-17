@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IncomeStatementAPI, type DistributionSettings } from '../api/income-statement.api';
+import { IncomeStatementAPI, type DistributionSettings, type FixedExpenseSettings } from '../api/income-statement.api';
 
 const QUERY_KEY = 'incomeStatement';
 
@@ -54,6 +54,50 @@ export function useUpdateDistributionSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: DistributionSettings) => IncomeStatementAPI.updateDistributionSettings(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useFixedExpenseSettings() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'fixed-expense-settings'],
+    queryFn: () => IncomeStatementAPI.getFixedExpenseSettings(),
+  });
+}
+
+export function useUpsertFixedExpenseConcept() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slug, input }: { slug: string; input: { label: string; amount: number } }) =>
+      IncomeStatementAPI.upsertFixedExpenseConcept(slug, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useDeleteFixedExpenseConcept() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (slug: string) => IncomeStatementAPI.deleteFixedExpenseConcept(slug),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useUpdateAccumulatedBalances() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      date,
+      input,
+    }: {
+      date: string;
+      input: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number };
+    }) => IncomeStatementAPI.updateAccumulatedBalances(date, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },

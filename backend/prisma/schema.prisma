@@ -695,6 +695,10 @@ model IncomeStatementDailySnapshot {
   savingsPercentUsed      Decimal  @db.Decimal(5, 2)
   businessFundPercentUsed Decimal  @db.Decimal(5, 2)
   suppliesPercentUsed     Decimal  @db.Decimal(5, 2)
+  fixedExpensesAmount     Decimal  @default(0) @db.Decimal(12, 2)
+  fixedExpenseRateUsed    Decimal  @default(0) @db.Decimal(12, 2)
+  sessionsCount           Int      @default(0)
+  openSessionsCount       Int      @default(0)
   isFinal                 Boolean  @default(false)
   computedAt              DateTime @updatedAt
   createdAt               DateTime @default(now())

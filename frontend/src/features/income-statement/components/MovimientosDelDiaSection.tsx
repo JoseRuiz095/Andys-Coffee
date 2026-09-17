@@ -23,7 +23,8 @@ export function MovimientosDelDiaSection({ summary }: { summary: DayFinancialSum
         <StatBlock label="Ingresos Totales" value={summary.movimientos.ingresosTotales} emphasize />
         <StatBlock label="Costo de Venta" value={-summary.movimientos.costoVenta} />
         <StatBlock label="Ganancia Bruta" value={summary.movimientos.gananciaBruta} emphasize />
-        <StatBlock label="Gastos" value={-summary.movimientos.gastos} />
+        <StatBlock label="Gastos Variables" value={-summary.movimientos.gastos} />
+        <StatBlock label="Gastos Operativos Fijos" value={-summary.movimientos.gastosOperativosFijos} />
         <StatBlock
           label="Ganancia Neta"
           value={summary.movimientos.gananciaNeta}

@@ -13,6 +13,27 @@ const DEFAULT_DISTRIBUTION_PERCENTAGES = {
   suppliesPercent: 70,
 };
 
+// Fixed expense concepts are stored as SystemPreference rows with keys like 'expenses.fixed.general',
+// 'expenses.fixed.luz', 'expenses.fixed.sueldos'. The sum of all matching keys is applied daily
+// to days that hadOperation === true. Do NOT also manually log these as Expense rows in the
+// 'nomina' or 'servicios' categories — they would double-count against netProfit.
+export const FIXED_EXPENSE_KEY_PREFIX = 'expenses.fixed.';
+
+const DEFAULT_FIXED_EXPENSE_CONCEPTS = [
+  { slug: 'general', label: 'Gastos Operativos Fijos (Luz + Sueldos)', amount: 260 },
+];
+
+export interface FixedExpenseConcept {
+  slug: string;
+  label: string;
+  amount: number;
+}
+
+export interface FixedExpenseSettings {
+  concepts: FixedExpenseConcept[];
+  total: number;
+}
+
 export interface SessionRangeRow {
   id: string;
   cashRegisterId: string;
@@ -251,5 +272,76 @@ export const incomeStatementRepository = {
     ]);
 
     return this.getDistributionPreferences();
+  },
+
+  async getFixedExpenseConcepts(): Promise<FixedExpenseSettings> {
+    const rows = await prisma.systemPreference.findMany({
+      where: { key: { startsWith: FIXED_EXPENSE_KEY_PREFIX }, type: 'number' },
+    });
+
+    if (rows.length === 0) {
+      return { concepts: DEFAULT_FIXED_EXPENSE_CONCEPTS, total: DEFAULT_FIXED_EXPENSE_CONCEPTS.reduce((sum, c) => sum + c.amount, 0) };
+    }
+
+    const concepts = rows.map((r) => {
+      const parsed = Number(r.value);
+      return {
+        slug: r.key.slice(FIXED_EXPENSE_KEY_PREFIX.length),
+        label: r.label ?? r.key,
+        amount: Number.isFinite(parsed) ? parsed : 0,
+      };
+    });
+
+    return { concepts, total: concepts.reduce((sum, c) => sum + c.amount, 0) };
+  },
+
+  async getDailyFixedExpenseTotal(): Promise<Prisma.Decimal> {
+    const { total } = await this.getFixedExpenseConcepts();
+    return new Prisma.Decimal(total);
+  },
+
+  async upsertFixedExpenseConcept(slug: string, input: { label: string; amount: number }): Promise<FixedExpenseSettings> {
+    const key = `${FIXED_EXPENSE_KEY_PREFIX}${slug}`;
+    await prisma.systemPreference.upsert({
+      where: { key },
+      update: { value: String(input.amount), type: 'number', label: input.label },
+      create: { key, value: String(input.amount), type: 'number', label: input.label },
+    });
+    return this.getFixedExpenseConcepts();
+  },
+
+  async deleteFixedExpenseConcept(slug: string): Promise<FixedExpenseSettings> {
+    const key = `${FIXED_EXPENSE_KEY_PREFIX}${slug}`;
+    await prisma.systemPreference.delete({ where: { key } });
+    return this.getFixedExpenseConcepts();
+  },
+
+  async findFinalSnapshotsInRange(from: Date, to: Date) {
+    return prisma.incomeStatementDailySnapshot.findMany({
+      where: { isFinal: true, date: { gte: from, lt: to } },
+      orderBy: { date: 'asc' },
+    });
+  },
+
+  async invalidateSnapshot(dateStr: string): Promise<number> {
+    const date = new Date(`${dateStr}T00:00:00Z`);
+    return prisma.incomeStatementDailySnapshot.deleteMany({
+      where: { date },
+    }).then((result) => result.count);
+  },
+
+  async updateAccumulatedBalances(
+    dateStr: string,
+    input: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number },
+  ) {
+    const date = new Date(`${dateStr}T00:00:00Z`);
+    return prisma.incomeStatementDailySnapshot.update({
+      where: { date },
+      data: {
+        savingsAccumulated: new Prisma.Decimal(input.ahorroAcumulado),
+        businessFundAccumulated: new Prisma.Decimal(input.fondoNegocioAcumulado),
+        suppliesAccumulated: new Prisma.Decimal(input.surtidoAcumulado),
+      },
+    });
   },
 };

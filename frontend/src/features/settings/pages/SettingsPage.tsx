@@ -12,7 +12,7 @@ import { RolesView } from '../../roles/components/RolesView'
 import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
-import { DistributionSettingsForm } from '../../income-statement'
+import { DistributionSettingsForm, FixedExpenseSettingsForm } from '../../income-statement'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
@@ -198,6 +198,9 @@ export function SettingsPage() {
                 </Card>
                 <Card variant="panel">
                   <DistributionSettingsForm />
+                </Card>
+                <Card variant="panel">
+                  <FixedExpenseSettingsForm />
                 </Card>
               </div>
             )}

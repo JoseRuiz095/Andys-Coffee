@@ -7,6 +7,9 @@ import {
   monthQuerySchema,
   rangeQuerySchema,
   distributionSettingsSchema,
+  fixedExpenseConceptSchema,
+  fixedExpenseSlugParamSchema,
+  accumulatedBalancesSchema,
 } from '../validators/income-statement.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -49,4 +52,29 @@ export const updateDistributionSettings = asyncHandler(async (req: Request, res:
   const input = distributionSettingsSchema.parse(req.body);
   const settings = await incomeStatementService.updateDistributionSettings(input);
   res.status(200).json(settings);
+});
+
+export const getFixedExpenseSettings = asyncHandler(async (_req: Request, res: Response) => {
+  const settings = await incomeStatementService.getFixedExpenseSettings();
+  res.status(200).json(settings);
+});
+
+export const upsertFixedExpenseConcept = asyncHandler(async (req: Request, res: Response) => {
+  const { slug } = fixedExpenseSlugParamSchema.parse(req.params);
+  const input = fixedExpenseConceptSchema.parse(req.body);
+  const settings = await incomeStatementService.upsertFixedExpenseConcept(slug, input);
+  res.status(200).json(settings);
+});
+
+export const deleteFixedExpenseConcept = asyncHandler(async (req: Request, res: Response) => {
+  const { slug } = fixedExpenseSlugParamSchema.parse(req.params);
+  const settings = await incomeStatementService.deleteFixedExpenseConcept(slug);
+  res.status(200).json(settings);
+});
+
+export const updateAccumulatedBalances = asyncHandler(async (req: Request, res: Response) => {
+  const query = dayQuerySchema.parse(req.query);
+  const input = accumulatedBalancesSchema.parse(req.body);
+  const summary = await incomeStatementService.updateAccumulatedBalances(query.date, input);
+  res.status(200).json(summary);
 });

@@ -15,6 +15,7 @@ export interface DayFinancialSummary {
     costoVenta: number;
     gananciaBruta: number;
     gastos: number;
+    gastosOperativosFijos: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -74,11 +75,23 @@ export interface PeriodTotals {
   costoVenta: number;
   gananciaBruta: number;
   gastos: number;
+  gastosOperativosFijos: number;
   gananciaNeta: number;
   ahorro: number;
   fondoNegocio: number;
   surtido: number;
   lastAccumulated: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number };
+}
+
+export interface FixedExpenseConcept {
+  slug: string;
+  label: string;
+  amount: number;
+}
+
+export interface FixedExpenseSettings {
+  concepts: FixedExpenseConcept[];
+  total: number;
 }
 
 export interface WeekFinancialResponse {
@@ -152,6 +165,33 @@ export const IncomeStatementAPI = {
 
   async updateDistributionSettings(input: DistributionSettings) {
     const { data } = await apiClient.patch<DistributionSettings>(`${BASE_URL}/settings/distribution`, input);
+    return data;
+  },
+
+  async getFixedExpenseSettings() {
+    const { data } = await apiClient.get<FixedExpenseSettings>(`${BASE_URL}/settings/fixed-expenses`);
+    return data;
+  },
+
+  async upsertFixedExpenseConcept(slug: string, input: { label: string; amount: number }) {
+    const { data } = await apiClient.put<FixedExpenseSettings>(`${BASE_URL}/settings/fixed-expenses/${slug}`, input);
+    return data;
+  },
+
+  async deleteFixedExpenseConcept(slug: string) {
+    const { data } = await apiClient.delete<FixedExpenseSettings>(`${BASE_URL}/settings/fixed-expenses/${slug}`);
+    return data;
+  },
+
+  async updateAccumulatedBalances(
+    date: string,
+    input: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number },
+  ) {
+    const queryParams = new URLSearchParams({ date });
+    const { data } = await apiClient.patch<DayFinancialSummary>(
+      `${BASE_URL}/day/accumulated-balances?${queryParams.toString()}`,
+      input,
+    );
     return data;
   },
 };

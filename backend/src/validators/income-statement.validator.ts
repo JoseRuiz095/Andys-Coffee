@@ -52,9 +52,35 @@ export const distributionSettingsSchema = z
     { message: 'Los porcentajes de distribución deben sumar 100%.' },
   );
 
+export const fixedExpenseConceptSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  amount: z.number().min(0).max(999999.99),
+});
+
+export const fixedExpenseSlugParamSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,49}$/, 'Slug inválido'),
+});
+
+export const accumulatedBalancesSchema = z
+  .object({
+    ahorroAcumulado: z.number().min(0),
+    fondoNegocioAcumulado: z.number().min(0),
+    surtidoAcumulado: z.number().min(0),
+  })
+  .refine(
+    (data) => {
+      const total = data.ahorroAcumulado + data.fondoNegocioAcumulado + data.surtidoAcumulado;
+      return total === Math.round(total * 100) / 100; // Prevent floating-point precision issues
+    },
+    { message: 'Los saldos acumulados contienen errores de precisión.' },
+  );
+
 export type DayQuery = z.infer<typeof dayQuerySchema>;
 export type DayDetailQuery = z.infer<typeof dayDetailQuerySchema>;
 export type WeekQuery = z.infer<typeof weekQuerySchema>;
 export type MonthQuery = z.infer<typeof monthQuerySchema>;
 export type RangeQuery = z.infer<typeof rangeQuerySchema>;
 export type DistributionSettingsInput = z.infer<typeof distributionSettingsSchema>;
+export type FixedExpenseConceptInput = z.infer<typeof fixedExpenseConceptSchema>;
+export type FixedExpenseSlugParam = z.infer<typeof fixedExpenseSlugParamSchema>;
+export type AccumulatedBalancesInput = z.infer<typeof accumulatedBalancesSchema>;

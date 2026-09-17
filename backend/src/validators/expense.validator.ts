@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+// NOTA: 'nomina' y 'servicios' aquí son para gastos ad-hoc/puntuales. Los costos fijos
+// recurrentes (Luz, Sueldos) se cubren con la tarifa diaria bajo las claves SystemPreference
+// `expenses.fixed.*` (ver income-statement.repository.ts) y ya se deducen automáticamente
+// en el Estado de Resultados como "Gastos Operativos Fijos". NO registrarlos también aquí —
+// se duplicarían contra la ganancia neta. Convención documentada, no forzada por el sistema.
 export const expenseCategories = ['insumos', 'servicios', 'mantenimiento', 'nomina', 'renta', 'otros'] as const;
 export const expensePaymentMethods = ['cash', 'transfer', 'card'] as const;
 
