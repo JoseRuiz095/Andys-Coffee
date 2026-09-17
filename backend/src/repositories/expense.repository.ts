@@ -1,0 +1,50 @@
+import { Prisma } from '@prisma/client';
+import { prisma } from '../config/prisma';
+
+export const ExpenseRepository = {
+  async findWithPagination(where: Prisma.ExpenseWhereInput, skip: number, limit: number) {
+    const [expenses, total] = await prisma.$transaction([
+      prisma.expense.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { expenseDate: 'desc' },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+          cashSession: { select: { id: true, status: true } },
+        },
+      }),
+      prisma.expense.count({ where }),
+    ]);
+    return { expenses, total };
+  },
+
+  async findById(id: string) {
+    return prisma.expense.findUnique({
+      where: { id },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        cashSession: { select: { id: true, status: true, expectedAmount: true } },
+      },
+    });
+  },
+
+  async findByIdInTransaction(tx: Prisma.TransactionClient, id: string) {
+    return tx.expense.findUnique({
+      where: { id },
+      include: { cashSession: { select: { id: true, status: true, expectedAmount: true } } },
+    });
+  },
+
+  async create(tx: Prisma.TransactionClient, data: Prisma.ExpenseUncheckedCreateInput) {
+    return tx.expense.create({ data });
+  },
+
+  async update(tx: Prisma.TransactionClient, id: string, data: Prisma.ExpenseUncheckedUpdateInput) {
+    return tx.expense.update({ where: { id }, data });
+  },
+
+  async delete(tx: Prisma.TransactionClient, id: string) {
+    return tx.expense.delete({ where: { id } });
+  },
+};

@@ -22,3 +22,14 @@ export const correctCashClosingSchema = z.object({
 });
 
 export type CorrectCashClosingInput = z.infer<typeof correctCashClosingSchema>;
+
+export const cashSessionHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  cashRegisterId: z.string().uuid().optional(),
+  status: z.enum(['open', 'closed']).optional(),
+});
+
+export type CashSessionHistoryQuery = z.infer<typeof cashSessionHistoryQuerySchema>;

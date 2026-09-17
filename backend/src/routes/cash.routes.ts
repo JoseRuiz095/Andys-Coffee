@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSession } from '../controllers/cash.controller';
+import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSession, getCashSessionsHistory } from '../controllers/cash.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
@@ -7,6 +7,7 @@ import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema
 
 const router = Router();
 
+router.get('/sessions', requireAuth, checkPermission('cash.read'), getCashSessionsHistory);
 router.get('/sessions/active', requireAuth, checkPermission('cash.open'), getActiveCashSession);
 router.post(
   '/sessions',

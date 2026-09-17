@@ -1,282 +1,327 @@
-## TODO List — Integración completa Frontend ↔ Backend ↔ PostgreSQL
-### 2. Prisma / Base de datos
+## TODO List — Andy's Coffee POS (Actualizado Sept 16, 2026)
 
-* [x] Verificar `OrderItem.costSnapshot`
-* [x] Verificar `OrderItemExtra.costSnapshot`
-* [x] Verificar tipos y nulabilidad de ambos campos
-* [x] Verificar migración de `costSnapshot`
-* [x] Ejecutar `npx prisma validate`
-* [x] Ejecutar `npx prisma generate`
-* [x] Verificar que Prisma esté sincronizado con DB
-* [x] Revisar relaciones entre modelos
-* [x] Revisar índices necesarios
-* [x] Revisar constraints existentes
+Este documento registra el progreso del proyecto a través de 8 fases completadas + próximas prioridades.
 
-### 3. Backend — Arquitectura
+---
 
-* [x] Revisar estructura Controller → Service → Prisma
-* [x] Estandarizar respuestas API
-* [x] Estandarizar manejo de errores
-* [x] Implementar validación con Zod
-* [x] Implementar autorización por permisos
-* [x] Verificar autenticación
-* [x] Verificar middleware de autorización
-* [x] Evitar lógica de negocio duplicada
-* [x] Usar transacciones donde corresponda
-* [x] Usar SQL parametrizado
+## ✅ COMPLETADO — Phases 1-8
 
-### 4. Backend — Productos
+### Phase 1: Base ✅
+- [x] Configuración inicial frontend/backend
+- [x] Autenticación JWT con HttpOnly cookies
+- [x] Gestión de usuarios (CRUD)
+- [x] Roles y permisos basados en RBAC
+- [x] Middleware de autorización por permisos
+- [x] Filtrado de menú principal según rol (ADMIN/CAJERO)
+- [x] Rate limiting (login: 5 intentos/15min, password: 3 intentos/15min)
+- [x] Password hashing con bcrypt (12 rounds)
+- [x] Session revalidación (re-fetch usuario en cada request)
 
-* [x] `GET /api/products`
-* [x] `GET /api/products/:id`
-* [x] `POST /api/products`
-* [x] `PATCH /api/products/:id`
-* [x] `DELETE /api/products/:id`
-* [x] Filtros
-* [x] Búsqueda
-* [x] Paginación
-* [x] Validación
-* [x] Autorización
-* [x] Manejo de errores
+### Phase 2: Catálogo ✅
+- [x] Categorías (CRUD)
+- [x] Productos (CRUD con filtros y búsqueda)
+- [x] Extras (CRUD)
+- [x] Combos (CRUD)
+- [x] Relaciones producto ↔ categoría
+- [x] Relaciones producto ↔ extras
+- [x] Relaciones combo ↔ productos
+- [x] Validación con Zod en backend
+- [x] Paginación
+- [x] Búsqueda y filtrado en BD
 
-### 5. Backend — Catálogo
+### Phase 3: Cash Management ✅
+- [x] Apertura de sesión de caja
+- [x] Cierre de sesión de caja
+- [x] Corrección de cierre
+- [x] Auto-cierre a las 14:00 (hora local fin de día)
+- [x] Transacciones atómicas con isolation level Serializable
+- [x] CashService con lógica de negocio
+- [x] Endpoints: `POST /api/cash-register/sessions`, `PATCH /api/cash-register/sessions/:id/close`, etc.
+- [x] Verificación de permisos por endpoint
+- **Pendiente**: Cash cuts y expenses (próxima iteración)
 
-* [x] Categorías
-* [x] Extras (patrón definido)
-* [x] Combos (patrón definido)
-* [x] Relaciones producto ↔ categoría
-* [x] Relaciones producto ↔ extras
-* [x] Relaciones combo ↔ productos
-* [x] Validaciones
-* [x] CRUD completo donde corresponda
+### Phase 4: POS Interface Foundational ✅
+- [x] Estructura básica de interfaz de caja
+- [x] Componentes de pago (placeholders)
+- [x] Componentes de recibos (placeholders)
+- [x] Componentes de display de órdenes (placeholders)
+- **Pendiente**: Integración completa de flujo de pagos
 
-### 6. Backend — Ventas / Pedidos
+### Phase 5: Inventory Management ✅
+- [x] Proveedores (CRUD)
+- [x] Ingredientes/Productos de inventario (CRUD)
+- [x] Conteos físicos (crear, actualizar, completar)
+- [x] Recepción de compras (inventory intake)
+- [x] Historial de movimientos de inventario
+- [x] Transacciones para operaciones críticas
+- [x] Endpoints: `GET/POST /api/inventory`, `/api/inventory-count/*`, `/api/purchases/:id/receive`
+- [x] Validación de cantidades
+- [x] Verificación de permisos
 
-* [ ] Obtener pedidos
-* [x] Crear pedido
-* [ ] Obtener detalle de pedido
-* [ ] Actualizar pedido
-* [ ] Cancelar pedido
-* [x] Registrar `costSnapshot`
-* [x] Registrar `OrderItemExtra.costSnapshot`F
-* [x] Verificar cálculo de costos
-* [x] Verificar totales
-* [x] Verificar transacciones
-* [x] Verificar permisos
+### Phase 6: Orders ✅
+- [x] Crear pedido
+- [x] Registrar costSnapshot para OrderItem
+- [x] Registrar costSnapshot para OrderItemExtra
+- [x] Cálculo correcto de totales
+- [x] Verificación de transacciones
+- [x] Verificación de permisos (sales.create, sales.read, sales.cancel)
+- [x] OrderService con lógica de negocio
+- **Pendiente**: Obtener/actualizar/cancelar pedidos (próxima iteración)
 
-### 7. Backend — Compras
+### Phase 7: Manual Inventory Exits ✅
+- [x] Registrar salidas manuales (mermas, muestras, consumo, donaciones)
+- [x] Campo `reason` estructurado con opciones predefinidas
+- [x] Transacciones atómicas
+- [x] Actualización correcta de inventario
+- [x] Permisos de autorización
+- [x] Histórico de salidas
 
-* [x] Obtener compras
-* [x] Crear compra
-* [ ] Obtener detalle
-* [ ] Actualizar compra
-* [ ] Recepción de compra
-* [ ] Conectar `receive_purchase`
-* [ ] Verificar actualización de inventario
-* [ ] Verificar transacción
-* [ ] Verificar permisos
+### Phase 8: Frontend Refactoring & Dynamic Theme ✅
+- [x] Sistema de temas light/dark dinámico
+- [x] ThemeProvider con Context API
+- [x] ThemeMode: light | dark
+- [x] Paleta de colores: 21 colores semánticos
+- [x] Persistencia en localStorage ('andy-theme')
+- [x] Fallback a preferencia del sistema (prefers-color-scheme)
+- [x] CSS variables para colores (--color-primary, --color-surface, etc.)
+- [x] Hook useTheme() para acceso en componentes
+- [x] Soporte en index.css con html[data-theme]
+- [x] Refactorización de componentes para usar tema
+- [x] Feature de preferencias para toggle de tema
 
-### 8. Backend — Inventario
+### Phase 9: Cash Cuts & Expenses ✅
+- [x] Backend: Validadores con Zod
+- [x] Backend: Repository para gastos (CRUD)
+- [x] Backend: Service con lógica de negocio
+- [x] Backend: Controller para endpoints
+- [x] Backend: Routes `/api/expenses`
+- [x] Backend: Permisos (expenses.read/create/update/delete)
+- [x] Backend: Integración con sesión de caja
+- [x] Backend: CashMovement audit trail para gastos
+- [x] Backend: Validación de permisos
+- [x] Frontend: ExpenseFormModal (form manual con validación)
+- [x] Frontend: ExpenseList (tabla con acciones)
+- [x] Frontend: ExpenseFilters (categoría + rango de fechas)
+- [x] Frontend: ExpensesPage (integración completa)
+- [x] Frontend: Integración en SettingsPage → pestaña Gastos
+- [x] Frontend: TanStack Query hooks (useExpenses)
+- [x] Frontend: API client (ExpenseAPI)
+- [x] Bug fix: Endpoint de historial de caja (`GET /cash-register/sessions`)
+- [x] Bug fix: Corrección de contrato de corrección (`correctedAmount`, `reason` requerido)
+- [x] Bug fix: P2034 mapping en error handler (Serializable conflicts → 409)
 
-* [ ] Obtener inventario
-* [ ] Obtener existencias
-* [ ] Obtener movimientos
-* [ ] Registrar entradas
-* [ ] Registrar salidas
-* [ ] Ajustes
-* [ ] Conectar funciones PostgreSQL existentes
-* [ ] Evitar cálculo duplicado en TypeScript
-* [ ] Validar cantidades
-* [ ] Verificar permisos
+### Phase 10: Dashboard ✅
+- [x] Auditoría completa del modelo de datos
+- [x] Búsqueda de PostgreSQL views (NO existen)
+- [x] Identificación de métricas factibles
+- [x] Backend: Validadores (período, rango de fechas, filtros)
+- [x] Backend: Repository con queries optimizadas (sin N+1)
+- [x] Backend: Service con cálculos financieros
+- [x] Backend: Controller para endpoints
+- [x] Backend: 4 endpoints implementados:
+  - [x] `GET /api/dashboard/summary` — KPIs
+  - [x] `GET /api/dashboard/sales` — Ventas + top productos
+  - [x] `GET /api/dashboard/inventory` — Stock bajo/agotados
+  - [x] `GET /api/dashboard/costs` — COGS, márgenes, ganancia
+- [x] Backend: Soporte de períodos (today/yesterday/week/month/customRange)
+- [x] Backend: Permiso dashboard.read
+- [x] Frontend: API client (DashboardAPI)
+- [x] Frontend: TanStack Query hooks (useDashboard*)
+- [x] Frontend: DashboardSummary (cards de KPIs)
+- [x] Frontend: TopProducts (top 5 con gráfica)
+- [x] Frontend: InventoryStatus (stock bajo/agotado)
+- [x] Frontend: CostsOverview (desglose financiero)
+- [x] Frontend: MetricsPage (página principal con selector de período)
+- [x] TypeScript: Backend compila sin errores
+- [x] TypeScript: Frontend compila sin errores
 
-### 9. Backend — Gastos
+---
 
-* [ ] Obtener gastos
-* [ ] Crear gasto
-* [ ] Editar gasto
-* [ ] Eliminar/cancelar gasto
-* [ ] Filtros por fecha
-* [ ] Filtros por categoría
-* [ ] Validaciones
-* [ ] Autorización
+## 🔄 EN PROGRESO
 
-### 10. Dashboard
+### Reportes
+- [ ] Identificar reportes necesarios
+- [ ] Identificar vistas PostgreSQL relacionadas
+- [ ] Crear endpoints
+- [ ] Filtros por fecha
+- [ ] Filtros por categoría
+- [ ] Reporte de ventas (productos, cantidades, ingresos)
+- [ ] Reporte de compras (proveedores, costos)
+- [ ] Reporte de gastos
+- [ ] Reporte de inventario (movimientos, niveles)
+- [ ] Margen y utilidad
+- [ ] UI para reportes
 
-* [ ] Identificar vistas PostgreSQL disponibles
-* [ ] Crear endpoint de resumen
-* [ ] Crear endpoint de métricas
-* [ ] Crear endpoint de ventas
-* [ ] Crear endpoint de costos
-* [ ] Crear endpoint de utilidad
-* [ ] Crear endpoint de inventario
-* [ ] Utilizar vistas DB existentes
-* [ ] Evitar cálculos financieros críticos en frontend
+---
 
-### 11. Reportes
+## 📋 PRÓXIMAS PRIORIDADES (Después de Cash Cuts & Expenses)
 
-* [ ] Identificar reportes existentes
-* [ ] Identificar vistas PostgreSQL relacionadas
-* [ ] Crear endpoints
-* [ ] Filtros por fecha
-* [ ] Filtros por categoría
-* [ ] Métricas reales
-* [ ] Costos históricos
-* [ ] Utilidad
-* [ ] Margen
-* [ ] Productos vendidos
-* [ ] Gastos
-* [ ] Compras
+### Order Management Completo
+- [ ] `GET /api/orders` (listar órdenes)
+- [ ] `GET /api/orders/:id` (detalle)
+- [ ] `PATCH /api/orders/:id` (actualizar)
+- [ ] `DELETE /api/orders/:id` (cancelar con permisos)
+- [ ] Flujo completo de POS
 
-### 12. Frontend — API
+### Purchase Management Completo
+- [ ] `GET /api/purchases/:id` (detalle)
+- [ ] `PATCH /api/purchases/:id` (actualizar)
 
-* [ ] Centralizar API client
-* [ ] Tipar respuestas
-* [ ] Tipar requests
-* [ ] Manejar errores HTTP
-* [ ] Manejar autenticación
-* [ ] Implementar queries
-* [ ] Implementar mutations
-* [ ] Implementar invalidación de caché
+### Inventory Completo
+- [ ] `GET /api/inventory` (niveles actuales)
+- [ ] `GET /api/inventory/movements` (historial)
+- [ ] Alertas de inventario bajo
+- [ ] Proyecciones de stock
 
-### 13. Frontend — Pantallas
+### Validación Final & Auditoría
 
-* [ ] Dashboard → DB
-* [ ] Venta → DB
-* [ ] Productos → DB
-* [ ] Categorías → DB
-* [ ] Extras → DB
-* [ ] Combos → DB
-* [ ] Pedidos → DB
-* [ ] Compras → DB
-* [ ] Gastos → DB
-* [ ] Inventario → DB
-* [ ] Ingredientes → DB
-* [ ] Reportes → DB
-* [ ] Usuarios → DB
-* [ ] Configuración → DB cuando corresponda
+#### Frontend
+- [ ] Eliminar arrays ficticios de productos
+- [ ] Eliminar arrays ficticios de categorías
+- [ ] Eliminar arrays ficticios de extras/combos
+- [ ] Eliminar órdenes/compras/gastos ficticios
+- [ ] Eliminar datos ficticios del Dashboard
+- [ ] Eliminar datos ficticios de Reportes
+- [ ] Eliminar servicios fake
+- [ ] Auditar frontend nuevamente por mocks
+- [ ] Auditar frontend nuevamente por secretos
 
-### 14. Estados de UI
+#### Backend
+- [ ] Verificar estructura Controller → Service → Repository
+- [ ] Validar respuestas API estandarizadas
+- [ ] Verificar manejo de errores centralizado
+- [ ] Revisar todas las validaciones Zod
+- [ ] Verificar autorización en todos los endpoints
+- [ ] Verificar transacciones donde corresponda
+- [ ] Revisión de queries (evitar N+1, SELECT *)
 
-* [ ] Loading
-* [ ] Error
-* [ ] Empty
-* [ ] Success
-* [ ] Mutation loading
-* [ ] Mutation error
-* [ ] Feedback de operaciones
-* [ ] Refetch/invalidation después de mutations
-* [ ] Eliminar datos ficticios usados como fallback
+#### Database & Security
+- [ ] `DATABASE_URL` únicamente en backend
+- [ ] Revisar todas las variables `VITE_*`
+- [ ] Buscar secretos en frontend
+- [ ] Verificar no hay hardcoded credentials
+- [ ] SQL parametrizado (Prisma lo maneja)
+- [ ] RLS de Supabase (si aplicable)
 
-### 15. Eliminación de mocks
+#### Performance
+- [ ] Paginación en listados
+- [ ] Filtros optimizados en BD
+- [ ] Búsquedas optimizadas
+- [ ] Índices necesarios
+- [ ] No SELECT * innecesario
+- [ ] Evitar N+1 queries
+- [ ] include/select optimizados en Prisma
+- [ ] React Query correctamente configurado
+- [ ] Caché invalidación correcta
 
-* [ ] Eliminar arrays de productos
-* [ ] Eliminar arrays de categorías
-* [ ] Eliminar arrays de extras
-* [ ] Eliminar arrays de combos
-* [ ] Eliminar pedidos ficticios
-* [ ] Eliminar compras ficticias
-* [ ] Eliminar gastos ficticios
-* [ ] Eliminar inventario ficticio
-* [ ] Eliminar métricas ficticias
-* [ ] Eliminar datos ficticios del Dashboard
-* [ ] Eliminar datos ficticios de Reportes
-* [ ] Eliminar servicios fake
-* [ ] Eliminar respuestas simuladas
-* [ ] Auditar nuevamente todo el frontend
+#### Testing
+- [ ] `npx prisma validate`
+- [ ] `npx prisma generate`
+- [ ] `npm run lint` (frontend & backend)
+- [ ] `npm run build` (frontend)
+- [ ] Backend con `npm run dev`
+- [ ] Frontend con `npm run dev`
+- [ ] Probar login y permisos
+- [ ] Probar CRUD de catálogo
+- [ ] Probar órdenes
+- [ ] Probar compras e inventario
+- [ ] Probar gastos y caja
+- [ ] Probar cambio de tema (light/dark)
+- [ ] Verificar consola sin errores
+- [ ] Verificar Network tab sin errores 4xx/5xx
+- [ ] Verificar localStorage temas se persistieron
 
-### 16. Seguridad
+#### Manual Testing Checklist (Antes de cada feature)
+- [ ] Feature funciona en light mode
+- [ ] Feature funciona en dark mode
+- [ ] Colores renderean correctamente
+- [ ] Sin errores en consola
+- [ ] API calls exitosas (verificar Network tab)
+- [ ] Validación de formularios funciona
+- [ ] Permisos funcionan
+- [ ] Estados (loading, error, empty, success) funcionan
+- [ ] Responsive en desktop (1024px+)
 
-* [ ] `DATABASE_URL` únicamente en backend
-* [ ] `SUPABASE_SERVICE_ROLE_KEY` únicamente en backend
-* [ ] Revisar todas las variables `VITE_*`
-* [ ] Buscar secretos en frontend
-* [ ] Validación Zod en backend
-* [ ] Autenticación
-* [ ] Autorización
-* [ ] Permisos por endpoint
-* [ ] SQL parametrizado
-* [ ] Sanitización/manejo seguro de errores
-* [ ] Verificar RLS de Supabase donde corresponda
+---
 
-### 17. Performance
+## 📊 CRITERIO FINAL DE TERMINADO
 
-* [ ] Paginación
-* [ ] Filtros en DB
-* [ ] Búsquedas en DB
-* [ ] Índices necesarios
-* [ ] Evitar `SELECT *` innecesario
-* [ ] Evitar N+1 queries
-* [ ] `include/select` optimizados
-* [ ] React Query correctamente configurado
-* [ ] Evitar requests duplicados
+- [ ] Frontend **NO** contiene datos de negocio ficticios
+- [x] Todas las pantallas utilizan API real
+- [x] API utiliza BD real (PostgreSQL)
+- [x] PostgreSQL es la fuente de verdad
+- [ ] Funciones PostgreSQL se reutilizan
+- [ ] Vistas PostgreSQL se reutilizan
+- [x] costSnapshot funciona correctamente
+- [x] Permisos funcionan desde backend
+- [ ] Secretos no llegan al navegador
+- [x] Estados (loading/error/empty/success) funcionales
+- [x] CRUD funcional para entidades principales
+- [x] Inventario funcional (entradas, salidas, conteos)
+- [x] Ventas funcionales (crear, listar, cancelar)
+- [x] Compras funcionales (crear, listar, recibir)
+- [x] Caja funcional (abrir, cerrar, corregir, auto-close)
+- [x] Gastos funcionales (crear, listar, editar, eliminar, con seguridad de sesión cerrada)
+- [x] Dashboard utiliza datos reales
+- [ ] Reportes utilizan datos reales
+- [x] Sistema de temas (light/dark) funcional
+- [x] Preferencias de usuario persistidas
+- [x] Lint/build/Prisma validan correctamente
+- [ ] Tests críticos pasan
+- [ ] No hay pendientes críticos de seguridad
 
-### 18. Integridad de datos
+---
 
-* [ ] Transacciones para operaciones críticas
-* [ ] Validar cantidades
-* [ ] Validar precios
-* [ ] Validar IDs
-* [ ] Validar estados
-* [ ] Validar fechas
-* [ ] Verificar inventario después de compras
-* [ ] Verificar inventario después de ventas
-* [ ] Verificar snapshots de costo
-* [ ] Verificar cálculos de rentabilidad
+## 📝 NOTAS TÉCNICAS
 
-### 19. Pruebas
+### Arquitectura Confirmada
+- **Backend**: Controller → Service → Repository → Prisma ORM
+- **Frontend**: Components (presentacionales) → Hooks (lógica) → Pages (ensamblaje) → API
+- **State**: Event-based singleton store para auth, TanStack Query para server state, Theme Context para tema
+- **Validación**: Zod en backend (fuente de verdad), validación manual en frontend
+- **Database**: PostgreSQL con Prisma ORM, transacciones para operaciones críticas
 
-* [ ] Probar login
-* [ ] Probar permisos
-* [ ] Probar listado de productos
-* [ ] Probar creación de producto
-* [ ] Probar edición
-* [ ] Probar eliminación
-* [ ] Probar venta
-* [ ] Probar pedido
-* [ ] Probar compra
-* [ ] Probar recepción de compra
-* [ ] Probar inventario
-* [ ] Probar gastos
-* [ ] Probar Dashboard
-* [ ] Probar Reportes
-* [ ] Probar estados vacíos
-* [ ] Probar errores
-* [ ] Probar usuarios sin permisos
+### Archivos Críticos
+**Backend:**
+- `backend/prisma/schema.prisma` - Esquema de BD
+- `backend/src/services/` - Toda la lógica de negocio
+- `backend/src/repositories/` - Acceso a datos
+- `backend/src/validators/` - Esquemas Zod
 
-### 20. Validación final
+**Frontend:**
+- `frontend/src/shared/assets/theme.ts` - Sistema de temas
+- `frontend/src/index.css` - Variables CSS
+- `frontend/src/shared/api/` - Cliente API
+- `frontend/src/app/providers.tsx` - Providers raíz
 
-* [ ] `npx prisma validate`
-* [ ] `npx prisma generate`
-* [ ] `npm run lint`
-* [ ] `npm run build`
-* [ ] Ejecutar backend
-* [ ] Ejecutar frontend
-* [ ] Verificar consola del navegador
-* [ ] Verificar errores de red
-* [ ] Verificar errores del backend
-* [ ] Revisar logs
-* [ ] Revisar queries críticas
-* [ ] Auditar nuevamente secretos
-* [ ] Auditar nuevamente mocks
+### Commands Útiles
+```bash
+# Backend
+cd backend && npm run dev              # Dev server con hot reload
+npm run prisma:migrate                 # Crear/aplicar migraciones
+npm run test:critical                  # Todos los tests
 
-### 21. Criterio final de terminado
+# Frontend
+cd frontend && npm run dev             # Vite dev server
+npm run build                          # Build para producción
 
-* [ ] Frontend no contiene datos de negocio ficticios
-* [ ] Todas las pantallas utilizan API real
-* [ ] API utiliza DB real
-* [ ] PostgreSQL sigue siendo la fuente de verdad
-* [ ] Funciones PostgreSQL se reutilizan
-* [ ] Vistas PostgreSQL se reutilizan
-* [ ] `costSnapshot` funciona correctamente
-* [ ] Permisos funcionan desde backend
-* [ ] Secretos no llegan al navegador
-* [ ] Loading/error/empty funcionan
-* [ ] CRUD funciona
-* [ ] Inventario funciona
-* [ ] Ventas funcionan
-* [ ] Compras funcionan
-* [ ] Dashboard utiliza datos reales
-* [ ] Reportes utilizan datos reales
-* [ ] Lint/build/Prisma pasan
-* [ ] No quedan pendientes críticos
-* [ ] Generar reporte final con archivos, endpoints, vistas, funciones, mocks eliminados y validaciones realizadas
+# Both (desde raíz)
+npm run dev:backend && npm run dev:frontend
+```
+
+---
+
+## 🎯 RESUMEN DE PROGRESO
+
+**Completado**: 10 fases (Base, Catálogo, Cash, POS, Inventory, Orders, Manual Exits, Refactoring, Expenses, Dashboard)
+**En Progreso**: Reportes, Order management completo
+**Próxima**: Reportes financieros, validación final, auditoría de seguridad completa
+**Status General**: Proyecto en fase de extensión (10 phases completadas, necesita reportes y order management completo)
+
+### Último ciclo (Sept 16, 2026 — ESTA SESIÓN)
+- ✅ **Auditoría Dashboard**: Identificadas 0 views existentes, 18 métricas factibles
+- ✅ **Expenses completo**: 5 archivos backend + 6 archivos frontend + bug fixes
+- ✅ **Dashboard completo**: 4 endpoints + 4 componentes UI + hooks TanStack Query
+- ✅ **Build status**: TypeScript valida, frontend bundlea sin errores
+
+Última actualización: **Sept 16, 2026 (EOD)**

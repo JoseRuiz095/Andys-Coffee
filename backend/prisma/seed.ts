@@ -562,6 +562,12 @@ const permissions = [
   { name: "cash.open", description: "Abrir caja" },
   { name: "cash.close", description: "Cerrar caja" },
   { name: "cash.correct", description: "Corregir un cierre de caja" },
+  { name: "cash.read", description: "Consultar historial de cortes de caja" },
+  { name: "dashboard.read", description: "Consultar dashboard y métricas" },
+  { name: "expenses.read", description: "Consultar gastos" },
+  { name: "expenses.create", description: "Registrar gastos" },
+  { name: "expenses.update", description: "Actualizar gastos" },
+  { name: "expenses.delete", description: "Eliminar gastos" },
   { name: "reports.read", description: "Consultar reportes" },
   { name: "inventory.view", description: "Ver inventario" },
   { name: "inventory.create_entry", description: "Registrar entradas de inventario" },
@@ -625,7 +631,7 @@ async function main() {
     data: allPermissions.map((p) => ({ roleId: adminRoleId, permissionId: p.id })),
   });
 
-  const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close", "inventory.view"];
+  const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close", "cash.read", "inventory.view"];
   const cashierPermissions = allPermissions.filter((p) => cashierPermissionNames.includes(p.name));
   await prisma.rolePermission.createMany({
     data: cashierPermissions.map((p) => ({ roleId: cashierRoleId, permissionId: p.id })),

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CashService } from '../services/cash.service';
-import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema } from '../validators/cash.validator';
+import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema, cashSessionHistoryQuerySchema } from '../validators/cash.validator';
 import { auditLog } from '../utils/logger';
 
 function getAuthenticatedUserId(req: Request) {
@@ -66,4 +66,10 @@ export const correctCashClosing = asyncHandler(async (req: Request, res: Respons
     newState: session.status,
   }, 'Cash session closing corrected');
   res.status(200).json({ session });
+});
+
+export const getCashSessionsHistory = asyncHandler(async (req: Request, res: Response) => {
+  const query = cashSessionHistoryQuerySchema.parse(req.query);
+  const result = await CashService.getSessionsHistory(query);
+  res.status(200).json(result);
 });

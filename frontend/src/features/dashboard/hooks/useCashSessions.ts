@@ -20,12 +20,16 @@ export interface CashSession {
   }
 }
 
-export function useCashSessionHistory() {
+export function useCashSessionHistory(filters: { page?: number; limit?: number; startDate?: string; endDate?: string; cashRegisterId?: string; status?: string } = {}) {
   return useQuery({
-    queryKey: ['cash-sessions-history'],
+    queryKey: ['cash-sessions-history', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ sessions: CashSession[] }>('/cash-register/sessions')
-      return data.sessions || []
+      const params = new URLSearchParams()
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      })
+      const { data } = await apiClient.get<{ data: CashSession[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/cash-register/sessions?${params.toString()}`)
+      return data
     },
   })
 }
@@ -34,10 +38,10 @@ export function useCorrectCashClosing() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ sessionId, closingAmount, comment }: { sessionId: string; closingAmount: number; comment?: string }) => {
+    mutationFn: async ({ sessionId, correctedAmount, reason, comment }: { sessionId: string; correctedAmount: number; reason: string; comment?: string }) => {
       const { data } = await apiClient.patch<{ session: CashSession }>(
         `/cash-register/sessions/${sessionId}/closing`,
-        { closingAmount, comment }
+        { correctedAmount, reason, comment }
       )
       return data.session
     },

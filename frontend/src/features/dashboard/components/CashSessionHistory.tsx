@@ -2,25 +2,34 @@ import { useState } from 'react'
 import { useCashSessionHistory, useCorrectCashClosing } from '../hooks/useCashSessions'
 import { Spinner } from '../../../shared/components/Spinner'
 import { sileo } from 'sileo'
+import { cashDifferenceReasons } from '../constants'
 
 export function CashSessionHistory() {
-  const { data: sessions, isLoading } = useCashSessionHistory()
+  const { data, isLoading } = useCashSessionHistory()
   const { mutate: correctClosing, isPending: isCorrecting } = useCorrectCashClosing()
   const [correctingSessionId, setCorrectingSessionId] = useState<string | null>(null)
   const [correctionAmount, setCorrectionAmount] = useState('')
+  const [correctionReason, setCorrectionReason] = useState('')
+  const [correctionComment, setCorrectionComment] = useState('')
 
   const handleCorrect = (sessionId: string) => {
     if (!correctionAmount || isNaN(parseFloat(correctionAmount))) {
       sileo.error({ title: 'Error', description: 'Ingresa un monto válido' })
       return
     }
+    if (!correctionReason) {
+      sileo.error({ title: 'Error', description: 'Selecciona un motivo de corrección' })
+      return
+    }
 
     correctClosing(
-      { sessionId, closingAmount: parseFloat(correctionAmount) },
+      { sessionId, correctedAmount: parseFloat(correctionAmount), reason: correctionReason, comment: correctionComment || undefined },
       {
         onSuccess: () => {
           setCorrectingSessionId(null)
           setCorrectionAmount('')
+          setCorrectionReason('')
+          setCorrectionComment('')
         },
       }
     )
@@ -30,7 +39,7 @@ export function CashSessionHistory() {
     return <div className="flex justify-center py-8"><Spinner /></div>
   }
 
-  const closedSessions = sessions?.filter((s) => s.status === 'closed') || []
+  const closedSessions = data?.data?.filter((s) => s.status === 'closed') || []
 
   if (closedSessions.length === 0) {
     return (
@@ -86,41 +95,76 @@ export function CashSessionHistory() {
                   </td>
                   <td className="p-4 text-center">
                     {isCorrectingThis ? (
-                      <div className="flex gap-2 justify-center">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={correctionAmount}
-                          onChange={(e) => setCorrectionAmount(e.target.value)}
-                          placeholder="Nuevo monto"
-                          aria-label={`Nuevo monto de cierre para sesión ${session.id}`}
-                          className="px-2 py-1 border rounded text-sm w-24"
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={correctionAmount}
+                            onChange={(e) => setCorrectionAmount(e.target.value)}
+                            placeholder="Nuevo monto"
+                            aria-label={`Nuevo monto de cierre para sesión ${session.id}`}
+                            className="px-2 py-1 border rounded text-sm flex-1"
+                            style={{
+                              borderColor: 'var(--color-border)',
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <select
+                            value={correctionReason}
+                            onChange={(e) => setCorrectionReason(e.target.value)}
+                            className="px-2 py-1 border rounded text-sm w-full"
+                            style={{
+                              borderColor: 'var(--color-border)',
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
+                            <option value="">Selecciona un motivo</option>
+                            {cashDifferenceReasons.map((reason) => (
+                              <option key={reason} value={reason}>{reason}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <textarea
+                          value={correctionComment}
+                          onChange={(e) => setCorrectionComment(e.target.value)}
+                          placeholder="Comentario (opcional)"
+                          rows={2}
+                          className="px-2 py-1 border rounded text-sm w-full"
                           style={{
                             borderColor: 'var(--color-border)',
                             backgroundColor: 'var(--color-surface)',
                             color: 'var(--color-text-primary)',
                           }}
                         />
-                        <button
-                          onClick={() => handleCorrect(session.id)}
-                          disabled={isCorrecting}
-                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50"
-                        >
-                          {isCorrecting ? 'Guardando...' : 'Guardar'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCorrectingSessionId(null)
-                            setCorrectionAmount('')
-                          }}
-                          className="px-2 py-1 border rounded text-xs"
-                          style={{
-                            borderColor: 'var(--color-border)',
-                            color: 'var(--color-text-primary)',
-                          }}
-                        >
-                          Cancelar
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCorrect(session.id)}
+                            disabled={isCorrecting || !correctionReason}
+                            className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50"
+                          >
+                            {isCorrecting ? 'Guardando...' : 'Guardar'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCorrectingSessionId(null)
+                              setCorrectionAmount('')
+                              setCorrectionReason('')
+                              setCorrectionComment('')
+                            }}
+                            className="px-2 py-1 border rounded text-xs"
+                            style={{
+                              borderColor: 'var(--color-border)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button

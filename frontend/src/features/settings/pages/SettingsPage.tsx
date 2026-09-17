@@ -13,11 +13,13 @@ import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
 import { CashSessionHistory } from '../../dashboard/components/CashSessionHistory'
+import { ExpensesPage } from '../../expenses/pages/ExpensesPage'
+import { MetricsPage } from '../../dashboard/pages/MetricsPage'
 import { useRolesList } from '../../roles/hooks/useRoles'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'expenses' | 'dashboard' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -68,6 +70,8 @@ export function SettingsPage() {
   const canViewUsers = hasPermission(currentUser, 'users.read')
   const canManageUsers = canViewUsers // Display admin panel if user can read
   const canCreateRoles = hasPermission(currentUser, 'users.create')
+  const canManageExpenses = hasPermission(currentUser, 'expenses.read')
+  const canViewDashboard = hasPermission(currentUser, 'dashboard.read')
 
   return (
     <div
@@ -161,6 +165,16 @@ export function SettingsPage() {
                     label="Historial de Caja"
                     isActive={activeTab === 'cash-history'}
                     onClick={() => setActiveTab('cash-history')}
+                  />
+                  <NavTab
+                    label="Gastos"
+                    isActive={activeTab === 'expenses'}
+                    onClick={() => setActiveTab('expenses')}
+                  />
+                  <NavTab
+                    label="Dashboard"
+                    isActive={activeTab === 'dashboard'}
+                    onClick={() => setActiveTab('dashboard')}
                   />
                 </>
               )}
@@ -301,6 +315,38 @@ export function SettingsPage() {
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
                 >
                   <CashSessionHistory />
+                </div>
+              </div>
+            )}
+
+            {/* Gastos */}
+            {activeTab === 'expenses' && canManageExpenses && (
+              <div className="space-y-4">
+                <ContentHeader
+                  title="Gestión de Gastos"
+                  description="Crea, edita y gestiona gastos del negocio"
+                />
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
+                  <ExpensesPage />
+                </div>
+              </div>
+            )}
+
+            {/* Dashboard */}
+            {activeTab === 'dashboard' && canViewDashboard && (
+              <div className="space-y-4">
+                <ContentHeader
+                  title="Dashboard"
+                  description="Métricas y análisis en tiempo real del negocio"
+                />
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
+                  <MetricsPage />
                 </div>
               </div>
             )}

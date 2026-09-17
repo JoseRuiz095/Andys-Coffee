@@ -583,13 +583,7 @@ export function DashboardPage() {
               ) : (
                 <button
                   key={item.label}
-                  onClick={() => {
-                    if (item.label === 'Dashboard') {
-                      navigateTo(APP_ROUTES.dashboard)
-                    } else {
-                      setActiveView(item.label)
-                    }
-                  }}
+                  onClick={() => setActiveView(item.label)}
                   className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
                   style={{
                     backgroundColor: activeView === item.label ? 'var(--color-primary)' : 'transparent',

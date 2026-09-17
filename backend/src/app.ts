@@ -17,6 +17,8 @@ import userRoutes from "./routes/user.routes";
 import roleRoutes from "./routes/role.routes";
 import permissionRoutes from "./routes/permission.routes";
 import preferenceRoutes from "./routes/preference.routes";
+import expenseRoutes from "./routes/expense.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { CORS_ORIGINS, isProduction } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
@@ -113,6 +115,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/permissions", permissionRoutes);
 app.use("/api/preferences", preferenceRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../../../shared/components/Button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
+import { cashDifferenceReasons } from '../constants'
 
 interface CashClosingDialogProps {
   open: boolean
@@ -9,13 +10,6 @@ interface CashClosingDialogProps {
   onClose: () => void
   onConfirm: (input: { closingAmount: number; reason?: string; comment?: string }) => void
 }
-
-const reasons = [
-  'Error al entregar cambio',
-  'Efectivo retirado durante el turno',
-  'Venta registrada incorrectamente',
-  'Otro motivo',
-]
 
 export function CashClosingDialog({ open, expectedAmount, isLoading = false, onClose, onConfirm }: CashClosingDialogProps) {
   const [step, setStep] = useState<'count' | 'review'>('count')
@@ -61,7 +55,7 @@ export function CashClosingDialog({ open, expectedAmount, isLoading = false, onC
                 <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Motivo
                   <select value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border px-3 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}>
                     <option value="">Selecciona un motivo</option>
-                    {reasons.map((option) => <option key={option} value={option}>{option}</option>)}
+                    {cashDifferenceReasons.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
                 <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Comentario

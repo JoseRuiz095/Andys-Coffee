@@ -70,6 +70,9 @@ export const errorHandler = (
     if (err.code === 'P2003' || err.code === 'P2014') {
       return res.status(409).json({ message: 'La operación entra en conflicto con datos existentes.' });
     }
+    if (err.code === 'P2034') {
+      return res.status(409).json({ message: 'La operación no pudo completarse por un conflicto de concurrencia. Intenta de nuevo.' });
+    }
   }
 
   if (err instanceof SyntaxError && 'body' in err) {

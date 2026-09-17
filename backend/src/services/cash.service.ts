@@ -3,7 +3,8 @@ import { prisma } from '../config/prisma';
 import { CASH_TIMEZONE } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
 import { UserRepository } from '../repositories/user.repository';
-import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput } from '../validators/cash.validator';
+import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput, CashSessionHistoryQuery } from '../validators/cash.validator';
+import { paginationMeta } from '../utils/pagination';
 import { NotificationService } from './notification.service';
 
 export class CashBusinessRuleError extends Error {
@@ -16,6 +17,12 @@ export class CashBusinessRuleError extends Error {
 export const CashService = {
   async getActiveSession(): Promise<CashSessionWithDetails | null> {
     return CashRepository.findActiveSession();
+  },
+
+  async getSessionsHistory(query: CashSessionHistoryQuery) {
+    const { page, limit } = query;
+    const { sessions, total } = await CashRepository.findSessionsHistory(query, page, limit);
+    return { data: sessions, pagination: paginationMeta(page, limit, total) };
   },
 
   async closeSession(closedById: string, input: CloseCashSessionInput): Promise<CashSessionWithDetails | null> {

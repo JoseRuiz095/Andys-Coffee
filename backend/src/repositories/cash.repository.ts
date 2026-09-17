@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { paginationOffset } from '../utils/pagination';
 
 const sessionInclude = {
   cashRegister: true,
@@ -153,5 +154,41 @@ export const CashRepository = {
     });
 
     return session;
+  },
+
+  async findSessionsHistory(
+    filters: { startDate?: string; endDate?: string; cashRegisterId?: string; status?: string },
+    page: number,
+    limit: number,
+  ) {
+    const skip = paginationOffset(page, limit);
+    const range = {
+      gte: filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : undefined,
+      lte: filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : undefined,
+    };
+
+    const where: Prisma.CashSessionWhereInput = {
+      ...(filters.cashRegisterId && { cashRegisterId: filters.cashRegisterId }),
+      ...(filters.status && { status: filters.status }),
+      ...((range.gte || range.lte) && {
+        openedAt: {
+          ...(range.gte && { gte: range.gte }),
+          ...(range.lte && { lte: range.lte }),
+        },
+      }),
+    };
+
+    const [sessions, total] = await Promise.all([
+      prisma.cashSession.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { openedAt: 'desc' },
+        include: sessionInclude,
+      }),
+      prisma.cashSession.count({ where }),
+    ]);
+
+    return { sessions, total };
   },
 };
