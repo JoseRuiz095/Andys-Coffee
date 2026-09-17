@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node dev.js",
     "prisma:generate": "npx prisma generate",
     "prisma:seed": "npx prisma db seed",
     "prisma:migrate": "npx prisma migrate dev",
@@ -22,7 +22,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@prisma/adapter-pg": "^6.12.0",
     "@prisma/client": "^6.19.3",
@@ -52,7 +52,9 @@
     "@types/pg": "^8.23.1",
     "@types/uuid": "^10.0.0",
     "cross-env": "^10.1.0",
+    "cross-spawn": "^7.0.6",
     "dotenv": "^17.4.2",
+    "kill-port": "^2.0.1",
     "prisma": "^6.19.3",
     "tsx": "^4.23.11",
     "typescript": "^5.9.3"
