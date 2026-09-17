@@ -7,6 +7,7 @@ export type ThemePalette = {
   background: string
   surface: string
   surfaceSecondary: string
+  surfaceHover: string
   panelLeftBg: string
   panelRightBg: string
   primary: string
@@ -21,6 +22,12 @@ export type ThemePalette = {
   inputText: string
   placeholder: string
   ghostText: string
+  danger: string
+  dangerHover: string
+  success: string
+  successHover: string
+  warning: string
+  info: string
 }
 
 type ThemeContextValue = {
@@ -35,6 +42,7 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
     background: '#F7F2E8',
     surface: '#FDFBF7',
     surfaceSecondary: '#D9E3D6',
+    surfaceHover: '#F2EFE8',
     panelLeftBg: '#5A804F',
     panelRightBg: '#FDFBF7',
     primary: '#5A804F',
@@ -49,11 +57,18 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
     inputText: '#1F2937',
     placeholder: '#9CA3AF',
     ghostText: '#4B5563',
+    danger: '#DC2626',
+    dangerHover: '#B91C1C',
+    success: '#16A34A',
+    successHover: '#15803D',
+    warning: '#D97706',
+    info: '#0284C7',
   },
   dark: {
     background: '#0F1110',
     surface: '#171C1A',
     surfaceSecondary: '#CDA870',
+    surfaceHover: '#1F2420',
     panelLeftBg: '#1A1F1D',
     panelRightBg: '#171C1A',
     primary: '#CDA870',
@@ -68,6 +83,12 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
     inputText: '#E5E7EB',
     placeholder: '#7B8481',
     ghostText: '#D1D5DB',
+    danger: '#EF4444',
+    dangerHover: '#F87171',
+    success: '#22C55E',
+    successHover: '#4ADE80',
+    warning: '#F97316',
+    info: '#06B6D4',
   },
 }
 
@@ -75,6 +96,7 @@ const cssVariableMap = {
   '--color-background': 'background',
   '--color-surface': 'surface',
   '--color-surface-secondary': 'surfaceSecondary',
+  '--color-surface-hover': 'surfaceHover',
   '--color-panel-left-bg': 'panelLeftBg',
   '--color-panel-right-bg': 'panelRightBg',
   '--color-primary': 'primary',
@@ -89,6 +111,12 @@ const cssVariableMap = {
   '--color-input-text': 'inputText',
   '--color-placeholder': 'placeholder',
   '--color-ghost-text': 'ghostText',
+  '--color-danger': 'danger',
+  '--color-danger-hover': 'dangerHover',
+  '--color-success': 'success',
+  '--color-success-hover': 'successHover',
+  '--color-warning': 'warning',
+  '--color-info': 'info',
 } as const
 
 export function applyThemeMode(mode: ThemeMode) {

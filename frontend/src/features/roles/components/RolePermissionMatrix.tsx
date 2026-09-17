@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 import { useRolesList, usePermissionsList, useAssignPermissions, useDeleteRole } from '../hooks/useRoles'
 import { hasPermission } from '../../auth/utils/permissions'
 import { sileo } from 'sileo'
@@ -9,6 +11,11 @@ interface RolePermissionMatrixProps {
 }
 
 export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatrixProps) {
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; roleId: string | null; roleName: string }>({
+    isOpen: false,
+    roleId: null,
+    roleName: '',
+  })
   const canUpdateRoles = hasPermission(currentUser, 'users.update')
   const canDeleteRoles = hasPermission(currentUser, 'users.delete')
   const { data: roles, isLoading: rolesLoading, isError: rolesError, refetch: refetchRoles } = useRolesList()
@@ -33,11 +40,16 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
   }
 
   const handleDeleteRole = (roleId: string, roleName: string) => {
-    if (confirm(`¿Estás seguro de que deseas eliminar el rol "${roleName}"?`)) {
-      deleteRole(roleId, {
+    setDeleteConfirm({ isOpen: true, roleId, roleName })
+  }
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirm.roleId) {
+      deleteRole(deleteConfirm.roleId, {
         onSuccess: () => {
-          sileo.success({ title: 'Rol eliminado', description: `El rol "${roleName}" fue eliminado exitosamente.` })
+          sileo.success({ title: 'Rol eliminado', description: `El rol "${deleteConfirm.roleName}" fue eliminado exitosamente.` })
           refetchRoles()
+          setDeleteConfirm({ isOpen: false, roleId: null, roleName: '' })
         },
         onError: (error: any) => {
           const message = error?.response?.data?.message || 'Error al eliminar rol'
@@ -45,6 +57,10 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
         },
       })
     }
+  }
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, roleId: null, roleName: '' })
   }
 
   if (rolesLoading || permissionsLoading) {
@@ -89,7 +105,7 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
                     <button
                       onClick={() => handleDeleteRole(role.id, role.name)}
                       disabled={isDeleting}
-                      className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50"
+                      className="text-xs text-[var(--color-danger)] hover:text-red-800 disabled:opacity-50"
                     >
                       Eliminar
                     </button>
@@ -119,7 +135,7 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
                         handleTogglePermission(role.id, permission.id, rolePermissionIds)
                       }
                       disabled={isAssigning || !canUpdateRoles}
-                      className="h-4 w-4 accent-[#5A804F] disabled:opacity-50"
+                      className="h-4 w-4 accent-[var(--color-primary)] disabled:opacity-50"
                       title={!canUpdateRoles ? 'No tienes permiso para cambiar permisos' : ''}
                     />
                   </td>
@@ -129,6 +145,17 @@ export function RolePermissionMatrix({ currentUser = null }: RolePermissionMatri
           ))}
         </tbody>
       </table>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Eliminar Rol"
+        message={`¿Estás seguro de que deseas eliminar el rol "${deleteConfirm.roleName}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isDangerous={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   )
 }

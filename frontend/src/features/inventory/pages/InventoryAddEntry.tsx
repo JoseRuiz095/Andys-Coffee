@@ -11,7 +11,7 @@ import { SupplierFormModal } from '../components/SupplierFormModal'
 import { authStore } from '../../auth/store/auth.store'
 
 const TAILWIND_INPUT_CLASS =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20'
+  'w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20'
 
 function getApiErrorMessage(error: any, fallback: string): string {
   if (error?.response?.data?.error) return error.response?.data?.error
@@ -218,7 +218,7 @@ export function InventoryAddEntry() {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-50 p-6"
+      className="min-h-screen bg-[var(--color-surface-hover)] p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -231,8 +231,8 @@ export function InventoryAddEntry() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">Agregar Entrada de Inventario</h1>
-          <p className="text-gray-600">Registra una nueva compra de proveedores</p>
+          <h1 className="mb-2 text-3xl font-bold text-[var(--color-text-primary)]">Agregar Entrada de Inventario</h1>
+          <p className="text-[var(--color-text-secondary)]">Registra una nueva compra de proveedores</p>
         </motion.div>
 
         {!canCreateEntry && (
@@ -251,17 +251,17 @@ export function InventoryAddEntry() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Formulario */}
           <motion.div
-            className={`lg:col-span-2 rounded-lg border border-gray-200 bg-white p-6 ${!canCreateEntry ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`lg:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 ${!canCreateEntry ? 'opacity-50 pointer-events-none' : ''}`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
             {/* Información general */}
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Información de la compra</h2>
+            <h2 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">Información de la compra</h2>
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Proveedor - Búsqueda dinámica */}
               <div className="relative">
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                   Proveedor (opcional)
                 </label>
                 <div className="relative">
@@ -291,7 +291,7 @@ export function InventoryAddEntry() {
                         setShowSupplierResults(false)
                         setSelectedSupplierData(null)
                       }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--color-text-secondary)]"
                       type="button"
                     >
                       ✕
@@ -302,7 +302,7 @@ export function InventoryAddEntry() {
                 <AnimatePresence>
                   {showSupplierResults && !supplierId && (debouncedSupplierSearch.length >= 2 || supplierResults?.length || 0 > 0) && (
                     <motion.div
-                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
@@ -322,12 +322,12 @@ export function InventoryAddEntry() {
                                 setShowSupplierResults(false)
                                 setSelectedSupplierData(supplier)
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                              className="w-full px-3 py-2 text-left hover:bg-[var(--color-surface-hover)] transition-colors"
                               type="button"
                             >
-                              <p className="text-sm font-medium text-gray-900">{supplier.name}</p>
+                              <p className="text-sm font-medium text-[var(--color-text-primary)]">{supplier.name}</p>
                               {(supplier.phone || supplier.email) && (
-                                <p className="text-xs text-gray-600">
+                                <p className="text-xs text-[var(--color-text-secondary)]">
                                   {supplier.phone}
                                   {supplier.phone && supplier.email ? ' · ' : ''}
                                   {supplier.email}
@@ -338,7 +338,7 @@ export function InventoryAddEntry() {
                         </div>
                       ) : debouncedSupplierSearch.length >= 2 ? (
                         <div className="divide-y divide-gray-100">
-                          <div className="p-3 text-center text-xs text-gray-500">
+                          <div className="p-3 text-center text-xs text-[var(--color-text-secondary)]">
                             No encontramos proveedores
                           </div>
                           {canManageSuppliers && (
@@ -361,7 +361,7 @@ export function InventoryAddEntry() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                   Número de factura
                 </label>
                 <input
@@ -374,7 +374,7 @@ export function InventoryAddEntry() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                   IVA / Impuestos (opcional)
                 </label>
                 <input
@@ -390,12 +390,12 @@ export function InventoryAddEntry() {
             </div>
 
             {/* Items */}
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Agregar items</h2>
-            <div className="mb-6 space-y-4 rounded-lg bg-gray-50 p-4">
+            <h2 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">Agregar items</h2>
+            <div className="mb-6 space-y-4 rounded-lg bg-[var(--color-surface-hover)] p-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {/* Ingrediente - Búsqueda dinámica */}
                 <div className="relative">
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                     Ingrediente
                   </label>
                   <div className="relative">
@@ -425,7 +425,7 @@ export function InventoryAddEntry() {
                           setIngredientSearch('')
                           setShowSearchResults(false)
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--color-text-secondary)]"
                         type="button"
                       >
                         ✕
@@ -436,7 +436,7 @@ export function InventoryAddEntry() {
                   <AnimatePresence>
                     {showSearchResults && !selectedIngredient && (debouncedIngredientSearch.length >= 2 || filteredSearchResults.length > 0) && (
                       <motion.div
-                        className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                        className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
@@ -456,16 +456,16 @@ export function InventoryAddEntry() {
                                   setIngredientSearch('')
                                   setShowSearchResults(false)
                                 }}
-                                className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                                className="w-full px-3 py-2 text-left hover:bg-[var(--color-surface-hover)] transition-colors"
                                 type="button"
                               >
-                                <p className="text-sm font-medium text-gray-900">
+                                <p className="text-sm font-medium text-[var(--color-text-primary)]">
                                   {ingredient.name}
                                   {ingredient.sku && (
-                                    <span className="ml-1 text-xs text-gray-500">({ingredient.sku})</span>
+                                    <span className="ml-1 text-xs text-[var(--color-text-secondary)]">({ingredient.sku})</span>
                                   )}
                                 </p>
-                                <p className="text-xs text-gray-600">
+                                <p className="text-xs text-[var(--color-text-secondary)]">
                                   {Number(ingredient.currentStock).toFixed(2)} {ingredient.unit.abbreviation}
                                 </p>
                               </button>
@@ -473,7 +473,7 @@ export function InventoryAddEntry() {
                           </div>
                         ) : debouncedIngredientSearch.length >= 2 ? (
                           <div className="divide-y divide-gray-100">
-                            <div className="p-3 text-center text-xs text-gray-500">
+                            <div className="p-3 text-center text-xs text-[var(--color-text-secondary)]">
                               No encontramos ingredientes exactos
                             </div>
                             {canCreateIngredient && (
@@ -497,7 +497,7 @@ export function InventoryAddEntry() {
 
                 {/* Cantidad */}
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                     Cantidad {selectedIngredientData && `(${selectedIngredientData.unit.abbreviation})`}
                   </label>
                   <div className="flex gap-2">
@@ -511,7 +511,7 @@ export function InventoryAddEntry() {
                       className={`${TAILWIND_INPUT_CLASS} flex-1`}
                     />
                     {selectedIngredientData && (
-                      <div className="flex items-center justify-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 min-w-12">
+                      <div className="flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] min-w-12">
                         {selectedIngredientData.unit.abbreviation}
                       </div>
                     )}
@@ -520,7 +520,7 @@ export function InventoryAddEntry() {
 
                 {/* Costo unitario */}
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                     Costo unitario
                   </label>
                   <input
@@ -548,7 +548,7 @@ export function InventoryAddEntry() {
               <button
                 onClick={handleAddItem}
                 disabled={!selectedIngredient || !itemQuantity || !itemCost}
-                className="w-full rounded-lg bg-[#5A804F] px-4 py-2 text-white font-medium transition-colors hover:bg-[#4a6a3f] disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg bg-[var(--color-primary)] px-4 py-2 text-white font-medium transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {editingIndex !== null ? 'Actualizar item' : 'Agregar item'}
               </button>
@@ -557,7 +557,7 @@ export function InventoryAddEntry() {
             {/* Notas */}
             <div className="mb-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
                   Notas (opcional)
                 </label>
                 <textarea
@@ -575,7 +575,7 @@ export function InventoryAddEntry() {
             <button
               onClick={() => setIsConfirming(true)}
               disabled={items.length === 0 || isCreating}
-              className="w-full rounded-lg bg-green-600 px-4 py-2 text-white font-medium transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-lg bg-[var(--color-success)] px-4 py-2 text-white font-medium transition-colors hover:bg-[var(--color-success)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating ? 'Creando compra...' : 'Crear compra'}
             </button>
@@ -583,25 +583,25 @@ export function InventoryAddEntry() {
 
           {/* Resumen */}
           <motion.div
-            className="rounded-lg border border-gray-200 bg-white p-6"
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <h2 className="mb-4 font-semibold text-gray-900">Resumen</h2>
+            <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Resumen</h2>
 
             {items.length === 0 ? (
-              <p className="text-sm text-gray-500">Sin items agregados</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Sin items agregados</p>
             ) : (
               <div className="space-y-3">
                 <div className="max-h-64 overflow-y-auto space-y-2 mb-4">
                   {items.map((item, i) => (
                     <div
                       key={i}
-                      className={`rounded-lg p-3 ${editingIndex === i ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}
+                      className={`rounded-lg p-3 ${editingIndex === i ? 'bg-blue-50 border border-blue-200' : 'bg-[var(--color-surface-hover)]'}`}
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-medium text-gray-900 flex-1">
+                        <p className="text-sm font-medium text-[var(--color-text-primary)] flex-1">
                           {item.ingredientName}
                         </p>
                         <div className="flex gap-1 ml-2">
@@ -617,7 +617,7 @@ export function InventoryAddEntry() {
                               setItemCost(item.unitCost.toString())
                               setEditingIndex(i)
                             }}
-                            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            className="p-1 text-[var(--color-text-secondary)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             type="button"
                             title="Editar"
                           >
@@ -625,7 +625,7 @@ export function InventoryAddEntry() {
                           </button>
                           <button
                             onClick={() => handleRemoveItem(i)}
-                            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-red-50 rounded transition-colors"
                             type="button"
                             title="Eliminar"
                           >
@@ -633,30 +633,30 @@ export function InventoryAddEntry() {
                           </button>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-600">
+                      <p className="text-xs text-[var(--color-text-secondary)]">
                         {item.quantity.toFixed(2)} {item.unitAbbreviation} × ${item.unitCost.toFixed(2)} = ${(item.quantity * item.unitCost).toFixed(2)}
                       </p>
                     </div>
                   ))}
                 </div>
-                <div className="border-t border-gray-200 pt-3 space-y-2">
+                <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Items:</span>
-                    <span className="font-medium text-gray-900">{items.length}</span>
+                    <span className="text-[var(--color-text-secondary)]">Items:</span>
+                    <span className="font-medium text-[var(--color-text-primary)]">{items.length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                    <span className="text-[var(--color-text-secondary)]">Subtotal:</span>
+                    <span className="font-medium text-[var(--color-text-primary)]">${subtotal.toFixed(2)}</span>
                   </div>
                   {taxAmount > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">IVA:</span>
-                      <span className="font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+                      <span className="text-[var(--color-text-secondary)]">IVA:</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">${taxAmount.toFixed(2)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-gray-200 pt-3 text-base font-semibold">
+                  <div className="flex justify-between border-t border-[var(--color-border)] pt-3 text-base font-semibold">
                     <span>Total:</span>
-                    <span className="text-green-600">${total.toFixed(2)}</span>
+                    <span className="text-[var(--color-success)]">${total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -674,15 +674,15 @@ export function InventoryAddEntry() {
               exit={{ opacity: 0 }}
             >
               <motion.div
-                className="w-full rounded-t-lg bg-white p-6 sm:w-auto sm:rounded-lg"
+                className="w-full rounded-t-lg bg-[var(--color-surface)] p-6 sm:w-auto sm:rounded-lg"
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
               >
-                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
                   Confirmar creación de compra
                 </h3>
-                <p className="mb-6 text-gray-600">
+                <p className="mb-6 text-[var(--color-text-secondary)]">
                   Vas a crear una compra con {items.length} item(s) por un total de{' '}
                   <strong>${total.toFixed(2)}</strong>
                 </p>
@@ -690,14 +690,14 @@ export function InventoryAddEntry() {
                   <button
                     onClick={() => setIsConfirming(false)}
                     disabled={isCreating}
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium transition-colors hover:bg-gray-50 disabled:opacity-50"
+                    className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] font-medium transition-colors hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleConfirmCreate}
                     disabled={isCreating}
-                    className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-white font-medium transition-colors hover:bg-green-700 disabled:opacity-50"
+                    className="flex-1 rounded-lg bg-[var(--color-success)] px-4 py-2 text-white font-medium transition-colors hover:bg-[var(--color-success)] disabled:opacity-50"
                   >
                     {isCreating ? 'Creando...' : 'Confirmar'}
                   </button>

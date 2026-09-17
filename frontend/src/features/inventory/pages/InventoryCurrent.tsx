@@ -57,7 +57,7 @@ export function InventoryCurrent() {
             animate={{ opacity: 1, y: 0 }}
           >
             <h1 className="mb-2 font-semibold text-red-900">Error cargando inventario</h1>
-            <p className="text-red-700">
+            <p className="text-[var(--color-danger)]">
               {error instanceof Error ? error.message : 'Error desconocido'}
             </p>
           </motion.div>
@@ -189,7 +189,7 @@ export function InventoryCurrent() {
                 placeholder="Ej: Café, CAF-001..."
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
               />
             </div>
@@ -202,7 +202,7 @@ export function InventoryCurrent() {
               <select
                 value={status}
                 onChange={(e) => handleStatusChange(e.target.value as typeof status)}
-                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
               >
                 <option value="all">Todos</option>
@@ -232,7 +232,7 @@ export function InventoryCurrent() {
           {/* Info de filtros activos */}
           {(search || status !== 'all') && (
             <motion.div
-              className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 text-sm text-gray-600"
+              className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-text-secondary)]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
@@ -265,7 +265,7 @@ export function InventoryCurrent() {
           transition={{ duration: 0.3, delay: 0.4 }}
         >
           {isLoading ? (
-            <div className="space-y-3 rounded-lg bg-white p-6">
+            <div className="space-y-3 rounded-lg bg-[var(--color-surface)] p-6">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12" />
               ))}
@@ -286,14 +286,14 @@ export function InventoryCurrent() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: 0.45 }}
           >
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--color-text-secondary)]">
               Mostrando {data.pagination.limit} de {data.pagination.total} ingredientes
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
               >
                 Anterior
               </button>
@@ -307,8 +307,8 @@ export function InventoryCurrent() {
                       onClick={() => setPage(pageNum)}
                       className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         page === pageNum
-                          ? 'bg-[#5A804F] text-white'
-                          : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          ? 'bg-[var(--color-primary)] text-white'
+                          : 'border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]'
                       }`}
                     >
                       {pageNum}
@@ -319,7 +319,7 @@ export function InventoryCurrent() {
               <button
                 onClick={() => setPage(Math.min(data.pagination.totalPages, page + 1))}
                 disabled={page === data.pagination.totalPages}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
               >
                 Siguiente
               </button>

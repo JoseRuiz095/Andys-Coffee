@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../../shared/components/Skeleton'
+import { StatusBadge } from '../../../../shared/components/StatusBadge'
 import { PencilIcon } from '../../../../components/ui/PencilIcon'
 import { XIcon } from '../../../../components/ui/XIcon'
 import { PlusIcon } from '../../../../components/ui/PlusIcon'
@@ -104,12 +105,16 @@ export function IngredientsTab() {
   if (error) {
     return (
       <motion.div
-        className="rounded-lg border border-red-200 bg-red-50 p-6"
+        className="rounded-lg border p-6"
+        style={{
+          borderColor: 'var(--color-danger)',
+          backgroundColor: `color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))`,
+        }}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h1 className="mb-2 font-semibold text-red-900">Error cargando ingredientes</h1>
-        <p className="text-red-700">
+        <h1 className="mb-2 font-semibold" style={{ color: 'var(--color-danger)' }}>Error cargando ingredientes</h1>
+        <p style={{ color: 'var(--color-text-secondary)' }}>
           {error instanceof Error ? error.message : 'Error desconocido'}
         </p>
       </motion.div>
@@ -125,14 +130,21 @@ export function IngredientsTab() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h2 className="text-xl font-semibold text-gray-900">Gestión de Ingredientes</h2>
+        <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Gestión de Ingredientes</h2>
         {canCreateIngredient && (
           <button
             onClick={() => {
               setEditingId(null)
               setIsModalOpen(true)
             }}
-            className="rounded-lg bg-[#5A804F] px-4 py-2 text-white font-medium hover:bg-[#4a6a3f] flex items-center gap-2 transition-colors"
+            className="rounded-lg px-4 py-2 text-white font-medium flex items-center gap-2 transition-colors"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-primary)'
+            }}
           >
             <PlusIcon size={18} />
             Crear Ingrediente
@@ -142,7 +154,8 @@ export function IngredientsTab() {
 
       {/* Búsqueda y Filtros */}
       <motion.div
-        className="mb-6 space-y-4 rounded-lg border border-gray-200 bg-white p-4"
+        className="mb-6 space-y-4 rounded-lg border p-4"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
@@ -155,19 +168,29 @@ export function IngredientsTab() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+          className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-input-bg)',
+            color: 'var(--color-input-text)',
+          }}
         />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Estado</label>
+            <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Estado</label>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as StatusFilter)
                 setPage(1)
               }}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-input-bg)',
+                color: 'var(--color-input-text)',
+              }}
             >
               <option value="all">Todos</option>
               <option value="active">Activos</option>
@@ -176,14 +199,19 @@ export function IngredientsTab() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Stock</label>
+            <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock</label>
             <select
               value={stockFilter}
               onChange={(e) => {
                 setStockFilter(e.target.value as StockFilter)
                 setPage(1)
               }}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-4 py-2 outline-none transition focus:border-transparent focus:ring-2"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-input-bg)',
+                color: 'var(--color-input-text)',
+              }}
             >
               <option value="all">Todos</option>
               <option value="normal">Stock Normal</option>
@@ -196,7 +224,8 @@ export function IngredientsTab() {
 
       {/* Tabla */}
       <motion.div
-        className="rounded-lg border border-gray-200 bg-white overflow-hidden"
+        className="rounded-lg border overflow-hidden"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
@@ -210,40 +239,43 @@ export function IngredientsTab() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50">
+              <thead style={{ backgroundColor: 'var(--color-surface-hover)', borderBottom: '1px solid var(--color-border)' }}>
                 <tr>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">SKU</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Nombre</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Unidad</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Stock Mínimo</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Stock Actual</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Costo Promedio</th>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-900">Estado</th>
-                  <th className="px-6 py-3 text-right font-semibold text-gray-900">Acciones</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>SKU</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Nombre</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Unidad</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Stock Mínimo</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Stock Actual</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Costo Promedio</th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
+                  <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody style={{ borderColor: 'var(--color-border)' }} className="divide-y">
                 {data?.data && data.data.length > 0 ? (
                   data.data.map((ingredient) => (
-                    <tr key={ingredient.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                    <tr
+                      key={ingredient.id}
+                      className="transition-colors"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }}
+                    >
+                      <td className="px-6 py-4 font-medium" style={{ color: 'var(--color-text-primary)' }}>
                         {ingredient.sku || '—'}
                       </td>
-                      <td className="px-6 py-4 text-gray-900">{ingredient.name}</td>
-                      <td className="px-6 py-4 text-gray-600">{ingredient.unit.abbreviation}</td>
-                      <td className="px-6 py-4 text-gray-600">{Number(ingredient.minimumStock).toFixed(2)}</td>
-                      <td className="px-6 py-4 text-gray-600">{Number(ingredient.currentStock).toFixed(2)}</td>
-                      <td className="px-6 py-4 text-gray-600">${Number(ingredient.averageCost).toFixed(2)}</td>
+                      <td className="px-6 py-4" style={{ color: 'var(--color-text-primary)' }}>{ingredient.name}</td>
+                      <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.unit.abbreviation}</td>
+                      <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.minimumStock).toFixed(2)}</td>
+                      <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.currentStock).toFixed(2)}</td>
+                      <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>${Number(ingredient.averageCost).toFixed(2)}</td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            ingredient.isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
+                        <StatusBadge tone={ingredient.isActive ? 'success' : 'neutral'}>
                           {ingredient.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
+                        </StatusBadge>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -251,7 +283,16 @@ export function IngredientsTab() {
                             <>
                               <button
                                 onClick={() => handleEditClick(ingredient.id)}
-                                className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                className="p-1 rounded transition-colors"
+                                style={{ color: 'var(--color-text-secondary)' }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = 'var(--color-primary)'
+                                  e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-primary) 12%, transparent)`
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--color-text-secondary)'
+                                  e.currentTarget.style.backgroundColor = 'transparent'
+                                }}
                                 title="Editar"
                               >
                                 <PencilIcon size={16} />
@@ -261,11 +302,11 @@ export function IngredientsTab() {
                                   handleToggleActive(ingredient.id, ingredient.isActive)
                                 }
                                 disabled={isTogglingActive}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  ingredient.isActive
-                                    ? 'text-yellow-600 hover:bg-yellow-50 bg-yellow-50'
-                                    : 'text-green-600 hover:bg-green-50 bg-green-50'
-                                } disabled:opacity-50`}
+                                className="px-3 py-1 text-xs font-medium rounded transition-colors disabled:opacity-50"
+                                style={{
+                                  color: ingredient.isActive ? 'var(--color-warning)' : 'var(--color-success)',
+                                  backgroundColor: `color-mix(in srgb, ${ingredient.isActive ? 'var(--color-warning)' : 'var(--color-success)'} 12%, var(--color-surface))`,
+                                }}
                                 title={ingredient.isActive ? 'Desactivar' : 'Activar'}
                               >
                                 {ingredient.isActive ? 'Desactivar' : 'Activar'}
@@ -276,7 +317,16 @@ export function IngredientsTab() {
                             <button
                               onClick={() => handleDelete(ingredient.id)}
                               disabled={isDeleting || deletingId === ingredient.id}
-                              className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              className="p-1 rounded transition-colors disabled:opacity-50"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = 'var(--color-danger)'
+                                e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-danger) 12%, transparent)`
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = 'var(--color-text-secondary)'
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
                               title="Eliminar"
                             >
                               <XIcon size={16} />
@@ -288,7 +338,7 @@ export function IngredientsTab() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-8 text-center" style={{ color: 'var(--color-text-secondary)' }}>
                       {search ? `No encontramos ingredientes que coincidan con "${search}"` : 'No hay ingredientes registrados'}
                     </td>
                   </tr>
@@ -307,14 +357,25 @@ export function IngredientsTab() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.3 }}
         >
-          <p className="text-sm text-gray-600">
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Mostrando {data.pagination.limit} de {data.pagination.total} ingredientes
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-primary)',
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
             >
               Anterior
             </button>
@@ -326,11 +387,30 @@ export function IngredientsTab() {
                   <button
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                    className="rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                    style={
                       page === pageNum
-                        ? 'bg-[#5A804F] text-white'
-                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
+                        ? {
+                            backgroundColor: 'var(--color-primary)',
+                            color: 'white',
+                            border: 'none',
+                          }
+                        : {
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-text-primary)',
+                            backgroundColor: 'transparent',
+                          }
+                    }
+                    onMouseEnter={(e) => {
+                      if (page !== pageNum) {
+                        e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (page !== pageNum) {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }
+                    }}
                   >
                     {pageNum}
                   </button>
@@ -340,7 +420,18 @@ export function IngredientsTab() {
             <button
               onClick={() => setPage(Math.min(data.pagination.totalPages, page + 1))}
               disabled={page === data.pagination.totalPages}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-primary)',
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
             >
               Siguiente
             </button>
@@ -366,29 +457,29 @@ export function IngredientsTab() {
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg"
+            className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
           >
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">
+            <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
               ¿Eliminar ingrediente?
             </h3>
-            <p className="mb-6 text-gray-600">
+            <p className="mb-6 text-[var(--color-text-secondary)]">
               Esta acción es irreversible. El ingrediente será eliminado permanentemente.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeletingId(null)}
                 disabled={isDeleting}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] font-medium hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleConfirmDelete(deletingId)}
                 disabled={isDeleting}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                className="flex-1 rounded-lg bg-[var(--color-danger)] px-4 py-2 text-white font-medium hover:bg-[var(--color-danger)] disabled:opacity-50"
               >
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
               </button>

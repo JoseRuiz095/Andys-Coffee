@@ -37,7 +37,7 @@ export function InventoryAlerts() {
           <div key={ingredient.id} className="text-sm text-yellow-800">
             <p className="font-medium">
               {ingredient.name}
-              {ingredient.sku && <span className="text-gray-600"> ({ingredient.sku})</span>}
+              {ingredient.sku && <span className="text-[var(--color-text-secondary)]"> ({ingredient.sku})</span>}
             </p>
             <p className="text-yellow-700">
               {Number(ingredient.currentStock).toFixed(2)} {ingredient.unit.abbreviation} disponible

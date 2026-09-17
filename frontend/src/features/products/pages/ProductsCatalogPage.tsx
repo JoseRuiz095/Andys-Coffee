@@ -6,11 +6,16 @@ import { useProducts, useCategories } from '../hooks/useProducts'
 import type { Product, CreateProductInput } from '../types/product.types'
 import { ProductsTable } from '../components/ProductsTable'
 import { ProductFormModal } from '../components/ProductFormModal'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 
 export function ProductsCatalogPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | undefined>()
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; product: Product | null }>({
+    isOpen: false,
+    product: null,
+  })
 
   const { products, loading, create, update, delete: deleteProduct, setActive } = useProducts()
   const { categories } = useCategories()
@@ -47,9 +52,18 @@ export function ProductsCatalogPage() {
   }
 
   const handleDelete = (product: Product) => {
-    if (confirm(`¿Eliminar producto "${product.name}"?`)) {
-      deleteProduct(product.id)
+    setDeleteConfirm({ isOpen: true, product })
+  }
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirm.product) {
+      deleteProduct(deleteConfirm.product.id)
+      setDeleteConfirm({ isOpen: false, product: null })
     }
+  }
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, product: null })
   }
 
   if (!canCreate && !canEdit && !canDelete) {
@@ -69,7 +83,10 @@ export function ProductsCatalogPage() {
         {canCreate && (
           <button
             onClick={() => handleOpenForm()}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-500 hover:bg-green-600 transition"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition"
+            style={{ backgroundColor: 'var(--color-success)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-success-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-success)'}
           >
             + Crear Producto
           </button>
@@ -93,6 +110,17 @@ export function ProductsCatalogPage() {
           onCancel={handleCloseForm}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Eliminar Producto"
+        message={`¿Estás seguro de que deseas eliminar "${deleteConfirm.product?.name}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isDangerous={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   )
 }

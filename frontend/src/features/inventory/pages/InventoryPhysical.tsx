@@ -258,14 +258,14 @@ export function InventoryPhysical() {
       completed: { label: '✓ Completado', color: 'bg-yellow-100 text-yellow-800' },
       applied: { label: '✅ Aplicado', color: 'bg-green-100 text-green-800' },
     };
-    const badge = badges[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
+    const badge = badges[status] || { label: status, color: 'bg-[var(--color-surface-secondary)] text-gray-800' };
     return <span className={`px-2 py-1 rounded-full text-sm font-medium ${badge.color}`}>{badge.label}</span>;
   };
 
   const getDifferenceColor = (diff: number) => {
-    if (diff > 0) return 'text-green-600 font-semibold';
-    if (diff < 0) return 'text-red-600 font-semibold';
-    return 'text-gray-500';
+    if (diff > 0) return 'text-[var(--color-success)] font-semibold';
+    if (diff < 0) return 'text-[var(--color-danger)] font-semibold';
+    return 'text-[var(--color-text-secondary)]';
   };
 
   if (!countId) {
@@ -286,33 +286,33 @@ export function InventoryPhysical() {
           </div>
         )}
 
-        <div className="rounded-lg bg-white p-6 text-center shadow">
-          <p className="mb-6 text-gray-600">
+        <div className="rounded-lg bg-[var(--color-surface)] p-6 text-center shadow">
+          <p className="mb-6 text-[var(--color-text-secondary)]">
             Crear un nuevo conteo físico para reconciliar el inventario del sistema con el real
           </p>
           <button
             onClick={handleCreateCount}
             disabled={isCreating || !canCount}
-            className="rounded-lg bg-[#5A804F] px-6 py-3 text-white hover:bg-[#4A6B3F] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+            className="rounded-lg bg-[var(--color-primary)] px-6 py-3 text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
           >
             {isCreating ? 'Creando...' : 'Crear nuevo conteo'}
           </button>
         </div>
 
-        <div className="mt-6 rounded-lg bg-white p-6 shadow">
+        <div className="mt-6 rounded-lg bg-[var(--color-surface)] p-6 shadow">
           <h2 className="mb-4 text-lg font-bold">Conteos recientes</h2>
 
           {/* Filtros */}
           <div className="mb-4 flex flex-wrap gap-3">
             <div className="flex-1 min-w-[200px]">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Estado</label>
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">Estado</label>
               <select
                 value={countsStatusFilter}
                 onChange={(e) => {
                   setCountsStatusFilter(e.target.value)
                   setCountsPage(1)
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
               >
                 <option value="all">Todos</option>
                 <option value="draft">Borrador</option>
@@ -322,7 +322,7 @@ export function InventoryPhysical() {
             </div>
 
             <div className="flex-1 min-w-[200px]">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Fecha</label>
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">Fecha</label>
               <input
                 type="date"
                 value={countsDateFilter}
@@ -330,7 +330,7 @@ export function InventoryPhysical() {
                   setCountsDateFilter(e.target.value)
                   setCountsPage(1)
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
               />
             </div>
 
@@ -341,7 +341,7 @@ export function InventoryPhysical() {
                   setCountsStatusFilter('all')
                   setCountsPage(1)
                 }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] transition-colors"
               >
                 Ver todo el historial
               </button>
@@ -356,7 +356,7 @@ export function InventoryPhysical() {
               ))}
             </div>
           ) : !recentCounts?.data.length ? (
-            <p className="text-sm text-gray-500">No hay conteos registrados aún.</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">No hay conteos registrados aún.</p>
           ) : (
             <>
               <div className="mb-4 divide-y divide-gray-200">
@@ -364,12 +364,12 @@ export function InventoryPhysical() {
                   <button
                     key={c.id}
                     onClick={() => setCountId(c.id)}
-                    className="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-gray-50"
+                    className="flex w-full items-center justify-between py-3 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
                     type="button"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">Conteo #{c.id.slice(0, 8)}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="font-medium text-[var(--color-text-primary)]">Conteo #{c.id.slice(0, 8)}</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">
                         {c.createdBy.name} · {new Date(c.createdAt).toLocaleDateString('es-ES')} ·{' '}
                         {c.items.length} item(s)
                       </p>
@@ -381,23 +381,23 @@ export function InventoryPhysical() {
 
               {/* Paginación */}
               {recentCounts.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-4">
                   <button
                     onClick={() => setCountsPage(Math.max(1, countsPage - 1))}
                     disabled={countsPage === 1}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     ← Anterior
                   </button>
 
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-[var(--color-text-secondary)]">
                     Página {countsPage} de {recentCounts.pagination.totalPages}
                   </span>
 
                   <button
                     onClick={() => setCountsPage(Math.min(recentCounts.pagination.totalPages, countsPage + 1))}
                     disabled={countsPage === recentCounts.pagination.totalPages}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Siguiente →
                   </button>
@@ -427,7 +427,7 @@ export function InventoryPhysical() {
   if (!count) {
     return (
       <div className="p-6">
-        <p className="text-red-600">Conteo no encontrado</p>
+        <p className="text-[var(--color-danger)]">Conteo no encontrado</p>
       </div>
     )
   }
@@ -459,14 +459,14 @@ export function InventoryPhysical() {
           {count.status === 'draft' && canCount && (
             <button
               onClick={() => setIsConfirmingDeleteCount(true)}
-              className="rounded-lg border border-red-300 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+              className="rounded-lg border border-red-300 px-4 py-2 text-[var(--color-danger)] hover:bg-red-50 transition-colors"
             >
               Cancelar conteo
             </button>
           )}
           <button
             onClick={() => setCountId(null)}
-            className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100 transition-colors"
+            className="rounded-lg px-4 py-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors"
           >
             Atrás
           </button>
@@ -486,12 +486,12 @@ export function InventoryPhysical() {
         ].map((stat, i) => (
           <motion.div
             key={i}
-            className="rounded-lg bg-[#F0F7E8] p-4"
+            className="rounded-lg bg-[var(--color-surface-secondary)] p-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
           >
-            <p className="text-sm text-gray-600">{stat.label}</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">{stat.label}</p>
             <p className="font-semibold">{stat.value}</p>
           </motion.div>
         ))}
@@ -501,7 +501,7 @@ export function InventoryPhysical() {
       <AnimatePresence>
         {count.status === 'draft' && (
           <motion.div
-            className={`mb-6 rounded-lg bg-white p-6 shadow ${!canCount ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`mb-6 rounded-lg bg-[var(--color-surface)] p-6 shadow ${!canCount ? 'opacity-50 pointer-events-none' : ''}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -517,7 +517,7 @@ export function InventoryPhysical() {
 
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="relative">
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">
                   Ingrediente
                 </label>
                 <div className="relative">
@@ -533,7 +533,7 @@ export function InventoryPhysical() {
                     }}
                     onFocus={() => setShowIngredientResults(true)}
                     onBlur={() => setTimeout(() => setShowIngredientResults(false), 150)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
                   />
                   {selectedIngredientId && (
                     <button
@@ -542,7 +542,7 @@ export function InventoryPhysical() {
                         setSelectedIngredientData(null)
                         setIngredientSearch('')
                       }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--color-text-secondary)]"
                       type="button"
                     >
                       ✕
@@ -553,7 +553,7 @@ export function InventoryPhysical() {
                 <AnimatePresence>
                   {showIngredientResults && !selectedIngredientId && (
                     <motion.div
-                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                      className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
@@ -564,24 +564,24 @@ export function InventoryPhysical() {
                             <button
                               key={ing.id}
                               onClick={() => handleSelectIngredient(ing)}
-                              className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                              className="w-full px-3 py-2 text-left hover:bg-[var(--color-surface-hover)] transition-colors"
                               type="button"
                             >
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-sm font-medium text-[var(--color-text-primary)]">
                                 {ing.name}
-                                {ing.sku && <span className="ml-1 text-xs text-gray-500">({ing.sku})</span>}
+                                {ing.sku && <span className="ml-1 text-xs text-[var(--color-text-secondary)]">({ing.sku})</span>}
                                 {countedIngredientIds.has(ing.id) && (
                                   <span className="ml-1 text-xs font-normal text-blue-600">· ya contado</span>
                                 )}
                               </p>
-                              <p className="text-xs text-gray-600">
+                              <p className="text-xs text-[var(--color-text-secondary)]">
                                 Stock: {Number(ing.currentStock).toFixed(2)} {ing.unit?.abbreviation}
                               </p>
                             </button>
                           ))}
                         </div>
                       ) : (
-                        <div className="p-3 text-center text-xs text-gray-500">No encontramos ingredientes</div>
+                        <div className="p-3 text-center text-xs text-[var(--color-text-secondary)]">No encontramos ingredientes</div>
                       )}
                     </motion.div>
                   )}
@@ -589,7 +589,7 @@ export function InventoryPhysical() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">
                   Cantidad Contada
                 </label>
                 <input
@@ -599,12 +599,12 @@ export function InventoryPhysical() {
                   value={countedQty}
                   onChange={(e) => setCountedQty(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                  className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">
                   Notas (opcional)
                 </label>
                 <input
@@ -613,9 +613,9 @@ export function InventoryPhysical() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Ej: dañado, encontrado en bodega..."
                   maxLength={500}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                  className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
                 />
-                <p className="mt-1 text-xs text-gray-500">{notes.length}/500</p>
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{notes.length}/500</p>
               </div>
             </div>
 
@@ -623,7 +623,7 @@ export function InventoryPhysical() {
               <motion.button
                 onClick={handleAddItem}
                 disabled={!selectedIngredientId || !countedQty || isAddingItem}
-                className="rounded-lg bg-[#5A804F] px-6 py-2 text-white hover:bg-[#4A6B3F] disabled:opacity-50 transition-colors"
+                className="rounded-lg bg-[var(--color-primary)] px-6 py-2 text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-colors"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -633,7 +633,7 @@ export function InventoryPhysical() {
                 <button
                   onClick={resetItemForm}
                   type="button"
-                  className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="rounded-lg border border-[var(--color-border)] px-6 py-2 text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] transition-colors"
                 >
                   Cancelar edición
                 </button>
@@ -644,27 +644,27 @@ export function InventoryPhysical() {
       </AnimatePresence>
 
       {/* Tabla de items */}
-      <div className="mb-6 overflow-hidden rounded-lg bg-white shadow">
+      <div className="mb-6 overflow-hidden rounded-lg bg-[var(--color-surface)] shadow">
         <table className="w-full">
-          <thead className="border-b border-gray-200 bg-gray-50">
+          <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
             <tr>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-medium text-[var(--color-text-primary)]">
                 Ingrediente
               </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-medium text-[var(--color-text-primary)]">
                 Sistema
               </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-medium text-[var(--color-text-primary)]">
                 Contado
               </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-medium text-[var(--color-text-primary)]">
                 Diferencia
               </th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+              <th className="px-6 py-3 text-left text-sm font-medium text-[var(--color-text-primary)]">
                 Notas
               </th>
               {count.status === 'draft' && (
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">
+                <th className="px-6 py-3 text-right text-sm font-medium text-[var(--color-text-primary)]">
                   Acciones
                 </th>
               )}
@@ -675,7 +675,7 @@ export function InventoryPhysical() {
               {count.items.map((item, i) => (
                 <motion.tr
                   key={item.ingredientId}
-                  className="hover:bg-gray-50 transition-colors"
+                  className="hover:bg-[var(--color-surface-hover)] transition-colors"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
@@ -683,7 +683,7 @@ export function InventoryPhysical() {
                 >
                   <td className="px-6 py-3">
                     <div className="font-medium">{item.ingredient?.name}</div>
-                    <div className="text-sm text-gray-500">{item.ingredient?.sku}</div>
+                    <div className="text-sm text-[var(--color-text-secondary)]">{item.ingredient?.sku}</div>
                   </td>
                   <td className="px-6 py-3">
                     {Number(item.systemQuantity).toFixed(2)} {item.ingredient?.unit?.abbreviation}
@@ -695,7 +695,7 @@ export function InventoryPhysical() {
                     {parseFloat(item.difference.toString()) > 0 ? '+' : ''}
                     {Number(item.difference).toFixed(2)} {item.ingredient?.unit?.abbreviation}
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-600">
+                  <td className="px-6 py-3 text-sm text-[var(--color-text-secondary)]">
                     {item.notes || '-'}
                   </td>
                   {count.status === 'draft' && (
@@ -704,7 +704,7 @@ export function InventoryPhysical() {
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleEditItem(item)}
-                            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            className="p-1 text-[var(--color-text-secondary)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             type="button"
                             title="Editar"
                           >
@@ -713,7 +713,7 @@ export function InventoryPhysical() {
                           <button
                             onClick={() => setDeletingItemId(item.ingredientId)}
                             disabled={isRemovingItem}
-                            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                             type="button"
                             title="Eliminar"
                           >
@@ -730,7 +730,7 @@ export function InventoryPhysical() {
         </table>
 
         {count.items.length === 0 && (
-          <div className="p-6 text-center text-gray-500">
+          <div className="p-6 text-center text-[var(--color-text-secondary)]">
             No hay items agregados aún
           </div>
         )}
@@ -760,7 +760,7 @@ export function InventoryPhysical() {
             <motion.button
               onClick={() => setIsConfirmingApply(true)}
               disabled={isApplying || !canAdjust}
-              className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-[var(--color-success)] px-6 py-3 text-white hover:bg-[var(--color-success)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -771,7 +771,7 @@ export function InventoryPhysical() {
 
         {count.status === 'applied' && (
           <motion.div
-            className="rounded-lg bg-green-50 p-4 text-green-700"
+            className="rounded-lg bg-green-50 p-4 text-[var(--color-success)]"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3 }}
@@ -791,14 +791,14 @@ export function InventoryPhysical() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-full rounded-t-lg bg-white p-6 sm:w-auto sm:rounded-lg"
+              className="w-full rounded-t-lg bg-[var(--color-surface)] p-6 sm:w-auto sm:rounded-lg"
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
               <h3 className="mb-2 text-lg font-semibold">Confirmar aplicación de ajustes</h3>
-              <p className="mb-6 text-gray-600">
+              <p className="mb-6 text-[var(--color-text-secondary)]">
                 Esto aplicará {count.items.filter((i) => i.difference.toString() !== '0').length}{' '}
                 ajustes al inventario. ¿Continuar?
               </p>
@@ -806,14 +806,14 @@ export function InventoryPhysical() {
                 <button
                   onClick={() => setIsConfirmingApply(false)}
                   disabled={isApplying}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleApplyAdjustments}
                   disabled={isApplying}
-                  className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  className="flex-1 rounded-lg bg-[var(--color-success)] px-4 py-2 text-white hover:bg-[var(--color-success)] disabled:opacity-50 transition-colors"
                 >
                   {isApplying ? 'Aplicando...' : 'Confirmar'}
                 </button>
@@ -833,27 +833,27 @@ export function InventoryPhysical() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg"
+              className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
             >
-              <h3 className="mb-2 text-lg font-semibold text-gray-900">¿Quitar item del conteo?</h3>
-              <p className="mb-6 text-gray-600">
+              <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Quitar item del conteo?</h3>
+              <p className="mb-6 text-[var(--color-text-secondary)]">
                 Se eliminará este ingrediente del conteo. Podrás volver a agregarlo si lo necesitas.
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setDeletingItemId(null)}
                   disabled={isRemovingItem}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] font-medium hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => deletingItemId && handleConfirmRemoveItem(deletingItemId)}
                   disabled={isRemovingItem}
-                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[var(--color-danger)] px-4 py-2 text-white font-medium hover:bg-[var(--color-danger)] disabled:opacity-50"
                 >
                   {isRemovingItem ? 'Eliminando...' : 'Eliminar'}
                 </button>
@@ -873,27 +873,27 @@ export function InventoryPhysical() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg"
+              className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
             >
-              <h3 className="mb-2 text-lg font-semibold text-gray-900">¿Cancelar este conteo?</h3>
-              <p className="mb-6 text-gray-600">
+              <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Cancelar este conteo?</h3>
+              <p className="mb-6 text-[var(--color-text-secondary)]">
                 Esta acción es irreversible. Se eliminará el conteo y todos sus items registrados; el inventario no se ve afectado ya que aún no se aplicó.
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsConfirmingDeleteCount(false)}
                   disabled={isDeletingCount}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] font-medium hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
                 >
                   Volver
                 </button>
                 <button
                   onClick={handleDeleteCount}
                   disabled={isDeletingCount}
-                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[var(--color-danger)] px-4 py-2 text-white font-medium hover:bg-[var(--color-danger)] disabled:opacity-50"
                 >
                   {isDeletingCount ? 'Eliminando...' : 'Eliminar conteo'}
                 </button>

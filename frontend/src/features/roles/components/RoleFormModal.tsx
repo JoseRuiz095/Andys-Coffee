@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { useCreateRole, useUpdateRole, useRoleById } from '../hooks/useRoles'
@@ -16,6 +16,7 @@ export function RoleFormModal({
   onSuccess,
   editingRoleId = null,
 }: RoleFormModalProps) {
+  const firstInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
@@ -32,6 +33,19 @@ export function RoleFormModal({
       return () => clearTimeout(timer)
     }
   }, [editingRole, isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      firstInputRef.current?.focus()
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose()
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen, onClose])
 
   const isBuiltIn = editingRole?.isSystem ?? false
 
@@ -88,41 +102,56 @@ export function RoleFormModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
       <motion.div
-        className="w-full max-w-md rounded-lg bg-white shadow-lg"
+        className="w-full max-w-md rounded-lg shadow-lg"
+        style={{ backgroundColor: 'var(--color-surface)' }}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="role-modal-title"
       >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 id="role-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {editingRoleId ? 'Editar Rol' : 'Crear Rol'}
           </h2>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre *</label>
+            <label htmlFor="role-name" className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">Nombre *</label>
             <input
+              id="role-name"
+              ref={firstInputRef}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Supervisor"
               disabled={isBuiltIn}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20 disabled:bg-gray-100 disabled:text-gray-500"
+              aria-label="Nombre del rol"
+              aria-required="true"
+              className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[var(--color-primary)]/20 disabled:bg-gray-100 disabled:text-[var(--color-text-secondary)]"
             />
             {isBuiltIn && (
-              <p className="mt-1 text-xs text-gray-500">No se puede renombrar un rol del sistema.</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">No se puede renombrar un rol del sistema.</p>
             )}
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Descripción</label>
+            <label htmlFor="role-description" className="mb-1 block text-sm font-medium text-[var(--color-text-primary)]">Descripción</label>
             <textarea
+              id="role-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Descripción del rol"
+              aria-label="Descripción del rol"
               rows={3}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[var(--color-primary)]/20"
             />
           </div>
 
@@ -130,7 +159,7 @@ export function RoleFormModal({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-gray-50"
             >
               Cancelar
             </button>

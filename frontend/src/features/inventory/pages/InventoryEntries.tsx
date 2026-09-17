@@ -82,7 +82,7 @@ export function InventoryEntries() {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-50 p-6"
+      className="min-h-screen bg-[var(--color-surface-hover)] p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -95,8 +95,8 @@ export function InventoryEntries() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">Entradas de Inventario</h1>
-          <p className="text-gray-600">Recibir compras de proveedores</p>
+          <h1 className="mb-2 text-3xl font-bold text-[var(--color-text-primary)]">Entradas de Inventario</h1>
+          <p className="text-[var(--color-text-secondary)]">Recibir compras de proveedores</p>
         </motion.div>
 
         {!canReceive && (
@@ -125,12 +125,12 @@ export function InventoryEntries() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
           {/* Lista de compras pendientes */}
           <motion.div
-            className="rounded-lg border border-gray-200 bg-white p-4"
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <h2 className="mb-4 font-semibold text-gray-900">
+            <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">
               Compras pendientes ({filteredPurchases.length})
             </h2>
 
@@ -140,7 +140,7 @@ export function InventoryEntries() {
               placeholder="Buscar por proveedor o factura..."
               value={searchSupplier}
               onChange={(e) => setSearchSupplier(e.target.value)}
-              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="mb-4 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.1 }}
@@ -153,7 +153,7 @@ export function InventoryEntries() {
                 ))}
               </div>
             ) : filteredPurchases.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[var(--color-text-secondary)]">
                 {draftPurchases.length === 0 ? 'No hay compras pendientes' : 'No hay coincidencias'}
               </p>
             ) : (
@@ -165,8 +165,8 @@ export function InventoryEntries() {
                       onClick={() => setSelectedPurchaseId(purchase.id)}
                       className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
                         selectedPurchaseId === purchase.id
-                          ? 'border-[#5A804F] bg-[#F0F7E8]'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
+                          ? 'border-[var(--color-primary)] bg-[var(--color-surface-secondary)]'
+                          : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border)]'
                       }`}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -174,14 +174,14 @@ export function InventoryEntries() {
                       transition={{ duration: 0.2, delay: i * 0.05 }}
                       whileHover={{ scale: 1.01 }}
                     >
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-[var(--color-text-primary)]">
                         {purchase.supplier?.name || 'Proveedor sin nombre'}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-[var(--color-text-secondary)]">
                         {purchase.items.length} items • ${Number(purchase.total).toFixed(2)}
                       </p>
                       {purchase.invoiceNumber && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-[var(--color-text-secondary)]">
                           Factura: {purchase.invoiceNumber}
                         </p>
                       )}
@@ -197,13 +197,13 @@ export function InventoryEntries() {
             {selectedPurchaseId && !isLoadingDetail && selectedPurchase ? (
               <motion.div
                 key="detail"
-                className="rounded-lg border border-gray-200 bg-white p-6"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="mb-4 font-semibold text-gray-900">Detalle de entrada</h2>
+                <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Detalle de entrada</h2>
 
                 {/* Advertencia de cambios */}
                 <motion.div
@@ -228,17 +228,17 @@ export function InventoryEntries() {
                 {/* Supplier info */}
                 {selectedPurchase.supplier && (
                   <motion.div
-                    className="mb-4 rounded-lg bg-gray-50 p-3"
+                    className="mb-4 rounded-lg bg-[var(--color-surface-hover)] p-3"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <p className="font-medium text-gray-900">{selectedPurchase.supplier.name}</p>
+                    <p className="font-medium text-[var(--color-text-primary)]">{selectedPurchase.supplier.name}</p>
                     {selectedPurchase.supplier.email && (
-                      <p className="text-sm text-gray-600">{selectedPurchase.supplier.email}</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">{selectedPurchase.supplier.email}</p>
                     )}
                     {selectedPurchase.supplier.phone && (
-                      <p className="text-sm text-gray-600">{selectedPurchase.supplier.phone}</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">{selectedPurchase.supplier.phone}</p>
                     )}
                   </motion.div>
                 )}
@@ -252,17 +252,17 @@ export function InventoryEntries() {
                 >
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-2 py-2 text-left font-semibold text-gray-900">
+                      <tr className="border-b border-[var(--color-border)]">
+                        <th className="px-2 py-2 text-left font-semibold text-[var(--color-text-primary)]">
                           Ingrediente
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold text-gray-900">
+                        <th className="px-2 py-2 text-right font-semibold text-[var(--color-text-primary)]">
                           Cantidad
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold text-gray-900">
+                        <th className="px-2 py-2 text-right font-semibold text-[var(--color-text-primary)]">
                           Costo unitario
                         </th>
-                        <th className="px-2 py-2 text-right font-semibold text-gray-900">
+                        <th className="px-2 py-2 text-right font-semibold text-[var(--color-text-primary)]">
                           Total
                         </th>
                       </tr>
@@ -278,18 +278,18 @@ export function InventoryEntries() {
                             transition={{ delay: i * 0.05 }}
                           >
                             <td className="px-2 py-3">
-                              <p className="font-medium text-gray-900">{item.ingredient.name}</p>
-                              <p className="text-xs text-gray-600">
+                              <p className="font-medium text-[var(--color-text-primary)]">{item.ingredient.name}</p>
+                              <p className="text-xs text-[var(--color-text-secondary)]">
                                 {item.ingredient.sku || '—'}
                               </p>
                             </td>
-                            <td className="px-2 py-3 text-right text-gray-600">
+                            <td className="px-2 py-3 text-right text-[var(--color-text-secondary)]">
                               {Number(item.quantity).toFixed(2)} {item.ingredient.unit.abbreviation}
                             </td>
-                            <td className="px-2 py-3 text-right text-gray-600">
+                            <td className="px-2 py-3 text-right text-[var(--color-text-secondary)]">
                               ${Number(item.unitCost).toFixed(2)}
                             </td>
-                            <td className="px-2 py-3 text-right font-medium text-gray-900">
+                            <td className="px-2 py-3 text-right font-medium text-[var(--color-text-primary)]">
                               ${(Number(item.quantity) * Number(item.unitCost)).toFixed(2)}
                             </td>
                           </motion.tr>
@@ -301,26 +301,26 @@ export function InventoryEntries() {
 
                 {/* Totals */}
                 <motion.div
-                  className="mb-6 space-y-2 rounded-lg bg-gray-50 p-3"
+                  className="mb-6 space-y-2 rounded-lg bg-[var(--color-surface-hover)] p-3"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.2 }}
                 >
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium text-gray-900">
+                    <span className="text-[var(--color-text-secondary)]">Subtotal:</span>
+                    <span className="font-medium text-[var(--color-text-primary)]">
                       ${Number(selectedPurchase.subtotal).toFixed(2)}
                     </span>
                   </div>
                   {selectedPurchase.tax > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">IVA:</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-[var(--color-text-secondary)]">IVA:</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">
                         ${Number(selectedPurchase.tax).toFixed(2)}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
+                  <div className="flex justify-between border-t border-[var(--color-border)] pt-2 font-semibold">
                     <span>Total:</span>
                     <span>${Number(selectedPurchase.total).toFixed(2)}</span>
                   </div>
@@ -334,7 +334,7 @@ export function InventoryEntries() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.25 }}
                   >
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[var(--color-text-secondary)]">
                       <span className="font-medium">Notas:</span> {selectedPurchase.notes}
                     </p>
                   </motion.div>
@@ -353,7 +353,7 @@ export function InventoryEntries() {
                       <motion.button
                         onClick={() => setIsConfirmingReceive(true)}
                         disabled={isReceiving || !canReceive}
-                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-[var(--color-success)] px-4 py-2 font-medium text-white transition-colors hover:bg-[var(--color-success)] disabled:cursor-not-allowed disabled:opacity-50"
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                       >
@@ -362,7 +362,7 @@ export function InventoryEntries() {
                       <motion.button
                         onClick={() => setIsConfirmingDelete(true)}
                         disabled={isDeleting || !canReceive}
-                        className="flex-1 rounded-lg border border-red-300 bg-white px-4 py-2 font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex-1 rounded-lg border border-red-300 bg-[var(--color-surface)] px-4 py-2 font-medium text-[var(--color-danger)] transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                       >
@@ -377,7 +377,7 @@ export function InventoryEntries() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                     >
-                      <p className="rounded-lg bg-amber-50 p-3 text-sm text-gray-600">
+                      <p className="rounded-lg bg-amber-50 p-3 text-sm text-[var(--color-text-secondary)]">
                         ¿Confirmar recepción? Esto actualizará el inventario con los items de esta
                         compra.
                       </p>
@@ -385,7 +385,7 @@ export function InventoryEntries() {
                         <motion.button
                           onClick={handleReceivePurchase}
                           disabled={isReceiving}
-                          className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                          className="flex-1 rounded-lg bg-[var(--color-success)] px-4 py-2 font-medium text-white transition-colors hover:bg-[var(--color-success)] disabled:opacity-50"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
@@ -394,7 +394,7 @@ export function InventoryEntries() {
                         <motion.button
                           onClick={() => setIsConfirmingReceive(false)}
                           disabled={isReceiving}
-                          className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-900 transition-colors hover:bg-gray-300 disabled:opacity-50"
+                          className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-[var(--color-text-primary)] transition-colors hover:bg-gray-300 disabled:opacity-50"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
@@ -410,7 +410,7 @@ export function InventoryEntries() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                     >
-                      <p className="rounded-lg bg-red-50 p-3 text-sm text-gray-600">
+                      <p className="rounded-lg bg-red-50 p-3 text-sm text-[var(--color-text-secondary)]">
                         ¿Eliminar esta compra en borrador? Esta acción es irreversible y no afecta al
                         inventario ya que aún no ha sido recibida.
                       </p>
@@ -418,7 +418,7 @@ export function InventoryEntries() {
                         <motion.button
                           onClick={handleDeletePurchase}
                           disabled={isDeleting}
-                          className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                          className="flex-1 rounded-lg bg-[var(--color-danger)] px-4 py-2 font-medium text-white transition-colors hover:bg-[var(--color-danger)] disabled:opacity-50"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
@@ -427,7 +427,7 @@ export function InventoryEntries() {
                         <motion.button
                           onClick={() => setIsConfirmingDelete(false)}
                           disabled={isDeleting}
-                          className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-900 transition-colors hover:bg-gray-300 disabled:opacity-50"
+                          className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-medium text-[var(--color-text-primary)] transition-colors hover:bg-gray-300 disabled:opacity-50"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
@@ -441,13 +441,13 @@ export function InventoryEntries() {
             ) : selectedPurchaseId && isLoadingDetail ? (
               <motion.div
                 key="loading"
-                className="rounded-lg border border-gray-200 bg-white p-6"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="mb-4 font-semibold text-gray-900">Cargando detalles...</h2>
+                <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Cargando detalles...</h2>
                 <div className="space-y-4">
                   <Skeleton className="h-12" />
                   <Skeleton className="h-32" />
@@ -457,13 +457,13 @@ export function InventoryEntries() {
             ) : (
               <motion.div
                 key="empty"
-                className="flex min-h-96 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 text-center"
+                className="flex min-h-96 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.2 }}
               >
-                <p className="text-gray-500">Selecciona una compra para ver detalles</p>
+                <p className="text-[var(--color-text-secondary)]">Selecciona una compra para ver detalles</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -472,12 +472,12 @@ export function InventoryEntries() {
         {/* Historial de entradas recientes */}
         {draftPurchases.length > 0 && (
           <motion.div
-            className="mt-8 rounded-lg border border-gray-200 bg-white p-6"
+            className="mt-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.2 }}
           >
-            <h2 className="mb-4 font-semibold text-gray-900">
+            <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">
               Información útil
             </h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -498,7 +498,7 @@ export function InventoryEntries() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
               >
-                <p className="text-sm text-green-600">Compras pendientes</p>
+                <p className="text-sm text-[var(--color-success)]">Compras pendientes</p>
                 <p className="mt-1 text-2xl font-bold text-green-900">{draftPurchases.length}</p>
               </motion.div>
               <motion.div

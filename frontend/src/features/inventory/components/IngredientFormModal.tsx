@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits, useInventoryById } from '../hooks/useInventory'
@@ -20,6 +20,7 @@ export function IngredientFormModal({
   editingIngredientId = null,
   showSimilarMatches = true,
 }: IngredientFormModalProps) {
+  const firstInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(initialName)
   const [sku, setSku] = useState('')
   const [minimumStock, setMinimumStock] = useState('')
@@ -47,6 +48,19 @@ export function IngredientFormModal({
       return () => clearTimeout(timer)
     }
   }, [editingIngredient, isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      firstInputRef.current?.focus()
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose()
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen, onClose])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,15 +138,24 @@ export function IngredientFormModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
       <motion.div
-        className="w-full max-w-md rounded-lg bg-white shadow-lg"
+        className="w-full max-w-md rounded-lg shadow-lg"
+        style={{ backgroundColor: 'var(--color-surface)' }}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ingredient-modal-title"
       >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 id="ingredient-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {editingIngredientId ? 'Editar Ingrediente' : 'Crear Ingrediente'}
           </h2>
 
@@ -170,8 +193,10 @@ export function IngredientFormModal({
 
           {/* Nombre */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre *</label>
+            <label htmlFor="ingredient-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Nombre *</label>
             <input
+              id="ingredient-name"
+              ref={firstInputRef}
               type="text"
               value={name}
               onChange={(e) => {
@@ -179,30 +204,47 @@ export function IngredientFormModal({
                 setSimilarSearch(e.target.value)
               }}
               placeholder="Ej: Café en grano"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              aria-label="Nombre del ingrediente"
+              aria-required="true"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
           {/* SKU */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">SKU (opcional)</label>
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>SKU (opcional)</label>
             <input
               type="text"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               placeholder="Ej: CAF-001"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
           {/* Unidad */}
           {!editingIngredientId && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Unidad *</label>
+              <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Unidad *</label>
               <select
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+                className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text-primary)'
+                }}
               >
                 <option value="">Selecciona una unidad</option>
                 {isLoadingUnits ? (
@@ -222,7 +264,7 @@ export function IngredientFormModal({
 
           {/* Stock mínimo */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Stock Mínimo (opcional)</label>
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Mínimo (opcional)</label>
             <input
               type="number"
               value={minimumStock}
@@ -230,7 +272,12 @@ export function IngredientFormModal({
               placeholder="0"
               step="0.01"
               min="0"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
@@ -239,14 +286,18 @@ export function IngredientFormModal({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:opacity-80"
+              style={{
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-primary)'
+              }}
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="flex-1 rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f] disabled:opacity-50"
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
               {isCreating || isUpdating ? 'Guardando...' : editingIngredientId ? 'Actualizar' : 'Crear'}
             </button>

@@ -95,6 +95,8 @@ export function OrdersPage() {
           onClick={toggleFullScreen}
           className="p-2 rounded-lg border"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          title={isFullScreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
         >
           <MaximizeIcon className="h-5 w-5" style={{ color: 'var(--color-text-primary)' }} />
         </button>
@@ -106,6 +108,8 @@ export function OrdersPage() {
             borderColor: 'var(--color-border)',
             color: viewMode === 'grid' ? 'var(--color-button-text)' : 'var(--color-text-primary)',
           }}
+          aria-label="Ver órdenes en modo cuadrícula"
+          aria-pressed={viewMode === 'grid'}
         >
           Grid
         </button>
@@ -117,6 +121,8 @@ export function OrdersPage() {
             borderColor: 'var(--color-border)',
             color: viewMode === 'list' ? 'var(--color-button-text)' : 'var(--color-text-primary)',
           }}
+          aria-label="Ver órdenes en modo lista"
+          aria-pressed={viewMode === 'list'}
         >
           Lista
         </button>

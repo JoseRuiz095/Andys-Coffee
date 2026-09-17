@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Skeleton } from '../../../shared/components/Skeleton'
+import { Skeleton } from '@/shared/components/Skeleton'
+import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
+import { StatusBadge } from '@/shared/components/StatusBadge'
 import { useUsersList, useSetUserActive, useDeleteUser } from '../hooks/useUsers'
 import { hasPermission } from '../../auth/utils/permissions'
 import { sileo } from 'sileo'
@@ -17,6 +19,11 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
   const canDeleteUsers = hasPermission(currentUser, 'users.delete')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; userId: string | null; userName: string }>({
+    isOpen: false,
+    userId: null,
+    userName: '',
+  })
   const { data, isLoading, isError } = useUsersList({ page, limit: 10, search })
   const { mutate: setActive, isPending: isTogglingActive } = useSetUserActive()
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
@@ -41,7 +48,7 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
     )
   }
 
-  const handleDelete = (userId: string) => {
+  const handleDelete = (userId: string, userName: string) => {
     if (userId === currentUser?.id) {
       sileo.error({
         title: 'No permitido',
@@ -50,14 +57,25 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
       return
     }
 
-    if (confirm('¿Estás seguro de que deseas eliminar este usuario?')) {
-      deleteUser(userId, {
+    setDeleteConfirm({ isOpen: true, userId, userName })
+  }
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirm.userId) {
+      deleteUser(deleteConfirm.userId, {
         onError: (error: any) => {
           const message = error?.response?.data?.message || 'Error al eliminar usuario'
           sileo.error({ title: 'Error', description: message })
         },
+        onSuccess: () => {
+          setDeleteConfirm({ isOpen: false, userId: null, userName: '' })
+        },
       })
     }
+  }
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, userId: null, userName: '' })
   }
 
   if (isLoading) {
@@ -120,40 +138,41 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
         )}
       </div>
 
-      <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-        <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
-          <thead className="border-b" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Nombre</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Email</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Rol</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-t" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+      {users.length === 0 ? (
+        <div className="rounded-lg border p-8 text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+          <p style={{ color: 'var(--color-text-secondary)' }}>No hay usuarios encontrados</p>
+          {search && <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }} className="mt-1">Intenta con otros términos de búsqueda</p>}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+          <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
+            <thead className="border-b" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Nombre</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Email</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Rol</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+              <tr key={user.id} className="border-t transition-colors duration-150 hover:opacity-80" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
                 <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.name}</td>
                 <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.email}</td>
                 <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.role.name}</td>
                 <td className="px-4 py-3 text-sm">
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      user.isActive
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
+                  <StatusBadge tone={user.isActive ? 'success' : 'danger'}>
                     {user.isActive ? 'Activo' : 'Inactivo'}
-                  </span>
+                  </StatusBadge>
                 </td>
                 <td className="px-4 py-3 text-sm space-x-2 flex">
                   {canUpdateUsers && (
                     <button
                       onClick={() => onEditUser(user.id)}
-                      className="hover:underline"
+                      className="hover:underline transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1"
                       style={{ color: 'var(--color-primary)' }}
+                      aria-label={`Editar usuario ${user.name}`}
                     >
                       Editar
                     </button>
@@ -162,29 +181,32 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
                     <button
                       onClick={() => handleToggleActive(user.id, user.isActive)}
                       disabled={isTogglingActive || user.id === currentUser?.id}
-                      className="hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="hover:underline transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1"
                       style={{ color: 'var(--color-primary)' }}
+                      aria-label={`${user.isActive ? 'Desactivar' : 'Activar'} usuario ${user.name}`}
                     >
                       {user.isActive ? 'Desactivar' : 'Activar'}
                     </button>
                   )}
                   {canDeleteUsers && (
                     <button
-                      onClick={() => handleDelete(user.id)}
+                      onClick={() => handleDelete(user.id, user.name)}
                       disabled={isDeleting || user.id === currentUser?.id}
-                      className="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-red-600 hover:text-red-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1"
+                      aria-label={`Eliminar usuario ${user.name}`}
                     >
                       Eliminar
                     </button>
                   )}
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {pagination && pagination.totalPages > 1 && (
+      {users.length > 0 && pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex justify-between items-center">
           <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Página {pagination.page} de {pagination.totalPages}
@@ -209,6 +231,17 @@ export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTablePr
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Eliminar Usuario"
+        message={`¿Estás seguro de que deseas eliminar a "${deleteConfirm.userName}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isDangerous={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   )
 }

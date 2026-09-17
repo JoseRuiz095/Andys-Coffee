@@ -27,7 +27,7 @@ export function ProductsTable({
   }
 
   if (products.length === 0) {
-    return <div className="text-center py-8 text-gray-500">No hay productos</div>
+    return <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>No hay productos</div>
   }
 
   return (
@@ -61,6 +61,7 @@ export function ProductsTable({
           {products.map((product) => (
             <tr
               key={product.id}
+              className="transition-colors duration-150 hover:opacity-80"
               style={{
                 borderBottom: '1px solid var(--color-border)',
                 backgroundColor: 'var(--color-surface)',
@@ -92,7 +93,14 @@ export function ProductsTable({
                   {canEdit && (
                     <button
                       onClick={() => onEdit(product)}
-                      className="px-3 py-1 text-xs font-semibold rounded bg-blue-500 text-white hover:bg-blue-600"
+                      className="px-3 py-1 text-xs font-semibold rounded text-white transition-colors duration-200 focus:outline-none focus:ring-2"
+                      style={{
+                        backgroundColor: 'var(--color-primary)',
+                        '--tw-ring-color': 'var(--color-primary)'
+                      } as React.CSSProperties}
+                      aria-label={`Editar producto ${product.name}`}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
                     >
                       Editar
                     </button>
@@ -100,7 +108,14 @@ export function ProductsTable({
                   {canDelete && (
                     <button
                       onClick={() => onDelete(product)}
-                      className="px-3 py-1 text-xs font-semibold rounded bg-red-500 text-white hover:bg-red-600"
+                      className="px-3 py-1 text-xs font-semibold rounded text-white transition-colors duration-200 focus:outline-none focus:ring-2"
+                      style={{
+                        backgroundColor: 'var(--color-danger)',
+                        '--tw-ring-color': 'var(--color-danger)'
+                      } as React.CSSProperties}
+                      aria-label={`Eliminar producto ${product.name}`}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-danger-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-danger)'}
                     >
                       Eliminar
                     </button>

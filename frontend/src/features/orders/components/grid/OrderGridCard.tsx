@@ -4,6 +4,7 @@ import { OrderActions } from '../OrderActions';
 import { mapOrderStatusToFrontend } from '../../types/orders.types';
 import { OrderStatus as BackendOrderStatus } from '../../types/backend.types';
 import type { AuthUser } from '../../../auth/types/auth.types';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 
 interface OrderGridCardProps {
   order: Order;
@@ -11,12 +12,20 @@ interface OrderGridCardProps {
   currentUser: AuthUser | null;
 }
 
-const statusStyles: Record<OrderStatus, { text: string; bg: string; color: string }> = {
-  PENDING: { text: 'Pendiente', bg: 'bg-yellow-100', color: 'text-yellow-800' },
-  PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
-  READY: { text: 'Lista', bg: 'bg-green-100', color: 'text-green-800' },
-  COMPLETED: { text: 'Entregada', bg: 'bg-gray-100', color: 'text-gray-800' },
-  CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
+const statusTextMap: Record<OrderStatus, string> = {
+  PENDING: 'Pendiente',
+  PREPARING: 'En preparación',
+  READY: 'Lista',
+  COMPLETED: 'Entregada',
+  CANCELLED: 'Cancelada',
+};
+
+const statusToneMap: Record<OrderStatus, 'warning' | 'info' | 'success' | 'neutral' | 'danger'> = {
+  PENDING: 'warning',
+  PREPARING: 'info',
+  READY: 'success',
+  COMPLETED: 'neutral',
+  CANCELLED: 'danger',
 };
 
 function formatDuration(seconds: number) {
@@ -40,10 +49,11 @@ export function OrderGridCard({ order, onStatusChange, currentUser }: OrderGridC
     return () => clearInterval(interval);
   }, [order.createdAt]);
 
-  const timeColor = elapsedSeconds > 300 ? 'text-red-500' : 'text-gray-900';
-  
+  const timeStyle = { color: elapsedSeconds > 300 ? 'var(--color-danger)' : 'var(--color-text-primary)' };
+
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
-  const { text, bg, color } = statusStyles[frontendStatus];
+  const statusText = statusTextMap[frontendStatus];
+  const statusTone = statusToneMap[frontendStatus];
 
   return (
     <div className="flex h-full flex-col rounded-xl border p-4 shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -56,9 +66,7 @@ export function OrderGridCard({ order, onStatusChange, currentUser }: OrderGridC
             </span>
           )}
         </h3>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${bg} ${color}`}>
-          {text}
-        </span>
+        <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
       </div>
 
       <div className="flex-1 space-y-2 text-base overflow-y-auto pr-2"> {/* Increased font size and added scroll */}
@@ -66,17 +74,17 @@ export function OrderGridCard({ order, onStatusChange, currentUser }: OrderGridC
           <div key={item.id} className="flex flex-col">
             <span className="font-medium">{item.quantity}x {item.productName}</span>
             {item.notes && (
-              <span className="text-sm text-gray-500">Nota: {item.notes}</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Nota: {item.notes}</span>
             )}
           </div>
         ))}
       </div>
-      
+
       <div className="mt-4 text-center">
-        <p className={`text-3xl font-bold ${timeColor}`}> {/* Reduced font size and moved */}
+        <p className="text-3xl font-bold" style={timeStyle}> {/* Reduced font size and moved */}
           {formatDuration(Math.round(elapsedSeconds))}
         </p>
-        <p className="text-sm text-gray-500">minutos</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>minutos</p>
       </div>
 
        <div className="border-t mt-4 pt-4" style={{ borderColor: 'var(--color-border)' }}>

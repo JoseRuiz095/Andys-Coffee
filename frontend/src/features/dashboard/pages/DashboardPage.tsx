@@ -608,7 +608,19 @@ export function DashboardPage() {
                 type="button"
                 onClick={handleCloseCashSession}
                 disabled={closeSession.isPending}
-                className="rounded-full border border-[#E7C7C2] bg-[#FFF7F5] px-4 py-2 text-sm font-semibold text-[#8D3B32] shadow-sm transition hover:bg-[#FDEDEA] disabled:opacity-60"
+                className="rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition disabled:opacity-60"
+                style={{
+                  borderColor: 'var(--color-danger)',
+                  backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))',
+                  color: 'var(--color-danger)',
+                  border: '1px solid var(--color-danger)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-danger) 15%, var(--color-surface))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))';
+                }}
               >
                 {closeSession.isPending ? 'Cerrando...' : 'Cerrar caja'}
               </button>
@@ -626,16 +638,39 @@ export function DashboardPage() {
                     aria-label="Abrir notificaciones del proyecto"
                     aria-expanded={isNotificationCenterOpen}
                     onClick={toggleNotificationCenter}
-                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25 ${
-                      hasUnreadNotifications
-                        ? 'border-[#C78234] bg-[#FFF4DC] text-[#8A4E18] shadow-[0_0_0_4px_rgba(199,130,52,0.14),0_10px_24px_rgba(138,78,24,0.18)] hover:bg-[#FFE8B8]'
-                        : 'border-[#E7E3DC] bg-white text-[#5A804F] hover:border-[#5A804F]/40 hover:bg-[#F2EFE8]'
-                    }`}
+                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2`}
+                style={hasUnreadNotifications ? {
+                  borderColor: 'var(--color-warning)',
+                  backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))',
+                  color: 'var(--color-warning)',
+                  boxShadow: '0 0 0 4px rgba(217, 119, 6, 0.14), 0 10px 24px rgba(217, 119, 6, 0.18)',
+                  '--tw-ring-color': 'var(--color-warning)'
+                } as React.CSSProperties : {
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-primary)',
+                  '--tw-ring-color': 'var(--color-primary)'
+                } as React.CSSProperties}
+                onMouseEnter={(e) => {
+                  if (hasUnreadNotifications) {
+                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-warning) 16%, var(--color-surface))';
+                  } else {
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (hasUnreadNotifications) {
+                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))';
+                  } else {
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  }
+                }}
+
                   >
                     {hasUnreadNotifications && (
                       <>
-                        <span className="absolute inset-0 rounded-full border-2 border-[#C78234]/50 animate-ping" />
-                        <span className="absolute -inset-1.5 rounded-full border border-[#C78234]/30" />
+                        <span className="absolute inset-0 rounded-full border-2 animate-ping" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 50%, transparent)' }} />
+                        <span className="absolute -inset-1.5 rounded-full border" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 30%, transparent)' }} />
                       </>
                     )}
                     <CoffeeIcon
@@ -645,7 +680,11 @@ export function DashboardPage() {
                       aria-hidden="true"
                     />
                     {hasUnreadNotifications && (
-                      <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-[#C83232] px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_rgba(200,50,50,0.35)]">
+                      <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 px-1 text-[10px] font-bold leading-none text-white" style={{
+                        borderColor: 'var(--color-surface)',
+                        backgroundColor: 'var(--color-danger)',
+                        boxShadow: '0 4px 10px rgba(220, 38, 38, 0.35)'
+                      }}>
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     )}
@@ -658,7 +697,21 @@ export function DashboardPage() {
                   type="button"
                   aria-label="Abrir configuracion del proyecto"
                   onClick={() => navigateTo(APP_ROUTES.settings)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E7E3DC] bg-white text-[#5A804F] shadow-sm transition hover:border-[#5A804F]/40 hover:bg-[#F2EFE8] focus:outline-none focus:ring-2 focus:ring-[#5A804F]/25"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-primary)',
+                    '--tw-ring-color': 'var(--color-primary)'
+                  } as React.CSSProperties}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--color-primary) 40%, transparent)';
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)';
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  }}
                 >
                   <SettingsIcon size={22} aria-hidden="true" />
                 </button>

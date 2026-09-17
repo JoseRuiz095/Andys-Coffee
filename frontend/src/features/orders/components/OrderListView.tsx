@@ -2,6 +2,7 @@ import { Order, OrderStatus, mapOrderStatusToFrontend } from '../types/orders.ty
 import { OrderActions } from './OrderActions'
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
 import type { AuthUser } from '../../auth/types/auth.types';
+import { StatusBadge } from '@/shared/components/StatusBadge';
 
 interface OrderListViewProps {
   orders: Order[]
@@ -9,15 +10,31 @@ interface OrderListViewProps {
   currentUser: AuthUser | null
 }
 
-const statusStyles: Record<OrderStatus, { text: string; bg: string; color: string }> = {
-  PENDING: { text: 'Pendiente', bg: 'bg-yellow-100', color: 'text-yellow-800' },
-  PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
-  READY: { text: 'Lista', bg: 'bg-green-100', color: 'text-green-800' },
-  COMPLETED: { text: 'Entregada', bg: 'bg-gray-100', color: 'text-gray-800' },
-  CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
+const statusTextMap: Record<OrderStatus, string> = {
+  PENDING: 'Pendiente',
+  PREPARING: 'En preparación',
+  READY: 'Lista',
+  COMPLETED: 'Entregada',
+  CANCELLED: 'Cancelada',
+}
+
+const statusToneMap: Record<OrderStatus, 'warning' | 'info' | 'success' | 'neutral' | 'danger'> = {
+  PENDING: 'warning',
+  PREPARING: 'info',
+  READY: 'success',
+  COMPLETED: 'neutral',
+  CANCELLED: 'danger',
 }
 
 export function OrderListView({ orders, onStatusChange, currentUser }: OrderListViewProps) {
+  if (orders.length === 0) {
+    return (
+      <div className="rounded-xl border p-8 text-center shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <p style={{ color: 'var(--color-text-secondary)' }}>No hay órdenes para mostrar</p>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-xl border shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <table className="w-full text-sm">
@@ -33,7 +50,8 @@ export function OrderListView({ orders, onStatusChange, currentUser }: OrderList
         <tbody>
           {orders.map((order) => {
             const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
-            const { text, bg, color } = statusStyles[frontendStatus]
+            const statusText = statusTextMap[frontendStatus]
+            const statusTone = statusToneMap[frontendStatus]
             const itemsSummary = order.items
               .map((item) => `${item.quantity}x ${item.productName}`)
               .join(', ')
@@ -45,18 +63,14 @@ export function OrderListView({ orders, onStatusChange, currentUser }: OrderList
             return (
               <tr
                 key={order.id}
-                className="border-b last:border-b-0"
+                className="border-b last:border-b-0 transition-colors duration-150 hover:opacity-80"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
               >
                 <td className="p-4 font-medium" style={{ color: 'var(--color-text-primary)' }}>
                   #{order.orderNumber}
                 </td>
                 <td className="p-4">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${bg} ${color}`}
-                  >
-                    {text}
-                  </span>
+                  <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
                 </td>
                 <td className="p-4" style={{ color: 'var(--color-text-secondary)' }}>
                   {new Date(order.createdAt).toLocaleTimeString('es-ES', {

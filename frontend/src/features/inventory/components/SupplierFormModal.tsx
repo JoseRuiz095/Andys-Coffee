@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { useCreateSupplier, useSearchSuppliers, useUpdateSupplier, useSupplierById } from '../hooks/usePurchases'
@@ -20,6 +20,7 @@ export function SupplierFormModal({
   editingSupplierId = null,
   showSimilarMatches = true,
 }: SupplierFormModalProps) {
+  const firstInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(initialName)
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -44,6 +45,19 @@ export function SupplierFormModal({
       return () => clearTimeout(timer)
     }
   }, [editingSupplier, isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      firstInputRef.current?.focus()
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose()
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen, onClose])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,15 +133,24 @@ export function SupplierFormModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
       <motion.div
-        className="w-full max-w-md rounded-lg bg-white shadow-lg"
+        className="w-full max-w-md rounded-lg shadow-lg"
+        style={{ backgroundColor: 'var(--color-surface)' }}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="supplier-modal-title"
       >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 id="supplier-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {editingSupplierId ? 'Editar Proveedor' : 'Crear Proveedor'}
           </h2>
 
@@ -163,8 +186,10 @@ export function SupplierFormModal({
 
           {/* Nombre */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre *</label>
+            <label htmlFor="supplier-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Nombre *</label>
             <input
+              id="supplier-name"
+              ref={firstInputRef}
               type="text"
               value={name}
               onChange={(e) => {
@@ -172,43 +197,65 @@ export function SupplierFormModal({
                 setSimilarSearch(e.target.value)
               }}
               placeholder="Ej: Café Importado S.A."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              aria-label="Nombre del proveedor"
+              aria-required="true"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
           {/* Teléfono */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Teléfono (opcional)</label>
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Teléfono (opcional)</label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+34 912 345 678"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
           {/* Email */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Email (opcional)</label>
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Email (opcional)</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="contacto@proveedor.com"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
           {/* Dirección */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Dirección (opcional)</label>
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Dirección (opcional)</label>
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Calle Principal 123, Ciudad"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#5A804F] focus:ring-2 focus:ring-[#5A804F]/20"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
             />
           </div>
 
@@ -217,14 +264,18 @@ export function SupplierFormModal({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:opacity-80"
+              style={{
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-primary)'
+              }}
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="flex-1 rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f] disabled:opacity-50"
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
               {isCreating || isUpdating ? (editingSupplierId ? 'Actualizando...' : 'Creando...') : (editingSupplierId ? 'Actualizar' : 'Crear')}
             </button>

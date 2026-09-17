@@ -12,11 +12,12 @@ import { RoleFormModal } from '../../roles/components/RoleFormModal'
 import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
+import { CashSessionHistory } from '../../dashboard/components/CashSessionHistory'
 import { useRolesList } from '../../roles/hooks/useRoles'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -156,6 +157,11 @@ export function SettingsPage() {
                     isActive={activeTab === 'roles'}
                     onClick={() => setActiveTab('roles')}
                   />
+                  <NavTab
+                    label="Historial de Caja"
+                    isActive={activeTab === 'cash-history'}
+                    onClick={() => setActiveTab('cash-history')}
+                  />
                 </>
               )}
               <div className="my-2 border-t border-[#E7E3DC]" />
@@ -279,6 +285,22 @@ export function SettingsPage() {
                       setEditingRoleId(null)
                     }}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Historial de Caja */}
+            {activeTab === 'cash-history' && canManageUsers && (
+              <div className="space-y-4">
+                <ContentHeader
+                  title="Historial de Cierres de Caja"
+                  description="Revisa y corrige los cierres de cajas anteriores"
+                />
+                <div
+                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
+                  <CashSessionHistory />
                 </div>
               </div>
             )}

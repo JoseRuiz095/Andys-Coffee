@@ -4,12 +4,13 @@ const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange:
   if (!open) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
       onClick={() => onOpenChange(false)}
     >
-      <div 
-        className="bg-white rounded-lg shadow-lg w-full max-w-md"
+      <div
+        className="rounded-lg shadow-lg w-full max-w-md"
+        style={{ backgroundColor: 'var(--color-surface)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -23,15 +24,15 @@ const DialogContent = ({ children }: { children: React.ReactNode }) => (
 );
 
 const DialogHeader = ({ children }: { children: React.ReactNode }) => (
-  <div className="border-b p-4">{children}</div>
+  <div className="border-b p-4" style={{ borderColor: 'var(--color-border)' }}>{children}</div>
 );
 
 const DialogFooter = ({ children }: { children: React.ReactNode }) => (
-  <div className="border-t p-4 flex justify-end gap-2">{children}</div>
+  <div className="border-t p-4 flex justify-end gap-2" style={{ borderColor: 'var(--color-border)' }}>{children}</div>
 );
 
 const DialogTitle = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-lg font-semibold">{children}</h2>
+  <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{children}</h2>
 );
 
 export { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle };

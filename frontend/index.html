@@ -9,11 +9,13 @@
       (() => {
         try {
           const savedTheme = localStorage.getItem('andy-theme')
-          const preferredTheme = savedTheme === 'light' || savedTheme === 'dark'
-            ? savedTheme
-            : window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
+
+          // Default to light theme, prefer saved theme if it exists
+          let preferredTheme = 'light'
+
+          if (savedTheme === 'light' || savedTheme === 'dark') {
+            preferredTheme = savedTheme
+          }
 
           document.documentElement.dataset.theme = preferredTheme
           document.documentElement.style.colorScheme = preferredTheme

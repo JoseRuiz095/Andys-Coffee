@@ -10,16 +10,20 @@ const Loader = () => (
 )
 
 const ErrorMessage = ({ message }: { message: string }) => (
-  <div className="m-4 rounded-lg border border-red-400 bg-red-100 p-8 text-center text-red-700">
+  <div className="m-4 rounded-lg border p-8 text-center" style={{
+    borderColor: 'var(--color-danger)',
+    backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))',
+    color: 'var(--color-danger)'
+  }}>
     <p className="font-bold">¡Ha ocurrido un error!</p>
     <p>{message}</p>
   </div>
 )
 
 const ProductCard = ({ product }: { product: MenuItem }) => (
-  <div className="transform cursor-pointer rounded-lg border p-4 shadow-md transition-shadow hover:shadow-lg">
+  <div className="transform cursor-pointer rounded-lg border p-4 shadow-md transition-shadow hover:shadow-lg" style={{ borderColor: 'var(--color-border)' }}>
     <h3 className="text-xl font-bold">{product.name}</h3>
-    {product.description && <p className="text-gray-600">{product.description}</p>}
+    {product.description && <p style={{ color: 'var(--color-text-secondary)' }}>{product.description}</p>}
     <p className="mt-2 text-lg font-semibold">${product.price}</p>
   </div>
 )

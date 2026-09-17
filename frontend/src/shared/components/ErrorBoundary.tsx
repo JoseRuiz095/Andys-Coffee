@@ -30,14 +30,35 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-6">
-            <h2 className="text-lg font-semibold text-red-800">Algo salió mal</h2>
-            <p className="mt-2 text-sm text-red-700">
+          <div
+            className="rounded-lg p-6"
+            style={{
+              border: '1px solid var(--color-danger)',
+              backgroundColor: `color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))`,
+            }}
+          >
+            <h2
+              className="text-lg font-semibold"
+              style={{ color: 'var(--color-danger)' }}
+            >
+              Algo salió mal
+            </h2>
+            <p
+              className="mt-2 text-sm"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
               {this.state.error?.message || 'Ocurrió un error inesperado'}
             </p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white transition"
+              style={{ backgroundColor: 'var(--color-danger)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-danger-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-danger)'
+              }}
             >
               Reintentar
             </button>
