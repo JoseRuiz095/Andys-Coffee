@@ -1,5 +1,6 @@
 import { useDashboardSummary, type PeriodType } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { formatCurrency } from '../../../shared/utils/formatCurrency';
 
 interface DashboardSummaryProps {
   period: PeriodType;
@@ -63,15 +64,6 @@ export function DashboardSummary({ period }: DashboardSummaryProps) {
   }
 
   if (!data) return null;
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">

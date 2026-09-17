@@ -5,6 +5,5 @@ export * from './components/OrderDetailsPanel'
 export * from './components/DashboardSummary'
 export * from './components/TopProducts'
 export * from './components/InventoryStatus'
-export * from './components/CostsOverview'
-export { useDashboardSummary, useDashboardSales, useDashboardInventory, useDashboardCosts } from './hooks/useDashboard'
+export { useDashboardSummary, useDashboardSales, useDashboardInventory } from './hooks/useDashboard'
 

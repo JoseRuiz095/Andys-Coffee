@@ -17,6 +17,7 @@
     "ldrs": "^1.1.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "recharts": "^3.10.1",
     "sileo": "^0.1.5",
     "tailwindcss": "^4.3.3"
   },

@@ -113,26 +113,78 @@ export const ExpenseService = {
         }
 
         const newAmount = input.amount !== undefined ? new Prisma.Decimal(input.amount) : existing.amount;
-        const amountDelta = newAmount.sub(existing.amount);
+        const newPaymentMethod = input.paymentMethod ?? existing.paymentMethod;
 
-        // If cash-linked and amount changed, adjust expected amount
-        if (existing.cashSessionId && !amountDelta.isZero()) {
-          await tx.cashMovement.create({
-            data: {
-              cashSessionId: existing.cashSessionId,
-              type: 'expense_adjustment',
-              amount: amountDelta.negated(),
-              referenceType: 'expense',
-              referenceId: id,
-              description: `Ajuste de gasto: ${input.description ?? existing.description}`,
-              createdById: updatedById,
-            },
-          });
+        const oldCashSessionId = existing.cashSessionId;
+        const oldImpact = oldCashSessionId ? existing.amount : new Prisma.Decimal(0);
 
-          await tx.cashSession.update({
-            where: { id: existing.cashSessionId },
-            data: { expectedAmount: { decrement: amountDelta } },
-          });
+        // Only stays/becomes cash-linked if the (possibly new) payment method is 'cash'.
+        // Re-links to whatever session it was already tied to, or to the currently open
+        // session if it's newly becoming a cash expense; otherwise stays unlinked, matching
+        // create()'s behavior of never retroactively adopting a later-opened session.
+        let newCashSessionId: string | null = null;
+        if (newPaymentMethod === 'cash') {
+          newCashSessionId = oldCashSessionId ?? (await CashRepository.findActiveSessionInTransaction(tx))?.id ?? null;
+        }
+        const newImpact = newCashSessionId ? newAmount : new Prisma.Decimal(0);
+
+        if (oldCashSessionId === newCashSessionId) {
+          // Same session before/after (both unlinked, or still linked to the same open session).
+          const delta = newImpact.sub(oldImpact);
+          if (newCashSessionId && !delta.isZero()) {
+            await tx.cashMovement.create({
+              data: {
+                cashSessionId: newCashSessionId,
+                type: 'expense_adjustment',
+                amount: delta.negated(),
+                referenceType: 'expense',
+                referenceId: id,
+                description: `Ajuste de gasto: ${input.description ?? existing.description}`,
+                createdById: updatedById,
+              },
+            });
+
+            await tx.cashSession.update({
+              where: { id: newCashSessionId },
+              data: { expectedAmount: { decrement: delta } },
+            });
+          }
+        } else {
+          // Cash-linkage itself is changing (cash<->non-cash, or newly linked to a session).
+          if (oldCashSessionId) {
+            await tx.cashMovement.create({
+              data: {
+                cashSessionId: oldCashSessionId,
+                type: 'expense_reversal',
+                amount: oldImpact.negated(),
+                referenceType: 'expense',
+                referenceId: id,
+                description: `Reversión de gasto: ${existing.description}`,
+                createdById: updatedById,
+              },
+            });
+            await tx.cashSession.update({
+              where: { id: oldCashSessionId },
+              data: { expectedAmount: { increment: oldImpact } },
+            });
+          }
+          if (newCashSessionId) {
+            await tx.cashMovement.create({
+              data: {
+                cashSessionId: newCashSessionId,
+                type: 'expense',
+                amount: newImpact,
+                referenceType: 'expense',
+                referenceId: id,
+                description: input.description ?? existing.description,
+                createdById: updatedById,
+              },
+            });
+            await tx.cashSession.update({
+              where: { id: newCashSessionId },
+              data: { expectedAmount: { decrement: newImpact } },
+            });
+          }
         }
 
         return ExpenseRepository.update(tx, id, {
@@ -141,6 +193,7 @@ export const ExpenseService = {
           ...(input.amount !== undefined && { amount: newAmount }),
           ...(input.paymentMethod !== undefined && { paymentMethod: input.paymentMethod }),
           ...(input.expenseDate !== undefined && { expenseDate: new Date(`${input.expenseDate}T12:00:00.000Z`) }),
+          cashSessionId: newCashSessionId,
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }

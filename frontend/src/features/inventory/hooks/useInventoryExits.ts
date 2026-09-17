@@ -8,6 +8,7 @@ export function useCreateExit() {
     mutationFn: (payload: CreateExitPayload) => inventoryExitsApi.create(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

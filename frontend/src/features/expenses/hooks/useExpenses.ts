@@ -15,6 +15,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
     mutationFn: (input: CreateExpenseInput) => ExpenseAPI.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       sileo.success({ title: 'Gasto registrado', description: 'El gasto se registró correctamente.' });
     },
     onError: (error: any) => {
@@ -27,6 +28,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
     mutationFn: (input: UpdateExpenseInput) => ExpenseAPI.update(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       sileo.success({ title: 'Gasto actualizado', description: 'El gasto se actualizó correctamente.' });
     },
     onError: (error: any) => {
@@ -39,6 +41,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
     mutationFn: (id: string) => ExpenseAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       sileo.success({ title: 'Gasto eliminado', description: 'El gasto se eliminó correctamente.' });
     },
     onError: (error: any) => {

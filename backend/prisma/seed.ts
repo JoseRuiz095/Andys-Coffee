@@ -860,13 +860,52 @@ async function main() {
     { name: "Kilogramo", abbreviation: "kg" },
   ];
 
-  // Clear existing units
+  // Clear existing units (delete in dependency order)
+  await prisma.inventoryMovement.deleteMany({});
+  await prisma.ingredient.deleteMany({});
   await prisma.inventoryUnit.deleteMany({});
 
   // Create new units
   await prisma.inventoryUnit.createMany({
     data: units,
   });
+
+  // ==========================================================
+  // PREFERENCIAS: DISTRIBUCIÓN DEL ESTADO DE RESULTADOS
+  // ==========================================================
+  // Idempotente (update: {}) para no pisar valores ya configurados por un admin.
+
+  const distributionPreferences = [
+    {
+      key: "income_statement.distribution.savings_percent",
+      value: "10",
+      type: "number",
+      label: "Ahorro (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado a Ahorro.",
+    },
+    {
+      key: "income_statement.distribution.business_fund_percent",
+      value: "20",
+      type: "number",
+      label: "Fondo del Negocio (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado al Fondo del Negocio.",
+    },
+    {
+      key: "income_statement.distribution.supplies_percent",
+      value: "70",
+      type: "number",
+      label: "Surtido (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado a Surtido.",
+    },
+  ];
+
+  for (const pref of distributionPreferences) {
+    await prisma.systemPreference.upsert({
+      where: { key: pref.key },
+      update: {},
+      create: pref,
+    });
+  }
 
   // ==========================================================
   // RESUMEN

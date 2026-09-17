@@ -1,246 +1,223 @@
 import { useState } from 'react'
-import { Skeleton } from '@/shared/components/Skeleton'
-import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
-import { StatusBadge } from '@/shared/components/StatusBadge'
-import { useUsersList, useSetUserActive, useDeleteUser } from '../hooks/useUsers'
+import { Skeleton } from '../../../shared/components/Skeleton'
+import { Input } from '../../../shared/components/Input'
+import { Button } from '../../../shared/components/Button'
+import { StatusBadge } from '../../../shared/components/StatusBadge'
+import { ActionMenu } from '../../../shared/components/ActionMenu'
+import { Card } from '../../../shared/components/Card'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
+import { useUsersList, useSetUserActive } from '../hooks/useUsers'
 import { hasPermission } from '../../auth/utils/permissions'
+import { blockIfSelf } from '../utils/selfGuard'
+import { getErrorMessage } from '../../../shared/utils/errors'
 import { sileo } from 'sileo'
+import type { UserData } from '../api/user.api'
 import type { AuthUser } from '../../auth/types/auth.types'
+
+export type UserRowIntent = 'view' | 'changeRole'
 
 interface UserTableProps {
   currentUser: AuthUser | null
-  onEditUser: (userId: string) => void
-  onCreateUser: () => void
+  onSelectUser: (userId: string, intent: UserRowIntent) => void
 }
 
-export function UserTable({ currentUser, onEditUser, onCreateUser }: UserTableProps) {
-  const canCreateUsers = hasPermission(currentUser, 'users.create')
+/**
+ * Clean Usuario | Correo | Rol | Estado | Acciones table. Deleting a user is
+ * a heavier, less frequent action, so it is deliberately not offered here —
+ * it only lives inside the user's detail drawer, reached via "Ver / editar".
+ */
+export function UserTable({ currentUser, onSelectUser }: UserTableProps) {
   const canUpdateUsers = hasPermission(currentUser, 'users.update')
-  const canDeleteUsers = hasPermission(currentUser, 'users.delete')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; userId: string | null; userName: string }>({
-    isOpen: false,
-    userId: null,
-    userName: '',
-  })
+  const [deactivateTarget, setDeactivateTarget] = useState<UserData | null>(null)
   const { data, isLoading, isError } = useUsersList({ page, limit: 10, search })
   const { mutate: setActive, isPending: isTogglingActive } = useSetUserActive()
-  const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
 
-  const handleToggleActive = (userId: string, isActive: boolean) => {
-    if (userId === currentUser?.id) {
-      sileo.error({
-        title: 'No permitido',
-        description: 'No puedes desactivar tu propia cuenta.',
-      })
+  const handleToggleActive = (user: UserData) => {
+    if (user.isActive) {
+      if (blockIfSelf(currentUser, user.id, 'desactivar')) return
+      setDeactivateTarget(user)
       return
     }
-
     setActive(
-      { id: userId, isActive: !isActive },
+      { id: user.id, isActive: true },
       {
-        onError: (error: any) => {
-          const message = error?.response?.data?.message || 'Error al cambiar estado'
-          sileo.error({ title: 'Error', description: message })
+        onError: (error: unknown) => {
+          sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al activar usuario') })
         },
       }
     )
   }
 
-  const handleDelete = (userId: string, userName: string) => {
-    if (userId === currentUser?.id) {
-      sileo.error({
-        title: 'No permitido',
-        description: 'No puedes eliminar tu propia cuenta.',
-      })
-      return
-    }
-
-    setDeleteConfirm({ isOpen: true, userId, userName })
-  }
-
-  const handleConfirmDelete = () => {
-    if (deleteConfirm.userId) {
-      deleteUser(deleteConfirm.userId, {
-        onError: (error: any) => {
-          const message = error?.response?.data?.message || 'Error al eliminar usuario'
-          sileo.error({ title: 'Error', description: message })
+  const handleConfirmDeactivate = () => {
+    if (!deactivateTarget) return
+    setActive(
+      { id: deactivateTarget.id, isActive: false },
+      {
+        onError: (error: unknown) => {
+          sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al desactivar usuario') })
         },
-        onSuccess: () => {
-          setDeleteConfirm({ isOpen: false, userId: null, userName: '' })
-        },
-      })
-    }
-  }
-
-  const handleCancelDelete = () => {
-    setDeleteConfirm({ isOpen: false, userId: null, userName: '' })
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-12" />
-        ))}
-      </div>
+      }
     )
+    setDeactivateTarget(null)
   }
 
-  if (isError) {
-    return (
-      <div className="rounded-lg border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Error al cargar usuarios</h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          No se pudieron cargar los usuarios. Intenta de nuevo más tarde.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          Reintentar
-        </button>
-      </div>
-    )
-  }
-
-  const users = data?.data || []
-  const pagination = data?.pagination
+  const getRowActions = (user: UserData) => [
+    { label: 'Ver / editar', onClick: () => onSelectUser(user.id, 'view') },
+    ...(canUpdateUsers ? [{ label: 'Cambiar rol', onClick: () => onSelectUser(user.id, 'changeRole') }] : []),
+    ...(canUpdateUsers
+      ? [{
+          label: user.isActive ? 'Desactivar' : 'Activar',
+          onClick: () => handleToggleActive(user),
+          disabled: isTogglingActive,
+        }]
+      : []),
+  ]
 
   return (
-    <div>
-      <div className="mb-4 flex gap-3 items-center justify-between">
-        <input
-          type="text"
-          placeholder="Buscar por nombre o email..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-          className="px-4 py-2 border rounded-lg text-sm flex-1"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-            color: 'var(--color-text-primary)',
-          }}
-        />
-        {canCreateUsers && (
-          <button
-            onClick={onCreateUser}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            Nuevo Usuario
-          </button>
-        )}
-      </div>
+    <div className="space-y-4">
+      <Input
+        type="text"
+        placeholder="Buscar por nombre o correo..."
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setPage(1)
+        }}
+      />
 
-      {users.length === 0 ? (
-        <div className="rounded-lg border p-8 text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-          <p style={{ color: 'var(--color-text-secondary)' }}>No hay usuarios encontrados</p>
-          {search && <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }} className="mt-1">Intenta con otros términos de búsqueda</p>}
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-14" />
+          ))}
         </div>
+      ) : isError ? (
+        <Card variant="inset">
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            No se pudieron cargar los usuarios. Intenta de nuevo más tarde.
+          </p>
+        </Card>
+      ) : !data || data.data.length === 0 ? (
+        <Card variant="inset">
+          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            No se encontraron usuarios
+          </p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            {search ? 'Intenta buscar con otro nombre o correo.' : 'Aún no hay usuarios registrados.'}
+          </p>
+        </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-          <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
-            <thead className="border-b" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Nombre</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Email</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Rol</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-              <tr key={user.id} className="border-t transition-colors duration-150 hover:opacity-80" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.name}</td>
-                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.email}</td>
-                <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>{user.role.name}</td>
-                <td className="px-4 py-3 text-sm">
+        <>
+          {/* Desktop / tablet table */}
+          <div className="hidden rounded-lg border md:block" style={{ borderColor: 'var(--color-border)' }}>
+            <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
+              <thead className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                    Usuario
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                    Correo
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                    Rol
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.data.map((user) => (
+                  <tr key={user.id} className="border-t h-14" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="px-4 py-3 text-sm align-middle">
+                      <button
+                        type="button"
+                        onClick={() => onSelectUser(user.id, 'view')}
+                        className="truncate max-w-48 text-left font-medium hover:underline"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {user.name}
+                      </button>
+                    </td>
+                    <td className="truncate max-w-64 px-4 py-3 text-sm align-middle" style={{ color: 'var(--color-text-secondary)' }}>
+                      {user.email}
+                    </td>
+                    <td className="truncate max-w-48 px-4 py-3 text-sm align-middle" style={{ color: 'var(--color-text-secondary)' }}>
+                      {user.role.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm align-middle">
+                      <StatusBadge tone={user.isActive ? 'success' : 'danger'}>
+                        {user.isActive ? 'Activo' : 'Inactivo'}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle">
+                      <ActionMenu ariaLabel={`Acciones para ${user.name}`} items={getRowActions(user)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile stacked rows */}
+          <div className="space-y-2 md:hidden">
+            {data.data.map((user) => (
+              <Card key={user.id} variant="inset">
+                <div className="flex items-start justify-between gap-3">
+                  <button type="button" onClick={() => onSelectUser(user.id, 'view')} className="text-left">
+                    <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{user.name}</p>
+                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.email}</p>
+                  </button>
+                  <ActionMenu ariaLabel={`Acciones para ${user.name}`} items={getRowActions(user)} />
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.role.name}</span>
                   <StatusBadge tone={user.isActive ? 'success' : 'danger'}>
                     {user.isActive ? 'Activo' : 'Inactivo'}
                   </StatusBadge>
-                </td>
-                <td className="px-4 py-3 text-sm space-x-2 flex">
-                  {canUpdateUsers && (
-                    <button
-                      onClick={() => onEditUser(user.id)}
-                      className="hover:underline transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1"
-                      style={{ color: 'var(--color-primary)' }}
-                      aria-label={`Editar usuario ${user.name}`}
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {canUpdateUsers && (
-                    <button
-                      onClick={() => handleToggleActive(user.id, user.isActive)}
-                      disabled={isTogglingActive || user.id === currentUser?.id}
-                      className="hover:underline transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1"
-                      style={{ color: 'var(--color-primary)' }}
-                      aria-label={`${user.isActive ? 'Desactivar' : 'Activar'} usuario ${user.name}`}
-                    >
-                      {user.isActive ? 'Desactivar' : 'Activar'}
-                    </button>
-                  )}
-                  {canDeleteUsers && (
-                    <button
-                      onClick={() => handleDelete(user.id, user.name)}
-                      disabled={isDeleting || user.id === currentUser?.id}
-                      className="text-red-600 hover:text-red-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1"
-                      aria-label={`Eliminar usuario ${user.name}`}
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </td>
-              </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {users.length > 0 && pagination && pagination.totalPages > 1 && (
-        <div className="mt-4 flex justify-between items-center">
-          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Página {pagination.page} de {pagination.totalPages}
-          </span>
-          <div className="space-x-2">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-            >
-              Anterior
-            </button>
-            <button
-              onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
-              disabled={page === pagination.totalPages}
-              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-            >
-              Siguiente
-            </button>
+                </div>
+              </Card>
+            ))}
           </div>
-        </div>
+
+          {data.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Página {data.pagination.page} de {data.pagination.totalPages}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" className="flex-1" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                  Anterior
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
+                  disabled={page === data.pagination.totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        title="Eliminar Usuario"
-        message={`¿Estás seguro de que deseas eliminar a "${deleteConfirm.userName}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
+        isOpen={!!deactivateTarget}
+        title="Desactivar usuario"
+        message={`¿Estás seguro de que deseas desactivar a "${deactivateTarget?.name}"? Podrá reactivarse después.`}
+        confirmText="Desactivar"
         cancelText="Cancelar"
-        isDangerous={true}
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
+        isDangerous
+        onConfirm={handleConfirmDeactivate}
+        onCancel={() => setDeactivateTarget(null)}
       />
     </div>
   )

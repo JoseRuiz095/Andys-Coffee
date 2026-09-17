@@ -33,6 +33,7 @@ export function useCreateIngredient() {
       inventoryApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -45,6 +46,7 @@ export function useUpdateIngredient() {
       inventoryApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -57,6 +59,7 @@ export function useSetIngredientActive() {
       inventoryApi.setActive(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -69,6 +72,7 @@ export function useDeleteIngredient() {
       inventoryApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

@@ -18,6 +18,7 @@ export function useCashSession() {
       queryClient.setQueryData(cashSessionQueryKey, session)
       void queryClient.invalidateQueries({ queryKey: cashSessionQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
   const closeMutation = useMutation({
@@ -26,6 +27,7 @@ export function useCashSession() {
       queryClient.setQueryData(cashSessionQueryKey, null)
       void queryClient.invalidateQueries({ queryKey: cashSessionQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 

@@ -16,6 +16,7 @@ export const useUsersList = (params: UseUsersListParams = {}) => {
     queryKey: [QUERY_KEY, 'list', params],
     queryFn: () => UserAPI.getAll(params),
     staleTime: 2 * 60 * 1000,
+    placeholderData: (previous) => previous,
   })
 }
 
@@ -33,7 +34,7 @@ export const useCreateUser = () => {
     mutationFn: (data: { name: string; email: string; password: string; roleId: string }) =>
       UserAPI.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
     },
   })
 }
@@ -45,7 +46,7 @@ export const useUpdateUser = () => {
       UserAPI.update(params.id, params.data),
     onSuccess: (data) => {
       queryClient.setQueryData([QUERY_KEY, data.user.id], data.user)
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
     },
   })
 }
@@ -57,7 +58,7 @@ export const useSetUserActive = () => {
       UserAPI.setActive(params.id, params.isActive),
     onSuccess: (data) => {
       queryClient.setQueryData([QUERY_KEY, data.user.id], data.user)
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
     },
   })
 }
@@ -67,7 +68,7 @@ export const useDeleteUser = () => {
   return useMutation({
     mutationFn: (userId: string) => UserAPI.delete(userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
     },
   })
 }

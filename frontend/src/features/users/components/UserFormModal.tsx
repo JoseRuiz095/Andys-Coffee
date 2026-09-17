@@ -1,6 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { sileo } from 'sileo'
+import { Modal } from '../../../shared/components/Modal'
+import { Input } from '../../../shared/components/Input'
+import { Select } from '../../../shared/components/Select'
+import { Button } from '../../../shared/components/Button'
 import { useCreateUser, useUpdateUser, useUserById } from '../hooks/useUsers'
 
 interface UserFormModalProps {
@@ -46,25 +50,11 @@ export function UserFormModal({
       const timer = setTimeout(() => {
         setName(editingUser.name)
         setEmail(editingUser.email)
-        setRoleId(editingUser.roleId)
         setPassword('')
       }, 0)
       return () => clearTimeout(timer)
     }
   }, [editingUser, isOpen])
-
-  useEffect(() => {
-    if (isOpen) {
-      firstInputRef.current?.focus()
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose()
-        }
-      }
-      document.addEventListener('keydown', handleEscape)
-      return () => document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,12 +74,11 @@ export function UserFormModal({
       return
     }
 
-    if (!roleId) {
+    if (!editingUserId && !roleId) {
       sileo.error({ title: 'Rol faltante', description: 'Selecciona un rol para asignar permisos al usuario.' })
       return
     }
 
-    // Validate password only when creating
     if (!editingUserId) {
       if (!password.trim()) {
         sileo.error({ title: 'Contraseña requerida', description: 'Ingresa una contraseña segura de al menos 8 caracteres.' })
@@ -102,16 +91,9 @@ export function UserFormModal({
       }
     }
 
-    const data = {
-      name: name.trim(),
-      email: email.trim(),
-      roleId,
-      ...(password && !editingUserId && { password: password.trim() }),
-    }
-
     if (editingUserId) {
       updateUser(
-        { id: editingUserId, data: { name: data.name, email: data.email, roleId: data.roleId } },
+        { id: editingUserId, data: { name: name.trim(), email: email.trim() } },
         {
           onSuccess: (response) => {
             sileo.success({ title: 'Usuario actualizado', duration: 2000 })
@@ -127,7 +109,7 @@ export function UserFormModal({
       )
     } else {
       createUser(
-        { name: data.name, email: data.email, password: data.password || '', roleId: data.roleId },
+        { name: name.trim(), email: email.trim(), password: password.trim(), roleId },
         {
           onSuccess: (response) => {
             sileo.success({ title: 'Usuario creado', duration: 2000 })
@@ -144,16 +126,16 @@ export function UserFormModal({
     }
   }
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setName('')
     setEmail('')
     setPassword('')
-    setRoleId(roles[0]?.id || '')
+    setRoleId('')
     onClose()
-  }
+  }, [onClose])
 
   const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return { level: 0, label: '', color: '' }
+    if (!pwd) return { level: 0, label: '', colorVar: '' }
     let strength = 0
     if (pwd.length >= 8) strength++
     if (pwd.length >= 12) strength++
@@ -161,94 +143,72 @@ export function UserFormModal({
     if (/[0-9]/.test(pwd)) strength++
     if (/[^A-Za-z0-9]/.test(pwd)) strength++
 
-    if (strength <= 1) return { level: 1, label: 'Débil', color: 'bg-red-500' }
-    if (strength <= 2) return { level: 2, label: 'Regular', color: 'bg-yellow-500' }
-    if (strength <= 3) return { level: 3, label: 'Buena', color: 'bg-blue-500' }
-    return { level: 4, label: 'Fuerte', color: 'bg-green-500' }
+    if (strength <= 1) return { level: 1, label: 'Débil', colorVar: 'var(--color-danger)' }
+    if (strength <= 2) return { level: 2, label: 'Regular', colorVar: 'var(--color-warning)' }
+    if (strength <= 3) return { level: 3, label: 'Buena', colorVar: 'var(--color-info)' }
+    return { level: 4, label: 'Fuerte', colorVar: 'var(--color-success)' }
   }
 
-  const passwordStrength = !editingUserId ? getPasswordStrength(password) : { level: 0, label: '', color: '' }
+  const passwordStrength = !editingUserId ? getPasswordStrength(password) : { level: 0, label: '', colorVar: '' }
 
-  if (!isOpen) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      role="presentation"
+  const modalContent = (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      ariaLabelledBy="user-modal-title"
+      initialFocusRef={firstInputRef}
     >
-      <motion.div
-        className="w-full max-w-md rounded-lg shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="user-modal-title"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <h2 id="user-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {editingUserId ? 'Editar Usuario' : 'Crear Usuario'}
-          </h2>
+      <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <h2 id="user-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          {editingUserId ? 'Editar Usuario' : 'Crear Usuario'}
+        </h2>
 
-          {/* Nombre */}
-          <div>
-            <label htmlFor="user-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Nombre *</label>
-            <input
-              id="user-name"
-              ref={firstInputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Juan Pérez"
-              aria-label="Nombre del usuario"
-              aria-required="true"
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text-primary)'
-              }}
-            />
-          </div>
+        <div>
+          <label htmlFor="user-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            Nombre *
+          </label>
+          <input
+            id="user-name"
+            ref={firstInputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ej: Juan Pérez"
+            aria-required="true"
+            className="min-h-11 w-full min-w-0 rounded-md border px-4 text-xs outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text-primary)',
+              boxShadow: 'none',
+            }}
+          />
+        </div>
 
-          {/* Email */}
-          <div>
-            <label htmlFor="user-email" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Email *</label>
-            <input
-              id="user-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="usuario@ejemplo.com"
-              aria-label="Email del usuario"
-              aria-required="true"
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text-primary)'
-              }}
-            />
-          </div>
+        <div>
+          <label htmlFor="user-email" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            Email *
+          </label>
+          <Input
+            id="user-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="usuario@ejemplo.com"
+            aria-required="true"
+          />
+        </div>
 
-          {/* Rol */}
+        {!editingUserId && (
           <div>
-            <label htmlFor="user-role" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Rol *</label>
-            <select
+            <label htmlFor="user-role" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+              Rol *
+            </label>
+            <Select
               id="user-role"
               value={roleId}
               onChange={(e) => setRoleId(e.target.value)}
-              aria-label="Rol del usuario"
               aria-required="true"
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text-primary)'
-              }}
             >
               <option value="">Selecciona un rol</option>
               {roles.map((role) => (
@@ -256,71 +216,58 @@ export function UserFormModal({
                   {role.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
+        )}
 
-          {/* Password (solo al crear) */}
-          {!editingUserId && (
-            <div>
-              <label htmlFor="user-password" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Contraseña *</label>
-              <input
-                id="user-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mín. 8 caracteres, 1 letra, 1 número"
-                aria-label="Contraseña del usuario"
-                aria-required="true"
-                className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: 'var(--color-surface)',
-                  color: 'var(--color-text-primary)'
-                }}
-              />
-              {password && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded ${
-                          i <= passwordStrength.level ? passwordStrength.color : 'bg-gray-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    Fortaleza: <span className={`font-semibold ${passwordStrength.color.replace('bg-', 'text-')}`}>{passwordStrength.label}</span>
-                  </p>
+        {!editingUserId && (
+          <div>
+            <label htmlFor="user-password" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+              Contraseña *
+            </label>
+            <Input
+              id="user-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mín. 8 caracteres, 1 letra, 1 número"
+              aria-required="true"
+            />
+            {password && (
+              <div className="mt-2 space-y-1">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1 rounded"
+                      style={{
+                        backgroundColor: i <= passwordStrength.level ? passwordStrength.colorVar : 'var(--color-border)',
+                      }}
+                    />
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Botones */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:opacity-80"
-              style={{
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-text-primary)'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isCreating || isUpdating}
-              className="flex-1 rounded-lg bg-[#5A804F] px-4 py-2 text-sm font-medium text-white hover:bg-[#4a6a3f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCreating || isUpdating ? (editingUserId ? 'Actualizando...' : 'Creando...') : (editingUserId ? 'Actualizar' : 'Crear')}
-            </button>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Fortaleza: <span style={{ fontWeight: 'semibold', color: passwordStrength.colorVar }}>{passwordStrength.label}</span>
+                </p>
+              </div>
+            )}
           </div>
-        </form>
-      </motion.div>
-    </div>
+        )}
+
+        <div className="flex gap-3 pt-4">
+          <Button type="button" variant="ghost" onClick={handleClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary" disabled={isCreating || isUpdating} className="flex-1">
+            {isCreating || isUpdating ? (editingUserId ? 'Actualizando...' : 'Creando...') : (editingUserId ? 'Actualizar' : 'Crear')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
+
+  const portalRoot = document.getElementById('modal-root')
+  if (!portalRoot) return modalContent
+
+  return createPortal(modalContent, portalRoot)
 }

@@ -9,6 +9,7 @@ export interface UserData {
   role: {
     id: string
     name: string
+    permissions?: Array<{ permission: { id: string; name: string; description?: string } }>
   }
   createdAt: string
   updatedAt: string

@@ -36,6 +36,9 @@ export function useReceivePurchase() {
       // Invalidate inventory queries since stock was updated
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
 
+      // Invalidate dashboard since inventory changed
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
       // Update this specific purchase in cache
       queryClient.setQueryData(['purchases', data.purchase.id], data.purchase);
     },
@@ -65,6 +68,7 @@ export function useDeletePurchase() {
     mutationFn: (id: string) => purchasesApi.deletePurchase(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

@@ -60,6 +60,8 @@ function releaseCsrfRequest(config?: object) {
   }
 }
 
+import { sileo } from 'sileo'
+
 apiClient.interceptors.response.use(
   (response) => {
     releaseCsrfRequest(response.config);
@@ -69,6 +71,13 @@ apiClient.interceptors.response.use(
     releaseCsrfRequest(error.config);
     if (error.response?.status === 401) {
       authStore.clearSession();
+      // Solo mostrar notificación si no es una validación periódica
+      if (!error.config?.url?.includes('/auth/me')) {
+        sileo.error({
+          title: 'Sesión expirada',
+          description: 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
+        });
+      }
     }
     return Promise.reject(error);
   },

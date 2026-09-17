@@ -81,12 +81,12 @@ export const CashService = {
     return correctedSession;
   },
 
-  async closeIfBusinessDayEnded(closedById: string): Promise<CashSessionWithDetails | null> {
+  async closeIfBusinessDayEnded(closedById: string, now: Date = new Date()): Promise<CashSessionWithDetails | null> {
     const hour = Number(new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       hour12: false,
       timeZone: CASH_TIMEZONE,
-    }).format(new Date()));
+    }).format(now));
     if (hour < 14) return null;
     const session = await CashRepository.findActiveSession();
     if (!session) return null;

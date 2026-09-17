@@ -19,7 +19,7 @@ import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useNotifications } from '../hooks/useNotifications'
 import { OrdersPage } from '../../orders/pages/OrdersPage'
 import { InventoryLayout } from '../../inventory'
-import { ProductsCatalogPage } from '../../products'
+import { MetricsPage } from '../pages/MetricsPage'
 import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
@@ -83,7 +83,7 @@ export function DashboardPage() {
     { label: 'Venta', requiredPermission: 'sales.create' },
     { label: 'Ordenes', requiredPermission: 'sales.read' },
     { label: 'Inventario', requiredPermission: 'inventory.view' },
-    { label: 'Administracion', requiredPermission: 'users.read' },
+    { label: 'Administracion', requiredPermission: 'dashboard.read' },
   ]
 
   // Filter menu items based on user permissions
@@ -517,7 +517,7 @@ export function DashboardPage() {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            <ProductsCatalogPage />
+            <MetricsPage />
           </motion.div>
         )}
       </AnimatePresence>

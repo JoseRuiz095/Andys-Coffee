@@ -5,21 +5,18 @@ import { hasPermission } from '../../auth/utils/permissions'
 import { logout } from '../../auth/services/auth.service'
 import { closeCashSession, getActiveCashSession } from '../../dashboard/services/cash.service'
 import { useTheme } from '../../../shared/assets/theme'
-import { UserTable } from '../../users/components/UserTable'
-import { UserFormModal } from '../../users/components/UserFormModal'
-import { RolePermissionMatrix } from '../../roles/components/RolePermissionMatrix'
-import { RoleFormModal } from '../../roles/components/RoleFormModal'
+import { Card } from '../../../shared/components/Card'
+import { Button } from '../../../shared/components/Button'
+import { UsersView } from '../../users/components/UsersView'
+import { RolesView } from '../../roles/components/RolesView'
 import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
-import { CashSessionHistory } from '../../dashboard/components/CashSessionHistory'
-import { ExpensesPage } from '../../expenses/pages/ExpensesPage'
-import { MetricsPage } from '../../dashboard/pages/MetricsPage'
-import { useRolesList } from '../../roles/hooks/useRoles'
+import { DistributionSettingsForm } from '../../income-statement'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'expenses' | 'dashboard' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -29,12 +26,7 @@ function navigateTo(path: string) {
 export function SettingsPage() {
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(authStore.getState().user)
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('profile')
-  const [editingUserId, setEditingUserId] = React.useState<string | null>(null)
-  const [showUserModal, setShowUserModal] = React.useState(false)
-  const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null)
-  const [showRoleModal, setShowRoleModal] = React.useState(false)
   const { mode, setTheme } = useTheme()
-  const { data: roles } = useRolesList()
   const isDark = mode === 'dark'
 
   React.useEffect(() => {
@@ -67,11 +59,8 @@ export function SettingsPage() {
   }
 
   // Granular permission checks
-  const canViewUsers = hasPermission(currentUser, 'users.read')
-  const canManageUsers = canViewUsers // Display admin panel if user can read
-  const canCreateRoles = hasPermission(currentUser, 'users.create')
-  const canManageExpenses = hasPermission(currentUser, 'expenses.read')
-  const canViewDashboard = hasPermission(currentUser, 'dashboard.read')
+  const canManageUsers = hasPermission(currentUser, 'users.read')
+  const showAdminSection = canManageUsers
 
   return (
     <div
@@ -147,38 +136,27 @@ export function SettingsPage() {
                   onClick={() => setActiveTab('system-preferences')}
                 />
               )}
-              {canManageUsers && (
+              {showAdminSection && (
                 <>
                   <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
                   <p className="px-3 py-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-primary)' }}>Administración</p>
+                </>
+              )}
+              {canManageUsers && (
+                <>
                   <NavTab
                     label="Usuarios"
                     isActive={activeTab === 'users'}
                     onClick={() => setActiveTab('users')}
                   />
                   <NavTab
-                    label="Roles y Permisos"
+                    label="Roles"
                     isActive={activeTab === 'roles'}
                     onClick={() => setActiveTab('roles')}
                   />
-                  <NavTab
-                    label="Historial de Caja"
-                    isActive={activeTab === 'cash-history'}
-                    onClick={() => setActiveTab('cash-history')}
-                  />
-                  <NavTab
-                    label="Gastos"
-                    isActive={activeTab === 'expenses'}
-                    onClick={() => setActiveTab('expenses')}
-                  />
-                  <NavTab
-                    label="Dashboard"
-                    isActive={activeTab === 'dashboard'}
-                    onClick={() => setActiveTab('dashboard')}
-                  />
                 </>
               )}
-              <div className="my-2 border-t border-[#E7E3DC]" />
+              <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
               <NavTab
                 label="Sesión"
                 isActive={activeTab === 'session'}
@@ -214,142 +192,22 @@ export function SettingsPage() {
 
             {/* Preferencias del Sistema */}
             {activeTab === 'system-preferences' && canManageUsers && (
-              <div
-                className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-              >
-                <SystemPreferencesForm />
+              <div className="space-y-6">
+                <Card variant="panel">
+                  <SystemPreferencesForm />
+                </Card>
+                <Card variant="panel">
+                  <DistributionSettingsForm />
+                </Card>
               </div>
             )}
 
             {/* Usuarios */}
-            {activeTab === 'users' && canManageUsers && (
-              <div className="space-y-4">
-                <ContentHeader
-                  title="Gestión de Usuarios"
-                  description="Crea, edita y gestiona usuarios del sistema"
-                />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <UserTable
-                    currentUser={currentUser}
-                    onEditUser={(userId) => {
-                      setEditingUserId(userId)
-                      setShowUserModal(true)
-                    }}
-                    onCreateUser={() => {
-                      setEditingUserId(null)
-                      setShowUserModal(true)
-                    }}
-                  />
-                  <UserFormModal
-                    isOpen={showUserModal}
-                    onClose={() => {
-                      setShowUserModal(false)
-                      setEditingUserId(null)
-                    }}
-                    editingUserId={editingUserId}
-                    roles={roles || []}
-                    onSuccess={() => {
-                      setShowUserModal(false)
-                      setEditingUserId(null)
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+            {activeTab === 'users' && canManageUsers && <UsersView currentUser={currentUser} />}
 
-            {/* Roles y Permisos */}
-            {activeTab === 'roles' && canManageUsers && (
-              <div className="space-y-4">
-                <ContentHeader
-                  title="Roles y Permisos"
-                  description="Define y gestiona los roles y sus permisos"
-                />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <RolePermissionMatrix currentUser={currentUser} />
-                  {canCreateRoles && (
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRoleId(null)
-                          setShowRoleModal(true)
-                        }}
-                        className="rounded-lg bg-[#5A804F] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4a6a3f]"
-                      >
-                        Crear Rol
-                      </button>
-                    </div>
-                  )}
-                  <RoleFormModal
-                    isOpen={showRoleModal}
-                    onClose={() => {
-                      setShowRoleModal(false)
-                      setEditingRoleId(null)
-                    }}
-                    editingRoleId={editingRoleId}
-                    onSuccess={() => {
-                      setShowRoleModal(false)
-                      setEditingRoleId(null)
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Roles */}
+            {activeTab === 'roles' && canManageUsers && <RolesView currentUser={currentUser} />}
 
-            {/* Historial de Caja */}
-            {activeTab === 'cash-history' && canManageUsers && (
-              <div className="space-y-4">
-                <ContentHeader
-                  title="Historial de Cierres de Caja"
-                  description="Revisa y corrige los cierres de cajas anteriores"
-                />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <CashSessionHistory />
-                </div>
-              </div>
-            )}
-
-            {/* Gastos */}
-            {activeTab === 'expenses' && canManageExpenses && (
-              <div className="space-y-4">
-                <ContentHeader
-                  title="Gestión de Gastos"
-                  description="Crea, edita y gestiona gastos del negocio"
-                />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <ExpensesPage />
-                </div>
-              </div>
-            )}
-
-            {/* Dashboard */}
-            {activeTab === 'dashboard' && canViewDashboard && (
-              <div className="space-y-4">
-                <ContentHeader
-                  title="Dashboard"
-                  description="Métricas y análisis en tiempo real del negocio"
-                />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <MetricsPage />
-                </div>
-              </div>
-            )}
 
             {/* Sesión */}
             {activeTab === 'session' && (
@@ -358,10 +216,7 @@ export function SettingsPage() {
                   title="Sesión"
                   description="Cierra tu sesión actual"
                 />
-                <div
-                  className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
+                <Card variant="panel">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Cerrar sesión</h3>
@@ -369,16 +224,11 @@ export function SettingsPage() {
                         {currentUser?.email || 'Sin correo registrado'} · {currentUser?.roleName || 'Usuario'}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition"
-                      style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
-                    >
+                    <Button variant="primary" onClick={handleLogout}>
                       Cerrar sesión
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Card>
               </div>
             )}
           </div>
@@ -406,13 +256,10 @@ function NavTab({ label, isActive, onClick }: { label: string; isActive: boolean
 
 function ContentHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div
-      className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
+    <Card variant="panel">
       <h2 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</h2>
       <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{description}</p>
-    </div>
+    </Card>
   )
 }
 
@@ -423,10 +270,7 @@ function PreferencesPanel({ isDark, onThemeChange }: { isDark: boolean; onThemeC
   ]
 
   return (
-    <div
-      className="rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
+    <Card variant="panel">
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
           <div>
@@ -467,6 +311,6 @@ function PreferencesPanel({ isDark, onThemeChange }: { isDark: boolean; onThemeC
           Personaliza la apariencia de la interfaz. Los cambios se aplican inmediatamente.
         </p>
       </div>
-    </div>
+    </Card>
   )
 }

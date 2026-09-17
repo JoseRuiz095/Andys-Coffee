@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useTheme } from '../assets/theme'
 
-type ButtonVariant = 'primary' | 'ghost' | 'icon'
+type ButtonVariant = 'primary' | 'ghost' | 'icon' | 'link'
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode
@@ -15,6 +15,8 @@ const variantClassName: Record<ButtonVariant, string> = {
     'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-transparent px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-70',
   icon:
     'inline-grid size-9 flex-shrink-0 place-items-center rounded-full bg-transparent transition focus-visible:outline-none focus-visible:ring-2',
+  link:
+    'inline-flex w-auto items-center gap-1 text-sm font-medium transition hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline disabled:hover:no-underline',
 }
 
 export function Button({
@@ -40,6 +42,9 @@ export function Button({
     ...(variant === 'icon' && {
       color: colors.surfaceSecondary,
       backgroundColor: 'transparent',
+    }),
+    ...(variant === 'link' && {
+      color: colors.accent,
     }),
     ...style,
   }

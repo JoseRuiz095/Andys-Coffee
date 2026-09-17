@@ -45,13 +45,65 @@ export function useDashboardInventory(filters: DashboardFilters = {}) {
   });
 }
 
-export function useDashboardCosts(filters: DashboardFilters = {}) {
+export function useDashboardSalesTrend(filters: DashboardFilters = {}) {
   return useQuery({
-    queryKey: ['dashboard', 'costs', filters],
-    queryFn: () => DashboardAPI.getCosts({
+    queryKey: ['dashboard', 'salesTrend', filters],
+    queryFn: () => DashboardAPI.getSalesTrend({
       period: filters.period as any,
       from: filters.from,
       to: filters.to,
+    }),
+  });
+}
+
+export function useDashboardProductCosts(filters: DashboardFilters = {}) {
+  return useQuery({
+    queryKey: ['dashboard', 'productCosts', filters],
+    queryFn: () => DashboardAPI.getProductCosts({
+      period: filters.period as any,
+      from: filters.from,
+      to: filters.to,
+      limit: filters.limit || 10,
+    }),
+  });
+}
+
+export function useDashboardCostEvolution(filters: DashboardFilters = {}) {
+  return useQuery({
+    queryKey: ['dashboard', 'costEvolution', filters],
+    queryFn: () => DashboardAPI.getCostEvolution({
+      period: filters.period as any,
+      from: filters.from,
+      to: filters.to,
+    }),
+  });
+}
+
+export function useDashboardExpensesByCategory(filters: DashboardFilters = {}) {
+  return useQuery({
+    queryKey: ['dashboard', 'expensesByCategory', filters],
+    queryFn: () => DashboardAPI.getExpensesByCategory({
+      period: filters.period as any,
+      from: filters.from,
+      to: filters.to,
+    }),
+  });
+}
+
+export function useDashboardUpcomingPurchases(filters: DashboardFilters = {}) {
+  return useQuery({
+    queryKey: ['dashboard', 'upcomingPurchases', filters],
+    queryFn: () => DashboardAPI.getUpcomingPurchases({
+      limit: filters.limit || 10,
+    }),
+  });
+}
+
+export function useDashboardRecentMovements(filters: DashboardFilters = {}) {
+  return useQuery({
+    queryKey: ['dashboard', 'recentMovements', filters],
+    queryFn: () => DashboardAPI.getRecentInventoryMovements({
+      limit: filters.limit || 20,
     }),
   });
 }

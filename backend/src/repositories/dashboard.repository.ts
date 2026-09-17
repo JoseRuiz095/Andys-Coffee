@@ -213,8 +213,29 @@ export const dashboardRepository = {
     });
   },
 
-  async getCosts(from: Date, to: Date) {
-    const completedOrders = await prisma.orderItem.aggregate({
+  async getSalesTrend(from: Date, to: Date) {
+    const data = await prisma.$queryRaw<Array<{ date: Date; ordersCount: bigint; revenue: Prisma.Decimal }>>`
+      SELECT
+        DATE_TRUNC('day', o."createdAt")::date as date,
+        COUNT(DISTINCT o.id)::bigint as "ordersCount",
+        COALESCE(SUM(p.amount), 0) as revenue
+      FROM orders o
+      LEFT JOIN payments p ON o.id = p."orderId" AND p.status = 'paid'
+      WHERE o.status = 'completed' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+      GROUP BY DATE_TRUNC('day', o."createdAt")
+      ORDER BY date ASC
+    `;
+
+    return data.map((row) => ({
+      date: row.date,
+      ordersCount: Number(row.ordersCount),
+      revenue: row.revenue instanceof Prisma.Decimal ? row.revenue.toNumber() : Number(row.revenue),
+    }));
+  },
+
+  async getProductCosts(from: Date, to: Date, limit: number) {
+    const data = await prisma.orderItem.groupBy({
+      by: ['productId'],
       where: {
         order: {
           status: 'completed',
@@ -224,36 +245,138 @@ export const dashboardRepository = {
       _sum: {
         costSnapshot: true,
         subtotal: true,
+        quantity: true,
       },
+      orderBy: {
+        _sum: {
+          subtotal: 'desc',
+        },
+      },
+      take: limit,
     });
 
-    const expenses = await prisma.expense.aggregate({
+    const productIds = data.map((p) => p.productId).filter((id) => id !== null);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true },
+    });
+
+    const productMap = new Map(products.map((p) => [p.id, p.name]));
+
+    return data.map((row) => {
+      const cogs = row._sum.costSnapshot || new Prisma.Decimal(0);
+      const revenue = row._sum.subtotal || new Prisma.Decimal(0);
+      const marginPercent = revenue.greaterThan(0) ? revenue.minus(cogs).dividedBy(revenue).times(100).toNumber() : 0;
+
+      return {
+        productId: row.productId,
+        productName: productMap.get(row.productId) || 'Unknown',
+        quantity: row._sum.quantity?.toNumber() || 0,
+        revenue: revenue.toNumber(),
+        cogs: cogs.toNumber(),
+        marginPercent,
+      };
+    });
+  },
+
+  async getCostEvolution(from: Date, to: Date) {
+    const data = await prisma.$queryRaw<Array<{ date: Date; cogs: Prisma.Decimal | number | string; revenue: Prisma.Decimal | number | string }>>`
+      SELECT
+        DATE_TRUNC('day', o."createdAt")::date as date,
+        COALESCE(SUM(oi."costSnapshot"), 0) as cogs,
+        COALESCE(SUM(oi.subtotal), 0) as revenue
+      FROM order_items oi
+      JOIN orders o ON oi."orderId" = o.id
+      WHERE o.status = 'completed' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+      GROUP BY DATE_TRUNC('day', o."createdAt")
+      ORDER BY date ASC
+    `;
+
+    return data.map((row) => {
+      const cogsDecimal = row.cogs instanceof Prisma.Decimal ? row.cogs : new Prisma.Decimal(String(row.cogs));
+      const revenueDecimal = row.revenue instanceof Prisma.Decimal ? row.revenue : new Prisma.Decimal(String(row.revenue));
+      const marginPercent = revenueDecimal.greaterThan(0)
+        ? revenueDecimal.minus(cogsDecimal).dividedBy(revenueDecimal).times(100).toNumber()
+        : 0;
+
+      return {
+        date: row.date,
+        cogs: cogsDecimal.toNumber(),
+        revenue: revenueDecimal.toNumber(),
+        marginPercent,
+      };
+    });
+  },
+
+  async getExpensesByCategory(from: Date, to: Date) {
+    const data = await prisma.expense.groupBy({
+      by: ['category'],
       where: {
         expenseDate: { gte: from, lt: to },
       },
       _sum: {
         amount: true,
       },
+      orderBy: {
+        _sum: {
+          amount: 'desc',
+        },
+      },
     });
 
-    const cogs = completedOrders._sum.costSnapshot || new Prisma.Decimal(0);
-    const revenue = completedOrders._sum.subtotal || new Prisma.Decimal(0);
-    const expensesAmount = expenses._sum.amount || new Prisma.Decimal(0);
+    return data.map((row) => ({
+      category: row.category,
+      amount: (row._sum.amount || new Prisma.Decimal(0)).toNumber(),
+    }));
+  },
 
-    const grossProfit = revenue.minus(cogs);
-    const netProfit = grossProfit.minus(expensesAmount);
+  async getUpcomingPurchases(limit: number) {
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        status: 'draft',
+      },
+      include: {
+        supplier: {
+          select: { id: true, name: true },
+        },
+        items: {
+          select: {
+            id: true,
+            quantity: true,
+            unitCost: true,
+            ingredient: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
 
-    const grossMarginPercent = revenue.greaterThan(0) ? grossProfit.dividedBy(revenue).times(100).toNumber() : 0;
-    const netMarginPercent = revenue.greaterThan(0) ? netProfit.dividedBy(revenue).times(100).toNumber() : 0;
+    return purchases.map((p) => ({
+      id: p.id,
+      supplierName: p.supplier?.name || 'Sin proveedor',
+      total: p.total.toNumber(),
+      itemCount: p.items.length,
+      createdAt: p.createdAt,
+    }));
+  },
 
-    return {
-      revenue: revenue.toNumber(),
-      cogs: cogs.toNumber(),
-      grossProfit: grossProfit.toNumber(),
-      grossMarginPercent,
-      expenses: expensesAmount.toNumber(),
-      netProfit: netProfit.toNumber(),
-      netMarginPercent,
-    };
+  async getRecentInventoryMovements(limit: number) {
+    const movements = await prisma.inventoryMovement.findMany({
+      include: {
+        ingredient: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return movements.map((m) => ({
+      id: m.id,
+      ingredientName: m.ingredient.name,
+      type: m.type,
+      quantity: m.quantity.toNumber(),
+      createdAt: m.createdAt,
+      reason: m.reason,
+    }));
   },
 };

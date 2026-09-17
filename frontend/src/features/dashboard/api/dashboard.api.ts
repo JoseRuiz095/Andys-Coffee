@@ -47,17 +47,76 @@ export interface InventoryData {
   outOfStockCount: number;
 }
 
-export interface CostsData {
+export interface SalesTrendData {
   period: string;
   from: string;
   to: string;
-  revenue: number;
-  cogs: number;
-  grossProfit: number;
-  grossMarginPercent: number;
-  expenses: number;
-  netProfit: number;
-  netMarginPercent: number;
+  data: Array<{
+    date: string;
+    ordersCount: number;
+    revenue: number;
+  }>;
+}
+
+export interface ProductCostsData {
+  period: string;
+  from: string;
+  to: string;
+  products: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+    cogs: number;
+    marginPercent: number;
+  }>;
+}
+
+export interface CostEvolutionData {
+  period: string;
+  from: string;
+  to: string;
+  data: Array<{
+    date: string;
+    cogs: number;
+    revenue: number;
+    marginPercent: number;
+  }>;
+}
+
+export interface ExpensesByCategoryData {
+  period: string;
+  from: string;
+  to: string;
+  categories: Array<{
+    category: string;
+    amount: number;
+  }>;
+}
+
+export interface UpcomingPurchasesData {
+  purchases: Array<{
+    id: string;
+    supplierName: string;
+    total: number;
+    itemCount: number;
+    createdAt: string;
+  }>;
+  count: number;
+}
+
+export interface InventoryMovementData {
+  id: string;
+  ingredientName: string;
+  type: string;
+  quantity: number;
+  createdAt: string;
+  reason?: string;
+}
+
+export interface RecentMovementsData {
+  movements: InventoryMovementData[];
+  count: number;
 }
 
 export const DashboardAPI = {
@@ -107,7 +166,7 @@ export const DashboardAPI = {
     return data;
   },
 
-  async getCosts(params?: {
+  async getSalesTrend(params?: {
     period?: 'today' | 'yesterday' | 'week' | 'month' | 'customRange';
     from?: string;
     to?: string;
@@ -117,8 +176,78 @@ export const DashboardAPI = {
     if (params?.from) queryParams.set('from', params.from);
     if (params?.to) queryParams.set('to', params.to);
 
-    const { data } = await apiClient.get<CostsData>(
-      `${BASE_URL}/costs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    const { data } = await apiClient.get<SalesTrendData>(
+      `${BASE_URL}/sales-trend${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return data;
+  },
+
+  async getProductCosts(params?: {
+    period?: 'today' | 'yesterday' | 'week' | 'month' | 'customRange';
+    from?: string;
+    to?: string;
+    limit?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.set('period', params.period);
+    if (params?.from) queryParams.set('from', params.from);
+    if (params?.to) queryParams.set('to', params.to);
+    if (params?.limit) queryParams.set('limit', String(params.limit));
+
+    const { data } = await apiClient.get<ProductCostsData>(
+      `${BASE_URL}/product-costs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return data;
+  },
+
+  async getCostEvolution(params?: {
+    period?: 'today' | 'yesterday' | 'week' | 'month' | 'customRange';
+    from?: string;
+    to?: string;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.set('period', params.period);
+    if (params?.from) queryParams.set('from', params.from);
+    if (params?.to) queryParams.set('to', params.to);
+
+    const { data } = await apiClient.get<CostEvolutionData>(
+      `${BASE_URL}/cost-evolution${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return data;
+  },
+
+  async getExpensesByCategory(params?: {
+    period?: 'today' | 'yesterday' | 'week' | 'month' | 'customRange';
+    from?: string;
+    to?: string;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.set('period', params.period);
+    if (params?.from) queryParams.set('from', params.from);
+    if (params?.to) queryParams.set('to', params.to);
+
+    const { data } = await apiClient.get<ExpensesByCategoryData>(
+      `${BASE_URL}/expenses-by-category${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return data;
+  },
+
+  async getUpcomingPurchases(params?: { limit?: number }) {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.set('limit', String(params.limit));
+
+    const { data } = await apiClient.get<UpcomingPurchasesData>(
+      `${BASE_URL}/upcoming-inventory${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return data;
+  },
+
+  async getRecentInventoryMovements(params?: { limit?: number }) {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.set('limit', String(params.limit));
+
+    const { data } = await apiClient.get<RecentMovementsData>(
+      `${BASE_URL}/inventory-movements${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     );
     return data;
   },

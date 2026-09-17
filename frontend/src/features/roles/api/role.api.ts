@@ -55,3 +55,7 @@ export const PermissionAPI = {
     return response.data
   },
 }
+
+export function toPermissionIds(permissions: Array<{ permission: { id: string } }>): string[] {
+  return permissions.map((p) => p.permission.id)
+}

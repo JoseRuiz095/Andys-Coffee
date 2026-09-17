@@ -270,6 +270,7 @@ model InventoryMovement {
 
   @@index([ingredientId, createdAt(sort: Desc)], map: "inventoryMovements_ingredient_idx")
   @@index([referenceType, referenceId], map: "inventoryMovements_reference_idx")
+  @@index([createdAt(sort: Desc)], map: "inventoryMovements_createdAt_idx")
   @@map("inventory_movements")
 }
 
@@ -666,4 +667,38 @@ model SystemPreference {
   updatedAt DateTime @updatedAt
 
   @@map("system_preferences")
+}
+
+model IncomeStatementDailySnapshot {
+  id                      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  date                    DateTime @unique @db.Date
+  hadOperation            Boolean  @default(false)
+  openingFund             Decimal  @default(0) @db.Decimal(12, 2)
+  cashRevenue             Decimal  @default(0) @db.Decimal(12, 2)
+  transferRevenue         Decimal  @default(0) @db.Decimal(12, 2)
+  otherRevenue            Decimal  @default(0) @db.Decimal(12, 2)
+  totalRevenue            Decimal  @default(0) @db.Decimal(12, 2)
+  totalCogs               Decimal  @default(0) @db.Decimal(12, 2)
+  grossProfit             Decimal  @default(0) @db.Decimal(12, 2)
+  totalExpenses           Decimal  @default(0) @db.Decimal(12, 2)
+  netProfit               Decimal  @default(0) @db.Decimal(12, 2)
+  expectedCash            Decimal? @db.Decimal(12, 2)
+  actualCash              Decimal? @db.Decimal(12, 2)
+  cashDifference          Decimal? @db.Decimal(12, 2)
+  cashStatus              String? // 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' | 'PENDIENTE' | null
+  savingsAmount           Decimal  @default(0) @db.Decimal(12, 2)
+  businessFundAmount      Decimal  @default(0) @db.Decimal(12, 2)
+  suppliesAmount          Decimal  @default(0) @db.Decimal(12, 2)
+  savingsAccumulated      Decimal  @default(0) @db.Decimal(12, 2)
+  businessFundAccumulated Decimal  @default(0) @db.Decimal(12, 2)
+  suppliesAccumulated     Decimal  @default(0) @db.Decimal(12, 2)
+  savingsPercentUsed      Decimal  @db.Decimal(5, 2)
+  businessFundPercentUsed Decimal  @db.Decimal(5, 2)
+  suppliesPercentUsed     Decimal  @db.Decimal(5, 2)
+  isFinal                 Boolean  @default(false)
+  computedAt              DateTime @updatedAt
+  createdAt               DateTime @default(now())
+
+  @@index([isFinal, date])
+  @@map("income_statement_daily_snapshots")
 }
