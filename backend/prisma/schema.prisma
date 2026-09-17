@@ -526,6 +526,8 @@ model Ticket {
 
 enum OrderStatus {
   pending
+  preparing
+  ready
   completed
   cancelled
 }

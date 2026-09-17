@@ -99,8 +99,13 @@ export function IngredientFormModal({
           handleClose()
         },
         onError: (error: any) => {
-          const message =
-            error?.response?.data?.message || error?.message || 'Error creando ingrediente'
+          const status = error?.response?.status
+          let message = error?.response?.data?.message || error?.message || 'Error creando ingrediente'
+
+          if (status === 409) {
+            message = 'Este SKU ya existe. Verifica los ingredientes existentes o usa un SKU diferente.'
+          }
+
           sileo.error({ title: 'Error', description: message })
         },
       })

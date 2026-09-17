@@ -12,8 +12,8 @@ interface OrderListViewProps {
 const statusStyles: Record<OrderStatus, { text: string; bg: string; color: string }> = {
   PENDING: { text: 'Pendiente', bg: 'bg-yellow-100', color: 'text-yellow-800' },
   PREPARING: { text: 'En preparación', bg: 'bg-blue-100', color: 'text-blue-800' },
-  READY: { text: 'Lista para recoger', bg: 'bg-green-100', color: 'text-green-800' },
-  COMPLETED: { text: 'Completada', bg: 'bg-gray-100', color: 'text-gray-800' },
+  READY: { text: 'Lista', bg: 'bg-green-100', color: 'text-green-800' },
+  COMPLETED: { text: 'Entregada', bg: 'bg-gray-100', color: 'text-gray-800' },
   CANCELLED: { text: 'Cancelada', bg: 'bg-red-100', color: 'text-red-800' },
 }
 

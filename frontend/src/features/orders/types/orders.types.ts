@@ -67,6 +67,10 @@ export const mapOrderStatusToFrontend = (status: BackendOrderStatus): OrderStatu
   switch (status) {
     case 'pending':
       return 'PENDING';
+    case 'preparing':
+      return 'PREPARING';
+    case 'ready':
+      return 'READY';
     case 'completed':
       return 'COMPLETED';
     case 'cancelled':

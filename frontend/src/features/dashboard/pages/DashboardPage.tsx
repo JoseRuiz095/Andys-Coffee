@@ -81,7 +81,6 @@ export function DashboardPage() {
   // Define menu items with required permissions
   const allMenuItems = [
     { label: 'Venta', requiredPermission: 'sales.create' },
-    { label: 'Dashboard', requiredPermission: null },
     { label: 'Ordenes', requiredPermission: 'sales.read' },
     { label: 'Inventario', requiredPermission: 'inventory.view' },
     { label: 'Administracion', requiredPermission: 'users.read' },

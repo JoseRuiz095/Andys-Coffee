@@ -146,5 +146,5 @@ async function createCashNotification(
   await NotificationService.createNotification(
     { ...data, type: NotificationType.GENERAL },
     recipients.map(({ id }) => id),
-  );
+    );
 }

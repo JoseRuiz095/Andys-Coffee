@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState, useRef } from 'react'
 import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard'
-import { SalePage } from '../features/menu/pages/SalePage'
 import { SettingsPage } from '../features/settings'
 import { authStore } from '../features/auth/store/auth.store'
 import { getCurrentUser } from '../features/auth/services/auth.service'
@@ -116,22 +115,6 @@ export function AppRouter() {
           style={{ willChange: 'transform, opacity' }}
         >
           <DashboardPage />
-        </motion.div>
-      )}
-
-      {pathname === APP_ROUTES.menu && (
-        <motion.div
-          key={APP_ROUTES.menu}
-          className="overflow-x-clip"
-          custom={direction}
-          variants={variants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          style={{ willChange: 'transform, opacity' }}
-        >
-          <SalePage />
         </motion.div>
       )}
 

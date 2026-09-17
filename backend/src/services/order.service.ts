@@ -111,9 +111,11 @@ export const OrderService = {
       throw new AuthorizationError('No tienes permiso para modificar este pedido.');
     }
 
-    // State Machine Logic
+    // State Machine Logic: pending → preparing → ready → completed (or cancelled from any state)
     const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-      [OrderStatus.pending]: [OrderStatus.completed, OrderStatus.cancelled],
+      [OrderStatus.pending]: [OrderStatus.preparing, OrderStatus.cancelled],
+      [OrderStatus.preparing]: [OrderStatus.ready, OrderStatus.cancelled],
+      [OrderStatus.ready]: [OrderStatus.completed, OrderStatus.cancelled],
     };
 
     if (!validTransitions[order.status]?.includes(status)) {

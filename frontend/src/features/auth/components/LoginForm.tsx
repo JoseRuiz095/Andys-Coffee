@@ -101,9 +101,6 @@ export function LoginForm() {
             />
             Recordarme
           </label>
-          <a href="#" className="font-semibold hover:underline" style={{ color: colors.accent }}>
-            ¿Olvidaste tu contraseña?
-          </a>
         </div>
 
         {error && (
@@ -126,27 +123,6 @@ export function LoginForm() {
         </button>
       </form>
 
-      <div className="mt-7 flex items-center justify-center gap-3 text-sm" style={{ color: colors.textMuted }}>
-        <span className="h-px flex-1 rounded-full" style={{ backgroundColor: colors.border }}></span>
-        <span className="font-medium">o</span>
-        <span className="h-px flex-1 rounded-full" style={{ backgroundColor: colors.border }}></span>
-      </div>
-
-      <button
-        type="button"
-        className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-full border px-5 py-3 text-sm font-semibold transition-shadow"
-        style={{
-          color: colors.text,
-          borderColor: colors.border,
-          backgroundColor: colors.surface,
-          boxShadow: '0 8px 20px -12px rgba(0, 0, 0, 0.15)',
-        }}
-      >
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#F2EFE8] text-xs font-bold text-[#5A804F]">
-          G
-        </span>
-        Iniciar sesión con Google
-      </button>
     </div>
   );
 }

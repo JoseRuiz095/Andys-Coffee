@@ -94,8 +94,13 @@ export function SupplierFormModal({
           handleClose()
         },
         onError: (error: any) => {
-          const message =
-            error?.response?.data?.message || error?.message || 'Error creando proveedor'
+          const status = error?.response?.status
+          let message = error?.response?.data?.message || error?.message || 'Error creando proveedor'
+
+          if (status === 409) {
+            message = 'Este nombre de proveedor ya existe. Usa un nombre diferente.'
+          }
+
           sileo.error({ title: 'Error', description: message })
         },
       })

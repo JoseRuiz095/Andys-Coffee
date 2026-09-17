@@ -24,20 +24,46 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
 
-  if (frontendStatus === 'PENDING') {
-    return (
-      <div className="flex gap-3">
-        {canCancelOrder && (
-          <Button onClick={() => onStatusChange('CANCELLED')} className="bg-red-500 text-white hover:bg-red-600">
-            Cancelar
+  return (
+    <div className="flex gap-2">
+      {frontendStatus === 'PENDING' && (
+        <>
+          <Button onClick={() => onStatusChange('PREPARING')} className="bg-blue-500 text-white hover:bg-blue-600 text-xs px-2 py-1">
+            Preparando
           </Button>
-        )}
-        <Button onClick={() => onStatusChange('COMPLETED')} className="bg-green-500 text-white hover:bg-green-600">
-          Completar
-        </Button>
-      </div>
-    )
-  }
+          {canCancelOrder && (
+            <Button onClick={() => onStatusChange('CANCELLED')} className="bg-red-500 text-white hover:bg-red-600 text-xs px-2 py-1">
+              Cancelar
+            </Button>
+          )}
+        </>
+      )}
 
-  return null
+      {frontendStatus === 'PREPARING' && (
+        <>
+          <Button onClick={() => onStatusChange('READY')} className="bg-green-500 text-white hover:bg-green-600 text-xs px-2 py-1">
+            Lista
+          </Button>
+          {canCancelOrder && (
+            <Button onClick={() => onStatusChange('CANCELLED')} className="bg-red-500 text-white hover:bg-red-600 text-xs px-2 py-1">
+              Cancelar
+            </Button>
+          )}
+        </>
+      )}
+
+      {frontendStatus === 'READY' && (
+        <>
+          <Button onClick={() => onStatusChange('COMPLETED')} className="bg-green-600 text-white hover:bg-green-700 text-xs px-2 py-1">
+            Entregar
+          </Button>
+          {canCancelOrder && (
+            <Button onClick={() => onStatusChange('CANCELLED')} className="bg-red-500 text-white hover:bg-red-600 text-xs px-2 py-1">
+              Cancelar
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  )
 }

@@ -25,17 +25,12 @@ function generateInvoiceNumber(): string {
   const day = String(today.getDate()).padStart(2, '0')
   const month = String(today.getMonth() + 1).padStart(2, '0')
   const year = today.getFullYear()
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 8)
 
-  // Obtener contador del localStorage para hoy
-  const dateKey = `invoice-counter-${year}-${month}-${day}`
-  const currentCounter = parseInt(localStorage.getItem(dateKey) || '0', 10)
-  const nextCounter = currentCounter + 1
-
-  // Guardar el nuevo contador
-  localStorage.setItem(dateKey, String(nextCounter))
-
-  // Generar número con formato: FAC-{numero}-Dia/Mes/Año
-  return `FAC-${nextCounter}-${day}/${month}/${year}`
+  // Generar número con formato: FAC-{timestamp}-{random}-Dia/Mes/Año
+  // Nota: Idealmente, el número de factura debería generarse en el backend
+  return `FAC-${timestamp}-${random}-${day}/${month}/${year}`
 }
 
 interface PurchaseItem {
