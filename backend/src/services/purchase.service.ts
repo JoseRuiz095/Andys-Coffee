@@ -70,16 +70,24 @@ export const PurchaseService = {
       subtotal = subtotal.add(qty.mul(cost));
     }
 
-    const tax = data.tax ? new Prisma.Decimal(data.tax) : new Prisma.Decimal(0);
-    const total = subtotal.add(tax);
+    const total = subtotal;
+
+    // Generate invoice number: FAC-YYYY/MM/DD-NNNNN (with random suffix)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const randomSuffix = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+    const invoiceNumber = `FAC-${year}/${month}/${day}-${randomSuffix}`;
 
     // Create purchase with items
     const purchase = await PurchaseRepository.create({
+      status: 'draft',
+      invoiceNumber,
       supplier: data.supplierId ? { connect: { id: data.supplierId } } : undefined,
-      invoiceNumber: data.invoiceNumber,
       notes: data.notes,
       subtotal,
-      tax,
+      tax: new Prisma.Decimal(0),
       total,
       createdBy: { connect: { id: user.id } },
       items: {

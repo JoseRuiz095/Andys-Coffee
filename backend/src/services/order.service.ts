@@ -65,7 +65,7 @@ export const OrderService = {
     };
 
     // Authorization Check: Admins/Cashiers can see all orders, others only their own.
-    if (!user.permissions?.includes('view:orders')) {
+    if (!user.permissions?.includes('sales.read')) {
       where.createdById = user.id;
     }
 
@@ -85,7 +85,7 @@ export const OrderService = {
     }
 
     // Authorization Check: Allow if user owns the order or has general view permissions.
-    if (order.createdById !== user.id && !user.permissions?.includes('view:orders')) {
+    if (order.createdById !== user.id && !user.permissions?.includes('sales.read')) {
       throw new AuthorizationError('No tienes permiso para acceder a este pedido.');
     }
 
@@ -103,12 +103,19 @@ export const OrderService = {
       throw new NotFoundError('Pedido no encontrado.');
     }
 
-    if (order.createdById !== user.id && !user.permissions?.includes('view:orders')) {
+    // Authorization: can view this order
+    if (order.createdById !== user.id && !user.permissions?.includes('sales.read')) {
       throw new AuthorizationError('No tienes permiso para modificar este pedido.');
     }
 
-    if (!user.permissions?.includes('sales.cancel')) {
-      throw new AuthorizationError('No tienes permiso para modificar este pedido.');
+    // Authorization: can advance order status (preparing, ready, completed)
+    if (status !== OrderStatus.cancelled && !user.permissions?.includes('sales.create')) {
+      throw new AuthorizationError('No tienes permiso para avanzar el estado de este pedido.');
+    }
+
+    // Authorization: can cancel orders
+    if (status === OrderStatus.cancelled && !user.permissions?.includes('sales.cancel')) {
+      throw new AuthorizationError('No tienes permiso para cancelar este pedido.');
     }
 
     // State Machine Logic: pending → preparing → ready → completed (or cancelled from any state)

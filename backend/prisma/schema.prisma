@@ -292,6 +292,13 @@ model Supplier {
   @@map("suppliers")
 }
 
+model PurchaseInvoiceCounter {
+  date  String  @id
+  count Int     @default(0)
+
+  @@map("purchase_invoice_counters")
+}
+
 model Purchase {
   id            String         @id @default(dbgenerated("(gen_random_uuid())::text"))
   supplierId    String?

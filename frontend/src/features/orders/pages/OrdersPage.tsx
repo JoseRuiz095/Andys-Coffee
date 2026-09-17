@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { OrdersHeader } from '../components/OrdersHeader';
 import { OrderStatus } from '../types/orders.types';
+import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
 import { OrdersGridView } from '../components/grid/OrdersGridView';
 import { OrderListView } from '../components/OrderListView';
 import { OrdersFilters } from '../components/OrdersFilters';
@@ -37,17 +38,19 @@ export function OrdersPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    // The frontend status needs to be mapped to the backend status
-    // For now, let's assume a direct mapping is possible for 'cancelled'.
-    // A more robust solution would be a mapping function.
-    if (newStatus === 'CANCELLED') {
-      updateStatus(orderId, 'cancelled');
-    } else if (newStatus === 'COMPLETED') {
-      updateStatus(orderId, 'completed');
+    // Map frontend status strings to lowercase backend status
+    const statusMap: Record<OrderStatus, BackendOrderStatus> = {
+      'PENDING': 'pending',
+      'PREPARING': 'preparing',
+      'READY': 'ready',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled',
+    };
+
+    const backendStatus = statusMap[newStatus];
+    if (backendStatus) {
+      updateStatus(orderId, backendStatus);
     }
-    // For 'PENDING', 'PREPARING', 'READY' we might not have a direct backend equivalent to change to
-    // or the logic is more complex (e.g. can't go back from completed to pending)
-    // For now, we only handle 'cancelled' and 'completed'
   };
 
   const toggleFullScreen = () => {

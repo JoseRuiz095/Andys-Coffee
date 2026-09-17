@@ -19,7 +19,6 @@ const nonNegativeDecimal = z
 export const createPurchaseSchema = z.object({
   supplierId: z.string().uuid().optional(),
   supplierName: z.string().optional(),
-  invoiceNumber: z.string().optional(),
   notes: z.string().optional(),
   items: z.array(
     z.object({
@@ -28,12 +27,10 @@ export const createPurchaseSchema = z.object({
       unitCost: nonNegativeDecimal,
     })
   ).min(1, 'La compra debe tener al menos 1 item'),
-  tax: nonNegativeDecimal.optional(),
 });
 
 export const updatePurchaseSchema = z.object({
   supplierId: z.string().uuid().optional(),
-  invoiceNumber: z.string().optional(),
   notes: z.string().optional(),
   items: z.array(
     z.object({

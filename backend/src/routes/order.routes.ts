@@ -30,7 +30,6 @@ router.post(
 router.patch(
     '/:id/status',
     requireAuth,
-    checkPermission('sales.cancel'),
     validate(updateOrderStatusSchema),
     updateOrderStatus
 );

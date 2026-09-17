@@ -73,10 +73,19 @@ export function InventoryEntries() {
 
   // Filtrar compras por nombre de proveedor
   const filteredPurchases = useMemo(
-    () => draftPurchases.filter(p =>
-      p.supplier?.name.toLowerCase().includes(searchSupplier.toLowerCase()) ||
-      p.invoiceNumber?.toLowerCase().includes(searchSupplier.toLowerCase())
-    ),
+    () => {
+      if (!searchSupplier.trim()) {
+        // Si no hay búsqueda, mostrar todas las compras (incluyendo sin proveedor)
+        return draftPurchases;
+      }
+      // Si hay búsqueda, filtrar por nombre de proveedor o número de factura
+      const search = searchSupplier.toLowerCase();
+      return draftPurchases.filter(p =>
+        (p.supplier?.name?.toLowerCase().includes(search)) ||
+        (p.invoiceNumber?.toLowerCase().includes(search)) ||
+        ('sin proveedor'.includes(search) && !p.supplier)
+      );
+    },
     [draftPurchases, searchSupplier]
   )
 
@@ -98,6 +107,36 @@ export function InventoryEntries() {
           <h1 className="mb-2 text-3xl font-bold text-[var(--color-text-primary)]">Entradas de Inventario</h1>
           <p className="text-[var(--color-text-secondary)]">Recibir compras de proveedores</p>
         </motion.div>
+
+        {/* Información útil - Cabecera */}
+        {draftPurchases.length > 0 && (
+          <motion.div
+            className="mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Información útil</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-lg bg-blue-50 p-4">
+                <p className="text-sm text-blue-600">Total en espera</p>
+                <p className="mt-1 text-2xl font-bold text-blue-900">
+                  ${draftPurchases.reduce((sum, p) => sum + Number(p.total), 0).toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-lg bg-green-50 p-4">
+                <p className="text-sm text-green-600">Compras pendientes</p>
+                <p className="mt-1 text-2xl font-bold text-green-900">{draftPurchases.length}</p>
+              </div>
+              <div className="rounded-lg bg-purple-50 p-4">
+                <p className="text-sm text-purple-600">Items totales</p>
+                <p className="mt-1 text-2xl font-bold text-purple-900">
+                  {draftPurchases.reduce((sum, p) => sum + p.items.length, 0)}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {!canReceive && (
           <motion.div
@@ -203,7 +242,39 @@ export function InventoryEntries() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Detalle de entrada</h2>
+                {/* Resumen rápido - PRIMERO */}
+                <motion.div
+                  className="mb-6 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 p-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.05 }}
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs uppercase text-[var(--color-text-secondary)]">Factura</p>
+                      <p className="text-lg font-bold text-[var(--color-text-primary)]">
+                        {selectedPurchase.invoiceNumber || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-[var(--color-text-secondary)]">Total</p>
+                      <p className="text-lg font-bold text-[var(--color-success)]">
+                        ${Number(selectedPurchase.total).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs uppercase text-[var(--color-text-secondary)]">Proveedor</p>
+                      <p className="text-base font-medium text-[var(--color-text-primary)]">
+                        {selectedPurchase.supplier?.name || 'Sin proveedor especificado'}
+                      </p>
+                      {selectedPurchase.supplier?.email && (
+                        <p className="text-xs text-[var(--color-text-secondary)]">{selectedPurchase.supplier.email}</p>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+
+                <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">Cambios de inventario</h2>
 
                 {/* Advertencia de cambios */}
                 <motion.div
@@ -213,7 +284,7 @@ export function InventoryEntries() {
                   transition={{ delay: 0.1 }}
                 >
                   <p className="text-sm font-medium text-blue-900">
-                    Se actualizarán {selectedPurchase.items.length} ingrediente(s) en el inventario
+                    Se actualizarán {selectedPurchase.items.length} ingrediente(s)
                   </p>
                   <ul className="mt-2 space-y-1">
                     {selectedPurchase.items.map((item) => (
@@ -224,24 +295,6 @@ export function InventoryEntries() {
                     ))}
                   </ul>
                 </motion.div>
-
-                {/* Supplier info */}
-                {selectedPurchase.supplier && (
-                  <motion.div
-                    className="mb-4 rounded-lg bg-[var(--color-surface-hover)] p-3"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 }}
-                  >
-                    <p className="font-medium text-[var(--color-text-primary)]">{selectedPurchase.supplier.name}</p>
-                    {selectedPurchase.supplier.email && (
-                      <p className="text-sm text-[var(--color-text-secondary)]">{selectedPurchase.supplier.email}</p>
-                    )}
-                    {selectedPurchase.supplier.phone && (
-                      <p className="text-sm text-[var(--color-text-secondary)]">{selectedPurchase.supplier.phone}</p>
-                    )}
-                  </motion.div>
-                )}
 
                 {/* Items table */}
                 <motion.div
@@ -469,52 +522,6 @@ export function InventoryEntries() {
           </AnimatePresence>
         </div>
 
-        {/* Historial de entradas recientes */}
-        {draftPurchases.length > 0 && (
-          <motion.div
-            className="mt-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <h2 className="mb-4 font-semibold text-[var(--color-text-primary)]">
-              Información útil
-            </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <motion.div
-                className="rounded-lg bg-blue-50 p-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.25 }}
-              >
-                <p className="text-sm text-blue-600">Total en espera</p>
-                <p className="mt-1 text-2xl font-bold text-blue-900">
-                  ${draftPurchases.reduce((sum, p) => sum + Number(p.total), 0).toFixed(2)}
-                </p>
-              </motion.div>
-              <motion.div
-                className="rounded-lg bg-green-50 p-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <p className="text-sm text-[var(--color-success)]">Compras pendientes</p>
-                <p className="mt-1 text-2xl font-bold text-green-900">{draftPurchases.length}</p>
-              </motion.div>
-              <motion.div
-                className="rounded-lg bg-purple-50 p-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.35 }}
-              >
-                <p className="text-sm text-purple-600">Items totales</p>
-                <p className="mt-1 text-2xl font-bold text-purple-900">
-                  {draftPurchases.reduce((sum, p) => sum + p.items.length, 0)}
-                </p>
-              </motion.div>
-            </div>
-          </motion.div>
-        )}
       </div>
     </motion.div>
   )

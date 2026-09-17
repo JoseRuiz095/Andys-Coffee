@@ -1,4 +1,8 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
+
+const getClientIp = (req: any): string => {
+  return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+};
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -6,10 +10,10 @@ export const loginLimiter = rateLimit({
   message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo más tarde.',
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
-  keyGenerator: (req) => {
+  keyGenerator: (req: any) => {
     // Rate limit by IP + email for better granularity
     const email = req.body?.email || '';
-    const ip = ipKeyGenerator(req);
+    const ip = getClientIp(req);
     return `${ip}-${email}`;
   },
   skip: (req) => {
@@ -30,9 +34,9 @@ export const changePasswordLimiter = rateLimit({
   message: 'Demasiados intentos de cambio de contraseña. Intenta de nuevo más tarde.',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: (req: any) => {
     // Rate limit by user ID from authenticated session
-    return (req as any).user?.id || ipKeyGenerator(req) || '';
+    return req.user?.id || getClientIp(req) || 'unknown';
   },
   skip: (req) => {
     // Skip if not authenticated or not a password change request

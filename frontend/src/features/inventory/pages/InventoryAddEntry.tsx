@@ -9,6 +9,7 @@ import { useSearchIngredients } from '../hooks/useInventory'
 import { IngredientFormModal } from '../components/IngredientFormModal'
 import { SupplierFormModal } from '../components/SupplierFormModal'
 import { authStore } from '../../auth/store/auth.store'
+import { convertQuantity, convertUnitCost, getCompatibleUnits } from '../utils/unitConversion'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20'
@@ -20,25 +21,15 @@ function getApiErrorMessage(error: any, fallback: string): string {
   return fallback
 }
 
-function generateInvoiceNumber(): string {
-  const today = new Date()
-  const day = String(today.getDate()).padStart(2, '0')
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const year = today.getFullYear()
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 8)
-
-  // Generar número con formato: FAC-{timestamp}-{random}-Dia/Mes/Año
-  // Nota: Idealmente, el número de factura debería generarse en el backend
-  return `FAC-${timestamp}-${random}-${day}/${month}/${year}`
-}
-
 interface PurchaseItem {
   ingredientId: string
   quantity: number
   unitCost: number
   ingredientName?: string
   unitAbbreviation?: string
+  capturedQuantity?: number
+  capturedUnitCost?: number
+  captureUnit?: string
 }
 
 export function InventoryAddEntry() {
@@ -48,12 +39,11 @@ export function InventoryAddEntry() {
   const canManageSuppliers = user?.permissions?.includes('inventory.manage_suppliers') ?? false
 
   const [supplierId, setSupplier] = useState('')
-  const [invoiceNumber, setInvoiceNumber] = useState('')
-  const [tax, setTax] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [selectedIngredient, setSelectedIngredient] = useState('')
   const [selectedIngredientData, setSelectedIngredientData] = useState<any>(null)
+  const [captureUnit, setCaptureUnit] = useState('')
   const [itemQuantity, setItemQuantity] = useState('')
   const [itemCost, setItemCost] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
@@ -88,12 +78,6 @@ export function InventoryAddEntry() {
   const { mutate: createPurchase, isPending: isCreating } = useCreatePurchase()
   const { refetch: refetchPurchases } = usePurchasesList({ status: 'draft', limit: 100 })
 
-  // Generar número de factura automáticamente al montar
-  useEffect(() => {
-    setInvoiceNumber(generateInvoiceNumber())
-  }, [])
-
-
   // Filtrar resultados de búsqueda
   const filteredSearchResults = useMemo(() => {
     if (!searchResults) return []
@@ -120,12 +104,34 @@ export function InventoryAddEntry() {
       return
     }
 
+    // Convert quantity and cost if capture unit differs from base unit
+    const baseUnit = selectedIngredientData?.unit.abbreviation
+    let finalQuantity = qty
+    let finalUnitCost = qty > 0 ? cost / qty : 0 // Costo unitario = costo total / cantidad
+    let displayCaptureUnit = captureUnit || baseUnit
+
+    if (captureUnit && captureUnit !== baseUnit) {
+      try {
+        finalQuantity = convertQuantity(qty, captureUnit, baseUnit)
+        finalUnitCost = convertUnitCost(finalUnitCost, captureUnit, baseUnit)
+      } catch (err) {
+        sileo.error({
+          title: 'Error de conversión',
+          description: `No se puede convertir de ${captureUnit} a ${baseUnit}`,
+        })
+        return
+      }
+    }
+
     const newItem = {
       ingredientId: selectedIngredient,
-      quantity: qty,
-      unitCost: cost,
+      quantity: finalQuantity,
+      unitCost: finalUnitCost,
       ingredientName: selectedIngredientData?.name,
-      unitAbbreviation: selectedIngredientData?.unit.abbreviation,
+      unitAbbreviation: baseUnit,
+      capturedQuantity: qty,
+      capturedUnitCost: cost,
+      captureUnit: displayCaptureUnit,
     }
 
     if (editingIndex !== null) {
@@ -184,22 +190,21 @@ export function InventoryAddEntry() {
     createPurchase(
       {
         supplierId: supplierId || undefined,
-        invoiceNumber: invoiceNumber || undefined,
         notes: notes || undefined,
-        tax: tax ? parseFloat(tax) : undefined,
         items,
       },
       {
-        onSuccess: () => {
-          sileo.success({ title: 'Compra creada correctamente.', duration: 2000 })
+        onSuccess: (data: any) => {
+          sileo.success({
+            title: 'Compra creada correctamente.',
+            description: data?.purchase?.invoiceNumber ? `Factura: ${data.purchase.invoiceNumber}` : undefined,
+            duration: 3000
+          })
           setSupplier('')
           setNotes('')
-          setTax('')
           setItems([])
           setIsConfirming(false)
           setEditingIndex(null)
-          // Generar número de factura para la siguiente compra
-          setInvoiceNumber(generateInvoiceNumber())
           refetchPurchases()
         },
         onError: (error: any) => {
@@ -213,8 +218,7 @@ export function InventoryAddEntry() {
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
-  const taxAmount = parseFloat(tax) || 0
-  const total = subtotal + taxAmount
+  const total = subtotal
 
   return (
     <motion.div
@@ -360,33 +364,6 @@ export function InventoryAddEntry() {
                 </AnimatePresence>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                  Número de factura
-                </label>
-                <input
-                  type="text"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder="Ej: FAC-1234"
-                  className={TAILWIND_INPUT_CLASS}
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                  IVA / Impuestos (opcional)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={tax}
-                  onChange={(e) => setTax(e.target.value)}
-                  placeholder="0.00"
-                  className={TAILWIND_INPUT_CLASS}
-                />
-              </div>
             </div>
 
             {/* Items */}
@@ -453,6 +430,7 @@ export function InventoryAddEntry() {
                                 onClick={() => {
                                   setSelectedIngredient(ingredient.id)
                                   setSelectedIngredientData(ingredient)
+                                  setCaptureUnit(ingredient.unit.abbreviation)
                                   setIngredientSearch('')
                                   setShowSearchResults(false)
                                 }}
@@ -498,9 +476,9 @@ export function InventoryAddEntry() {
                 {/* Cantidad */}
                 <div>
                   <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                    Cantidad {selectedIngredientData && `(${selectedIngredientData.unit.abbreviation})`}
+                    Cantidad
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-stretch">
                     <input
                       type="number"
                       step="0.01"
@@ -511,17 +489,28 @@ export function InventoryAddEntry() {
                       className={`${TAILWIND_INPUT_CLASS} flex-1`}
                     />
                     {selectedIngredientData && (
-                      <div className="flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] min-w-12">
-                        {selectedIngredientData.unit.abbreviation}
-                      </div>
+                      <select
+                        value={captureUnit}
+                        onChange={(e) => setCaptureUnit(e.target.value)}
+                        className="rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 w-28 flex-shrink-0"
+                      >
+                        <option value={selectedIngredientData.unit.abbreviation}>
+                          {selectedIngredientData.unit.abbreviation}
+                        </option>
+                        {getCompatibleUnits(selectedIngredientData.unit.abbreviation).map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
                 </div>
 
-                {/* Costo unitario */}
+                {/* Costo Total */}
                 <div>
                   <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                    Costo unitario
+                    Costo Total
                   </label>
                   <input
                     type="number"
@@ -535,15 +524,46 @@ export function InventoryAddEntry() {
                 </div>
               </div>
 
-              {selectedIngredientData && itemQuantity && itemCost && (
-                <motion.div
-                  className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  Subtotal: ${(parseFloat(itemQuantity) * parseFloat(itemCost)).toFixed(2)}
-                </motion.div>
-              )}
+              {selectedIngredientData && itemQuantity && itemCost && (() => {
+                const qty = parseFloat(itemQuantity);
+                const totalCost = parseFloat(itemCost);
+                const baseUnit = selectedIngredientData.unit.abbreviation;
+                const unitCost = qty > 0 ? totalCost / qty : 0;
+
+                let conversionInfo = null;
+                if (captureUnit && captureUnit !== baseUnit) {
+                  try {
+                    const convertedQty = convertQuantity(qty, captureUnit, baseUnit);
+                    const convertedCost = convertUnitCost(unitCost, captureUnit, baseUnit);
+                    conversionInfo = {
+                      capturedQty: qty,
+                      capturedUnit: captureUnit,
+                      convertedQty: convertedQty,
+                      baseUnit: baseUnit,
+                      convertedCost: convertedCost,
+                    };
+                  } catch (err) {
+                    // No conversion
+                  }
+                }
+
+                return (
+                  <motion.div
+                    className="mt-4 rounded-lg bg-[var(--color-surface-hover)] p-3"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                      Subtotal: <span className="text-[var(--color-success)]">${totalCost.toFixed(2)}</span>
+                    </p>
+                    {conversionInfo && (
+                      <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+                        ({conversionInfo.capturedQty} {conversionInfo.capturedUnit} → {conversionInfo.convertedQty.toFixed(4)} {conversionInfo.baseUnit})
+                      </p>
+                    )}
+                  </motion.div>
+                );
+              })()}
 
               <button
                 onClick={handleAddItem}
@@ -613,8 +633,9 @@ export function InventoryAddEntry() {
                                 name: item.ingredientName,
                                 unit: { abbreviation: item.unitAbbreviation }
                               })
-                              setItemQuantity(item.quantity.toString())
-                              setItemCost(item.unitCost.toString())
+                              setItemQuantity((item.capturedQuantity ?? item.quantity).toString())
+                              setItemCost((item.capturedUnitCost ?? item.unitCost).toString())
+                              setCaptureUnit(item.captureUnit ?? (item.unitAbbreviation || ''))
                               setEditingIndex(i)
                             }}
                             className="p-1 text-[var(--color-text-secondary)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -633,9 +654,20 @@ export function InventoryAddEntry() {
                           </button>
                         </div>
                       </div>
-                      <p className="text-xs text-[var(--color-text-secondary)]">
-                        {item.quantity.toFixed(2)} {item.unitAbbreviation} × ${item.unitCost.toFixed(2)} = ${(item.quantity * item.unitCost).toFixed(2)}
-                      </p>
+                      {item.captureUnit && item.captureUnit !== item.unitAbbreviation ? (
+                        <div className="text-xs text-[var(--color-text-secondary)] space-y-1">
+                          <p>
+                            Capturado: {(item.capturedQuantity ?? 0).toFixed(2)} {item.captureUnit} × ${(item.capturedUnitCost ?? 0).toFixed(2)} = ${((item.capturedQuantity ?? 0) * (item.capturedUnitCost ?? 0)).toFixed(2)}
+                          </p>
+                          <p>
+                            Convertido: {item.quantity.toFixed(2)} {item.unitAbbreviation} × ${item.unitCost.toFixed(2)} = ${(item.quantity * item.unitCost).toFixed(2)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          {item.quantity.toFixed(2)} {item.unitAbbreviation} × ${item.unitCost.toFixed(2)} = ${(item.quantity * item.unitCost).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -648,12 +680,6 @@ export function InventoryAddEntry() {
                     <span className="text-[var(--color-text-secondary)]">Subtotal:</span>
                     <span className="font-medium text-[var(--color-text-primary)]">${subtotal.toFixed(2)}</span>
                   </div>
-                  {taxAmount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-[var(--color-text-secondary)]">IVA:</span>
-                      <span className="font-medium text-[var(--color-text-primary)]">${taxAmount.toFixed(2)}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between border-t border-[var(--color-border)] pt-3 text-base font-semibold">
                     <span>Total:</span>
                     <span className="text-[var(--color-success)]">${total.toFixed(2)}</span>
