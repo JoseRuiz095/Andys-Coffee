@@ -13,9 +13,7 @@ export interface DayFinancialSummary {
     ingresosOtros: number;
     ingresosTotales: number;
     costoVenta: number;
-    gananciaBruta: number;
     gastos: number;
-    gastosOperativosFijos: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -28,6 +26,8 @@ export interface DayFinancialSummary {
     openSessionsCount: number;
   };
   distribucion: {
+    gastosOperativosFijos: number;
+    gananciaDistribuible: number;
     ahorro: number;
     fondoNegocio: number;
     surtido: number;
@@ -73,10 +73,10 @@ export interface PeriodTotals {
   ingresosOtros: number;
   ingresosTotales: number;
   costoVenta: number;
-  gananciaBruta: number;
   gastos: number;
-  gastosOperativosFijos: number;
   gananciaNeta: number;
+  gastosOperativosFijos: number;
+  gananciaDistribuible: number;
   ahorro: number;
   fondoNegocio: number;
   surtido: number;

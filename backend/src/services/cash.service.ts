@@ -2,9 +2,12 @@ import { NotificationType, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { CASH_TIMEZONE } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
+import { PreferenceRepository } from '../repositories/preference.repository';
 import { UserRepository } from '../repositories/user.repository';
 import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput, CashSessionHistoryQuery } from '../validators/cash.validator';
 import { paginationMeta } from '../utils/pagination';
+import { getZonedCalendarDate } from '../utils/businessDate';
 import { NotificationService } from './notification.service';
 
 export class CashBusinessRuleError extends Error {
@@ -49,12 +52,14 @@ export const CashService = {
     // Dispatched after the transaction commits so an unrelated notification write
     // can't contribute to a serialization conflict on the cash-closing transaction.
     if (closedSession) {
+      const generalPrefs = await PreferenceRepository.getGeneralPreferences();
+      const symbol = generalPrefs.currencySymbol;
       const differenceLabel = closedSession.difference?.isNegative()
-        ? `-$${closedSession.difference.abs().toFixed(2)}`
-        : `$${closedSession.difference?.toFixed(2) ?? '0.00'}`;
+        ? `-${symbol}${closedSession.difference.abs().toFixed(2)}`
+        : `${symbol}${closedSession.difference?.toFixed(2) ?? '0.00'}`;
       await createCashNotification({
         title: 'Cierre de caja confirmado',
-        message: `La caja ${closedSession.cashRegister.name} fue cerrada. Efectivo contado: $${closedSession.closingAmount?.toFixed(2) ?? '0.00'}. Diferencia: ${differenceLabel}.`,
+        message: `La caja ${closedSession.cashRegister.name} fue cerrada. Efectivo contado: ${symbol}${closedSession.closingAmount?.toFixed(2) ?? '0.00'}. Diferencia: ${differenceLabel}.`,
         referenceId: closedSession.id,
       });
     }
@@ -78,16 +83,26 @@ export const CashService = {
       throw new CashBusinessRuleError('Solo se puede corregir una sesión cerrada con un conteo registrado.');
     }
 
+    // Invalidate any final snapshot for the day of this corrected session
+    // so it recalculates with the corrected cash movement
+    const dateStr = getZonedCalendarDate(correctedSession.openedAt);
+    await incomeStatementRepository.invalidateSnapshot(dateStr);
+
     return correctedSession;
   },
 
   async closeIfBusinessDayEnded(closedById: string, now: Date = new Date()): Promise<CashSessionWithDetails | null> {
-    const hour = Number(new Intl.DateTimeFormat('en-US', {
+    const currentHour = Number(new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       hour12: false,
       timeZone: CASH_TIMEZONE,
     }).format(now));
-    if (hour < 14) return null;
+
+    // Get configured closing hour, fallback to 14:00 if not set
+    const generalPrefs = await PreferenceRepository.getGeneralPreferences();
+    const [closeHour] = generalPrefs.businessHoursClose.split(':').map(Number);
+
+    if (currentHour < closeHour) return null;
     const session = await CashRepository.findActiveSession();
     if (!session) return null;
     return this.closeSession(closedById, {

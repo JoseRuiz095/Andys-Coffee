@@ -5,7 +5,7 @@ import { z } from 'zod';
 // `expenses.fixed.*` (ver income-statement.repository.ts) y ya se deducen automáticamente
 // en el Estado de Resultados como "Gastos Operativos Fijos". NO registrarlos también aquí —
 // se duplicarían contra la ganancia neta. Convención documentada, no forzada por el sistema.
-export const expenseCategories = ['insumos', 'servicios', 'mantenimiento', 'nomina', 'renta', 'otros'] as const;
+export const expenseCategories = ['insumos', 'servicios', 'mantenimiento', 'nomina', 'renta', 'mandadito', 'otros'] as const;
 export const expensePaymentMethods = ['cash', 'transfer', 'card'] as const;
 
 export const createExpenseSchema = z.object({

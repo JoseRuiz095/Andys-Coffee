@@ -140,19 +140,20 @@ test(
     assert.equal(summary.hadOperation, true);
     assert.equal(summary.movimientos.ingresosEfectivo, PRODUCT_PRICE);
     assert.equal(summary.movimientos.ingresosTotales, PRODUCT_PRICE);
+    // Cost of goods sold is informational only — it does not reduce gananciaNeta.
     assert.equal(summary.movimientos.costoVenta, PRODUCT_COST);
-    assert.equal(summary.movimientos.gananciaBruta, PRODUCT_PRICE - PRODUCT_COST);
     assert.equal(summary.movimientos.gastos, 20);
-    assert.equal(summary.movimientos.gananciaNeta, PRODUCT_PRICE - PRODUCT_COST - 20);
+    assert.equal(summary.movimientos.gananciaNeta, PRODUCT_PRICE - 20);
     assert.equal(summary.conciliacion.fondoInicial, 1000);
     assert.equal(summary.conciliacion.efectivoEsperado, 1080);
     assert.equal(summary.conciliacion.efectivoReal, 1060);
     assert.equal(summary.conciliacion.diferencia, -20);
     assert.equal(summary.conciliacion.estado, "FALTANTE");
 
-    // Net profit (40) is positive: distribution should be non-zero and sum exactly to it.
+    // Distribution (Ahorro/Fondo/Surtido) is applied to gananciaDistribuible (gananciaNeta minus
+    // the fixed operating expense), not gananciaNeta directly — must sum exactly to it either way.
     const distTotal = summary.distribucion.ahorro + summary.distribucion.fondoNegocio + summary.distribucion.surtido;
-    assert.ok(Math.abs(distTotal - summary.movimientos.gananciaNeta) < 0.001);
+    assert.ok(Math.abs(distTotal - summary.distribucion.gananciaDistribuible) < 0.001);
 
     // The day is in the past and fully closed -> a final snapshot must have been persisted.
     const snapshot = await prisma.incomeStatementDailySnapshot.findUnique({

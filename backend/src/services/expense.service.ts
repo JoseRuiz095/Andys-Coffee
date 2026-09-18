@@ -1,9 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { ExpenseRepository } from '../repositories/expense.repository';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { CashRepository } from '../repositories/cash.repository';
 import { CashBusinessRuleError } from './cash.service';
 import { NotFoundError } from '../utils/errors';
+import { getZonedCalendarDate } from '../utils/businessDate';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListQuery } from '../validators/expense.validator';
 
@@ -43,7 +45,7 @@ export const ExpenseService = {
   },
 
   async create(input: CreateExpenseInput, createdById: string) {
-    return prisma.$transaction(
+    const result = await prisma.$transaction(
       async (tx) => {
         const amount = new Prisma.Decimal(input.amount);
         const isCash = input.paymentMethod === 'cash';
@@ -99,10 +101,18 @@ export const ExpenseService = {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
+
+    // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
+    if (result.expenseDate) {
+      const dateStr = getZonedCalendarDate(result.expenseDate);
+      await incomeStatementRepository.invalidateSnapshot(dateStr);
+    }
+
+    return result;
   },
 
   async update(id: string, input: UpdateExpenseInput, updatedById: string) {
-    return prisma.$transaction(
+    const result = await prisma.$transaction(
       async (tx) => {
         const existing = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!existing) throw new NotFoundError('Gasto no encontrado.');
@@ -198,43 +208,60 @@ export const ExpenseService = {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
+
+    // Invalidate snapshot for both old and new expense dates (if affected)
+    if (result.expenseDate) {
+      const dateStr = getZonedCalendarDate(result.expenseDate);
+      await incomeStatementRepository.invalidateSnapshot(dateStr);
+    }
+
+    return result;
   },
 
   async remove(id: string, deletedById: string) {
-    return prisma.$transaction(
+    const existing = await prisma.$transaction(
       async (tx) => {
-        const existing = await ExpenseRepository.findByIdInTransaction(tx, id);
-        if (!existing) throw new NotFoundError('Gasto no encontrado.');
+        const exp = await ExpenseRepository.findByIdInTransaction(tx, id);
+        if (!exp) throw new NotFoundError('Gasto no encontrado.');
 
         // Guard: cannot delete if linked to closed session
-        if (existing.cashSession && existing.cashSession.status === 'closed') {
+        if (exp.cashSession && exp.cashSession.status === 'closed') {
           throw new CashBusinessRuleError('No se puede eliminar un gasto asociado a una sesión de caja ya cerrada.');
         }
 
         // If cash-linked, create a reversal movement
-        if (existing.cashSessionId) {
+        if (exp.cashSessionId) {
           await tx.cashMovement.create({
             data: {
-              cashSessionId: existing.cashSessionId,
+              cashSessionId: exp.cashSessionId,
               type: 'expense_reversal',
-              amount: existing.amount.negated(),
+              amount: exp.amount.negated(),
               referenceType: 'expense',
               referenceId: id,
-              description: `Reversión de gasto: ${existing.description}`,
+              description: `Reversión de gasto: ${exp.description}`,
               createdById: deletedById,
             },
           });
 
           await tx.cashSession.update({
-            where: { id: existing.cashSessionId },
-            data: { expectedAmount: { increment: existing.amount } },
+            where: { id: exp.cashSessionId },
+            data: { expectedAmount: { increment: exp.amount } },
           });
         }
 
         // Hard delete (the reversal movement preserves the audit trail)
         await ExpenseRepository.delete(tx, id);
+
+        // Return the expense so we can invalidate its snapshot
+        return exp;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
+
+    // Invalidate snapshot for the deleted expense date (if it has a final snapshot, it will be recalculated)
+    if (existing.expenseDate) {
+      const dateStr = getZonedCalendarDate(existing.expenseDate);
+      await incomeStatementRepository.invalidateSnapshot(dateStr);
+    }
   },
 };

@@ -5,11 +5,14 @@ import {
   type PaymentRangeRow,
   type CogsRangeRow,
   type ExpenseRangeRow,
+  type PurchaseRangeRow,
   type FixedExpenseSettings,
 } from '../repositories/income-statement.repository';
+import { PreferenceRepository } from '../repositories/preference.repository';
 import {
   getZonedDayBoundaries,
   getZonedCalendarDate,
+  getZonedTimeOfDay,
   getTodayInZone,
   getWeekRange,
   getMonthRange,
@@ -41,9 +44,7 @@ export interface DayFinancialSummary {
     ingresosOtros: number;
     ingresosTotales: number;
     costoVenta: number;
-    gananciaBruta: number;
     gastos: number;
-    gastosOperativosFijos: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -56,6 +57,8 @@ export interface DayFinancialSummary {
     openSessionsCount: number;
   };
   distribucion: {
+    gastosOperativosFijos: number;
+    gananciaDistribuible: number;
     ahorro: number;
     fondoNegocio: number;
     surtido: number;
@@ -101,10 +104,10 @@ export interface PeriodTotals {
   ingresosOtros: number;
   ingresosTotales: number;
   costoVenta: number;
-  gananciaBruta: number;
   gastos: number;
-  gastosOperativosFijos: number;
   gananciaNeta: number;
+  gastosOperativosFijos: number;
+  gananciaDistribuible: number;
   ahorro: number;
   fondoNegocio: number;
   surtido: number;
@@ -116,6 +119,12 @@ export interface DaySubsetRows {
   payments: PaymentRangeRow[];
   cogsRows: CogsRangeRow[];
   expenses: ExpenseRangeRow[];
+  purchases: PurchaseRangeRow[];
+}
+
+export interface BusinessHours {
+  openMinutes: number;
+  closeMinutes: number;
 }
 
 export interface DayCore {
@@ -129,6 +138,7 @@ export interface DayCore {
   totalExpenses: Prisma.Decimal;
   fixedOperatingExpenses: Prisma.Decimal;
   netProfit: Prisma.Decimal;
+  distributableProfit: Prisma.Decimal;
   openingFund: Prisma.Decimal;
   expectedCash: Prisma.Decimal | null;
   actualCash: Prisma.Decimal | null;
@@ -151,7 +161,18 @@ function round2(value: Prisma.Decimal): Prisma.Decimal {
   return value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
-export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPercentages, fixedExpenseRate: Prisma.Decimal = ZERO): DayCore {
+function parseBusinessHours(open: string, close: string): BusinessHours {
+  const [openHour, openMinute] = open.split(':').map(Number);
+  const [closeHour, closeMinute] = close.split(':').map(Number);
+  return { openMinutes: openHour * 60 + openMinute, closeMinutes: closeHour * 60 + closeMinute };
+}
+
+export function computeDayCore(
+  rows: DaySubsetRows,
+  percentages: DistributionPercentages,
+  fixedExpenseRate: Prisma.Decimal = ZERO,
+  businessHours: BusinessHours | null = null,
+): DayCore {
   const cashPayments = rows.payments.filter((p) => p.method === 'cash');
   const transferPayments = rows.payments.filter((p) => p.method === 'transfer');
   const otherPayments = rows.payments.filter((p) => p.method !== 'cash' && p.method !== 'transfer');
@@ -161,16 +182,29 @@ export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPer
   const otherRevenue = sumDecimals(otherPayments, (p) => p.amount);
   const totalRevenue = cashRevenue.plus(transferRevenue).plus(otherRevenue);
 
+  // Cost of goods sold is informational only — it no longer reduces netProfit.
+  // It still gets persisted (grossProfit) for historical/informational display.
   const totalCogs = sumDecimals(rows.cogsRows, (i) => i.costSnapshot);
   const grossProfit = totalRevenue.minus(totalCogs);
 
-  const totalExpenses = sumDecimals(rows.expenses, (e) => e.amount);
+  // Received purchases made during business hours count as a variable expense too.
+  const purchasesInHours = businessHours
+    ? rows.purchases.filter((p) => {
+        const { hour, minute } = getZonedTimeOfDay(p.purchasedAt);
+        const minutesOfDay = hour * 60 + minute;
+        return minutesOfDay >= businessHours.openMinutes && minutesOfDay < businessHours.closeMinutes;
+      })
+    : [];
+  const totalExpenses = sumDecimals(rows.expenses, (e) => e.amount).plus(sumDecimals(purchasesInHours, (p) => p.total));
 
   const openingFund = sumDecimals(rows.sessions, (s) => s.openingAmount);
   const hadOperation = rows.sessions.length > 0 || rows.payments.length > 0 || rows.expenses.length > 0;
 
   const fixedOperatingExpenses = hadOperation ? fixedExpenseRate : ZERO;
-  const netProfit = grossProfit.minus(totalExpenses).minus(fixedOperatingExpenses);
+  const netProfit = totalRevenue.minus(totalExpenses);
+  // Fixed operating expenses are deducted here (not in movimientos) — this is the base
+  // percentages (Ahorro/Fondo/Surtido) are applied to, per the "Distribución" section.
+  const distributableProfit = netProfit.minus(fixedOperatingExpenses);
 
   const openSessionsCount = rows.sessions.filter((s) => s.status === 'open').length;
   let expectedCash: Prisma.Decimal | null = null;
@@ -192,11 +226,11 @@ export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPer
   let savingsAmount = ZERO;
   let businessFundAmount = ZERO;
   let suppliesAmount = ZERO;
-  if (netProfit.greaterThan(0)) {
-    savingsAmount = round2(netProfit.times(percentages.savingsPercent).dividedBy(100));
-    businessFundAmount = round2(netProfit.times(percentages.businessFundPercent).dividedBy(100));
-    // Supplies absorbs the rounding residual so the three amounts always sum exactly to netProfit.
-    suppliesAmount = netProfit.minus(savingsAmount).minus(businessFundAmount);
+  if (distributableProfit.greaterThan(0)) {
+    savingsAmount = round2(distributableProfit.times(percentages.savingsPercent).dividedBy(100));
+    businessFundAmount = round2(distributableProfit.times(percentages.businessFundPercent).dividedBy(100));
+    // Supplies absorbs the rounding residual so the three amounts always sum exactly to distributableProfit.
+    suppliesAmount = distributableProfit.minus(savingsAmount).minus(businessFundAmount);
   }
 
   return {
@@ -210,6 +244,7 @@ export function computeDayCore(rows: DaySubsetRows, percentages: DistributionPer
     totalExpenses,
     fixedOperatingExpenses,
     netProfit,
+    distributableProfit,
     openingFund,
     expectedCash,
     actualCash,
@@ -242,9 +277,7 @@ function buildSummaryDto(
       ingresosOtros: core.otherRevenue.toNumber(),
       ingresosTotales: core.totalRevenue.toNumber(),
       costoVenta: core.totalCogs.toNumber(),
-      gananciaBruta: core.grossProfit.toNumber(),
       gastos: core.totalExpenses.toNumber(),
-      gastosOperativosFijos: core.fixedOperatingExpenses.toNumber(),
       gananciaNeta: core.netProfit.toNumber(),
     },
     conciliacion: {
@@ -257,6 +290,8 @@ function buildSummaryDto(
       openSessionsCount: core.openSessionsCount,
     },
     distribucion: {
+      gastosOperativosFijos: core.fixedOperatingExpenses.toNumber(),
+      gananciaDistribuible: core.distributableProfit.toNumber(),
       ahorro: core.savingsAmount.toNumber(),
       fondoNegocio: core.businessFundAmount.toNumber(),
       surtido: core.suppliesAmount.toNumber(),
@@ -274,8 +309,15 @@ function buildSummaryDto(
   };
 }
 
-function bucketRows(dateStrs: string[], sessions: SessionRangeRow[], payments: PaymentRangeRow[], cogsRows: CogsRangeRow[], expenses: ExpenseRangeRow[]) {
-  const byDay = new Map<string, DaySubsetRows>(dateStrs.map((d) => [d, { sessions: [], payments: [], cogsRows: [], expenses: [] }]));
+function bucketRows(
+  dateStrs: string[],
+  sessions: SessionRangeRow[],
+  payments: PaymentRangeRow[],
+  cogsRows: CogsRangeRow[],
+  expenses: ExpenseRangeRow[],
+  purchases: PurchaseRangeRow[],
+) {
+  const byDay = new Map<string, DaySubsetRows>(dateStrs.map((d) => [d, { sessions: [], payments: [], cogsRows: [], expenses: [], purchases: [] }]));
 
   for (const s of sessions) {
     const bucket = byDay.get(getZonedCalendarDate(s.openedAt));
@@ -293,13 +335,17 @@ function bucketRows(dateStrs: string[], sessions: SessionRangeRow[], payments: P
     const bucket = byDay.get(getZonedCalendarDate(e.expenseDate));
     if (bucket) bucket.expenses.push(e);
   }
+  for (const p of purchases) {
+    const bucket = byDay.get(getZonedCalendarDate(p.purchasedAt));
+    if (bucket) bucket.purchases.push(p);
+  }
 
   return byDay;
 }
 
 /** A day with no sales/expenses, or a net loss, never distributes and never moves accumulated saldos. */
 export function shouldCarryForwardAccumulated(core: DayCore): boolean {
-  return !core.hadOperation || core.netProfit.lessThanOrEqualTo(0);
+  return !core.hadOperation || core.distributableProfit.lessThanOrEqualTo(0);
 }
 
 /** Converts a final persisted IncomeStatementDailySnapshot to a DayFinancialSummary. */
@@ -314,9 +360,7 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
       ingresosOtros: snapshot.otherRevenue.toNumber(),
       ingresosTotales: snapshot.totalRevenue.toNumber(),
       costoVenta: snapshot.totalCogs.toNumber(),
-      gananciaBruta: snapshot.grossProfit.toNumber(),
       gastos: snapshot.totalExpenses.toNumber(),
-      gastosOperativosFijos: snapshot.fixedExpensesAmount.toNumber(),
       gananciaNeta: snapshot.netProfit.toNumber(),
     },
     conciliacion: {
@@ -329,6 +373,13 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
       openSessionsCount: snapshot.openSessionsCount,
     },
     distribucion: {
+      gastosOperativosFijos: snapshot.fixedExpensesAmount.toNumber(),
+      // Derived as the sum of the three distributed amounts (not netProfit - fixedExpensesAmount):
+      // snapshots frozen under the old formula already had the fixed expense subtracted once
+      // inside netProfit, so re-subtracting it here would double-count it. The sum of the three
+      // distributed amounts always equals the distributable profit of that day, regardless of
+      // which formula produced it (suppliesAmount absorbs the rounding residual by design).
+      gananciaDistribuible: snapshot.savingsAmount.plus(snapshot.businessFundAmount).plus(snapshot.suppliesAmount).toNumber(),
       ahorro: snapshot.savingsAmount.toNumber(),
       fondoNegocio: snapshot.businessFundAmount.toNumber(),
       surtido: snapshot.suppliesAmount.toNumber(),
@@ -362,18 +413,21 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
   const { start } = getZonedDayBoundaries(dateStrs[0]);
   const { end } = getZonedDayBoundaries(dateStrs[dateStrs.length - 1]);
 
-  const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot, finalSnapshots, fixedExpenseRate] = await Promise.all([
+  const [sessions, payments, cogsRows, expenses, purchases, percentages, prevSnapshot, finalSnapshots, fixedExpenseRate, generalPrefs] = await Promise.all([
     incomeStatementRepository.findSessionsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findPaymentsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findCogsInRange(start, end, cashRegisterId),
     incomeStatementRepository.findExpensesInRange(start, end, cashRegisterId),
+    incomeStatementRepository.findPurchasesInRange(start, end),
     incomeStatementRepository.getDistributionPreferences(),
     incomeStatementRepository.findLatestFinalSnapshotBefore(dateStrs[0]),
     incomeStatementRepository.findFinalSnapshotsInRange(start, end),
     incomeStatementRepository.getDailyFixedExpenseTotal(),
+    PreferenceRepository.getGeneralPreferences(),
   ]);
 
-  const byDay = bucketRows(dateStrs, sessions, payments, cogsRows, expenses);
+  const businessHours = parseBusinessHours(generalPrefs.businessHoursOpen, generalPrefs.businessHoursClose);
+  const byDay = bucketRows(dateStrs, sessions, payments, cogsRows, expenses, purchases);
   const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [s.date.toISOString().split('T')[0], s]));
   const today = getTodayInZone();
 
@@ -397,7 +451,7 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
     } else {
       // New day or non-final day — recompute
       const rows = byDay.get(dateStr)!;
-      const core = computeDayCore(rows, percentages, fixedExpenseRate);
+      const core = computeDayCore(rows, percentages, fixedExpenseRate, businessHours);
 
       const carryForward = shouldCarryForwardAccumulated(core);
       if (!carryForward) {
@@ -467,10 +521,10 @@ function computeTotals(days: DayFinancialSummary[]): PeriodTotals {
     ingresosOtros: sum((d) => d.movimientos.ingresosOtros),
     ingresosTotales: sum((d) => d.movimientos.ingresosTotales),
     costoVenta: sum((d) => d.movimientos.costoVenta),
-    gananciaBruta: sum((d) => d.movimientos.gananciaBruta),
     gastos: sum((d) => d.movimientos.gastos),
-    gastosOperativosFijos: sum((d) => d.movimientos.gastosOperativosFijos),
     gananciaNeta: sum((d) => d.movimientos.gananciaNeta),
+    gastosOperativosFijos: sum((d) => d.distribucion.gastosOperativosFijos),
+    gananciaDistribuible: sum((d) => d.distribucion.gananciaDistribuible),
     ahorro: sum((d) => d.distribucion.ahorro),
     fondoNegocio: sum((d) => d.distribucion.fondoNegocio),
     surtido: sum((d) => d.distribucion.surtido),
@@ -500,15 +554,17 @@ export const incomeStatementService = {
 
   async getDayDetail(dateStr: string, cashRegisterId?: string): Promise<DayDetailResponse> {
     const { start, end } = getZonedDayBoundaries(dateStr);
-    const [sessions, payments, cogsRows, expenses, percentages, prevSnapshot, finalSnapshot, fixedExpenseRate] = await Promise.all([
+    const [sessions, payments, cogsRows, expenses, purchases, percentages, prevSnapshot, finalSnapshot, fixedExpenseRate, generalPrefs] = await Promise.all([
       incomeStatementRepository.findSessionsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findPaymentsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findCogsInRange(start, end, cashRegisterId),
       incomeStatementRepository.findExpensesInRange(start, end, cashRegisterId),
+      incomeStatementRepository.findPurchasesInRange(start, end),
       incomeStatementRepository.getDistributionPreferences(),
       incomeStatementRepository.findLatestFinalSnapshotBefore(dateStr),
       incomeStatementRepository.findSnapshot(dateStr),
       incomeStatementRepository.getDailyFixedExpenseTotal(),
+      PreferenceRepository.getGeneralPreferences(),
     ]);
 
     let summary: DayFinancialSummary;
@@ -516,7 +572,8 @@ export const incomeStatementService = {
       // Use frozen final snapshot for movimientos/distribucion/saldos, but fetch live session/expense details
       summary = snapshotToSummary(dateStr, finalSnapshot);
     } else {
-      const core = computeDayCore({ sessions, payments, cogsRows, expenses }, percentages, fixedExpenseRate);
+      const businessHours = parseBusinessHours(generalPrefs.businessHoursOpen, generalPrefs.businessHoursClose);
+      const core = computeDayCore({ sessions, payments, cogsRows, expenses, purchases }, percentages, fixedExpenseRate, businessHours);
       const carryForward = shouldCarryForwardAccumulated(core);
       const prevSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
       const prevBusinessFund = prevSnapshot?.businessFundAccumulated ?? ZERO;

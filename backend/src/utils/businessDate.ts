@@ -107,6 +107,23 @@ export function getTodayInZone(timeZone: string = CASH_TIMEZONE): string {
   return getZonedCalendarDate(new Date(), timeZone);
 }
 
+/** Wall-clock hour/minute that `instant` falls on, in `timeZone` — for comparing against business hours. */
+export function getZonedTimeOfDay(instant: Date, timeZone: string = CASH_TIMEZONE): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(instant);
+
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+
+  return { hour: map.hour === '24' ? 0 : Number(map.hour), minute: Number(map.minute) };
+}
+
 /** Monday-Sunday week containing `dateStr`. */
 export function getWeekRange(
   dateStr: string,

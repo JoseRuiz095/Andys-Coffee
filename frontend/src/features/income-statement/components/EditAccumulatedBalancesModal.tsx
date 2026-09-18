@@ -41,7 +41,6 @@ export function EditAccumulatedBalancesModal({
   const ahorroNum = Number(ahorro) || 0;
   const fondoNum = Number(fondo) || 0;
   const surtidoNum = Number(surtido) || 0;
-  const totalAccumulated = ahorroNum + fondoNum + surtidoNum;
 
   const isToday = date === getTodayDateString();
 

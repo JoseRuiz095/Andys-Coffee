@@ -68,6 +68,12 @@ export function DashboardPage() {
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
   const [paymentMethod, setPaymentMethod] = React.useState<string>()
+  const [hasDelivery, setHasDelivery] = React.useState(false)
+  const [deliveryAmount, setDeliveryAmount] = React.useState('')
+  const [deliveryResponsible, setDeliveryResponsible] = React.useState<
+    'customer_to_courier' | 'customer_to_business' | 'business_absorbs' | undefined
+  >()
+  const [deliveryPaymentMethod, setDeliveryPaymentMethod] = React.useState<'cash' | 'transfer' | undefined>()
   const [isCashPaymentOpen, setIsCashPaymentOpen] = React.useState(false)
   const [isCashClosingOpen, setIsCashClosingOpen] = React.useState(false)
   const [closingExpectedAmount, setClosingExpectedAmount] = React.useState(0)
@@ -119,6 +125,10 @@ export function DashboardPage() {
       cashSessionId: cashSession?.id,
       paymentMethod: paymentMethod!,
       cashReceived,
+      hasDelivery,
+      deliveryAmount: hasDelivery ? Number(deliveryAmount) || 0 : undefined,
+      deliveryResponsible: hasDelivery ? deliveryResponsible : undefined,
+      deliveryPaymentMethod: hasDelivery && deliveryResponsible === 'customer_to_business' ? deliveryPaymentMethod : undefined,
       items: orderItems.map(
         ({ productId, comboId, quantity, note, type }) => ({
           productId: type === 'product' ? productId : undefined,
@@ -159,6 +169,38 @@ export function DashboardPage() {
         description: 'Por favor, seleccione un método de pago.',
       })
       return
+    }
+
+    if (paymentMethod === 'Pago Pendiente' && !customerName.trim()) {
+      sileo.error({
+        title: 'Algo salio mal',
+        description: 'Debes ingresar el nombre del cliente para registrar un pago pendiente.',
+      })
+      return
+    }
+
+    if (hasDelivery) {
+      if (!deliveryAmount || Number(deliveryAmount) <= 0) {
+        sileo.error({
+          title: 'Algo salio mal',
+          description: 'Ingresa el costo del mandadito.',
+        })
+        return
+      }
+      if (!deliveryResponsible) {
+        sileo.error({
+          title: 'Algo salio mal',
+          description: 'Indica quién recibe/paga el mandadito.',
+        })
+        return
+      }
+      if (deliveryResponsible === 'customer_to_business' && !deliveryPaymentMethod) {
+        sileo.error({
+          title: 'Algo salio mal',
+          description: 'Indica el método de pago del mandadito.',
+        })
+        return
+      }
     }
 
     if (paymentMethod === 'Efectivo' || paymentMethod === 'cash') {
@@ -336,6 +378,10 @@ export function DashboardPage() {
     setOrderNotes('')
     setCustomerName('')
     setPaymentMethod(undefined)
+    setHasDelivery(false)
+    setDeliveryAmount('')
+    setDeliveryResponsible(undefined)
+    setDeliveryPaymentMethod(undefined)
   }
 
   const subtotal = React.useMemo(
@@ -460,9 +506,17 @@ export function DashboardPage() {
                 orderNotes={orderNotes}
                 customerName={customerName}
                 paymentMethod={paymentMethod}
+                hasDelivery={hasDelivery}
+                deliveryAmount={deliveryAmount}
+                deliveryResponsible={deliveryResponsible}
+                deliveryPaymentMethod={deliveryPaymentMethod}
                 onNotesChange={handleNotesChange}
                 onCustomerNameChange={handleCustomerNameChange}
                 onPaymentMethodChange={handlePaymentMethodChange}
+                onHasDeliveryChange={setHasDelivery}
+                onDeliveryAmountChange={setDeliveryAmount}
+                onDeliveryResponsibleChange={setDeliveryResponsible}
+                onDeliveryPaymentMethodChange={setDeliveryPaymentMethod}
                 onRemoveItem={handleRemoveItem}
                 onClearOrder={handleClearOrder}
                 onUpdateItemNote={handleUpdateItemNote}

@@ -59,7 +59,7 @@ function expense(paymentMethod: string, amount: number): ExpenseRangeRow {
 }
 
 function emptyRows(): DaySubsetRows {
-  return { sessions: [], payments: [], cogsRows: [], expenses: [] };
+  return { sessions: [], payments: [], cogsRows: [], expenses: [], purchases: [] };
 }
 
 test('día normal: efectivo esperado = fondo inicial + ventas efectivo - gastos efectivo', () => {
@@ -68,6 +68,7 @@ test('día normal: efectivo esperado = fondo inicial + ventas efectivo - gastos 
     payments: [payment('cash', 500), payment('transfer', 200)],
     cogsRows: [],
     expenses: [expense('cash', 100)],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -90,6 +91,7 @@ test('faltante: efectivo real < efectivo esperado', () => {
     payments: [],
     cogsRows: [],
     expenses: [],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -104,6 +106,7 @@ test('sobrante: efectivo real > efectivo esperado', () => {
     payments: [],
     cogsRows: [],
     expenses: [],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -118,6 +121,7 @@ test('caja cuadrada: efectivo real == efectivo esperado', () => {
     payments: [],
     cogsRows: [],
     expenses: [],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -145,6 +149,7 @@ test('día con pérdida neta: distribución en $0 y acumulados se conservan', ()
     payments: [payment('cash', 100)],
     cogsRows: [],
     expenses: [expense('cash', 500)],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -162,6 +167,7 @@ test('distribución: ahorro y fondo se redondean primero, surtido absorbe el res
     payments: [payment('cash', 100.01)],
     cogsRows: [],
     expenses: [],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -176,18 +182,39 @@ test('distribución: ahorro y fondo se redondean primero, surtido absorbe el res
   assert.equal(shouldCarryForwardAccumulated(core), false);
 });
 
-test('ganancia neta incluye el costo de venta (COGS) antes de restar gastos', () => {
+test('el costo de venta (COGS) es informativo y no reduce la ganancia neta', () => {
   const rows: DaySubsetRows = {
     sessions: [],
     payments: [payment('cash', 1000)],
     cogsRows: [cogs(300)],
     expenses: [expense('transfer', 200)],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
 
-  assert.equal(core.grossProfit.toNumber(), 700); // 1000 - 300
-  assert.equal(core.netProfit.toNumber(), 500); // 700 - 200
+  assert.equal(core.totalCogs.toNumber(), 300);
+  assert.equal(core.grossProfit.toNumber(), 700); // 1000 - 300, informational only (not used below)
+  assert.equal(core.netProfit.toNumber(), 800); // 1000 - 200, COGS is not subtracted
+});
+
+test('el gasto operativo fijo se resta de la ganancia neta antes de calcular la distribución (gananciaDistribuible)', () => {
+  const rows: DaySubsetRows = {
+    sessions: [],
+    payments: [payment('cash', 1000)],
+    cogsRows: [],
+    expenses: [expense('transfer', 200)],
+    purchases: [],
+  };
+
+  const core = computeDayCore(rows, DEFAULT_PERCENTAGES, money(260));
+
+  assert.equal(core.netProfit.toNumber(), 800); // 1000 - 200
+  assert.equal(core.fixedOperatingExpenses.toNumber(), 260);
+  assert.equal(core.distributableProfit.toNumber(), 540); // 800 - 260
+  // Distribution percentages apply to distributableProfit, not netProfit.
+  const distSum = core.savingsAmount.plus(core.businessFundAmount).plus(core.suppliesAmount);
+  assert.equal(distSum.toNumber(), core.distributableProfit.toNumber());
 });
 
 test('gastos por transferencia/tarjeta reducen la ganancia neta pero nunca el efectivo esperado', () => {
@@ -196,6 +223,7 @@ test('gastos por transferencia/tarjeta reducen la ganancia neta pero nunca el ef
     payments: [payment('cash', 1000)],
     cogsRows: [],
     expenses: [expense('transfer', 300)],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
@@ -217,6 +245,7 @@ test('una sesión aún abierta ese día marca la conciliación como PENDIENTE, n
     payments: [],
     cogsRows: [],
     expenses: [],
+    purchases: [],
   };
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES);

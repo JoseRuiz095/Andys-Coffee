@@ -444,6 +444,12 @@ model Order {
   idempotencyKey     String?
   notes              String?
   inventoryProcessed Boolean      @default(false)
+  hasDelivery           Boolean   @default(false)
+  deliveryAmount        Decimal   @default(0) @db.Decimal(12, 2)
+  deliveryResponsible   String? // 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
+  deliveryPaymentMethod String? // 'cash' | 'transfer' — only when deliveryResponsible = 'customer_to_business'
+  deliveryHandedOff     Boolean   @default(false)
+  deliveryHandedOffAt   DateTime? @db.Timestamptz(6)
   createdById        String?
   createdAt          DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime     @default(now()) @updatedAt @db.Timestamptz(6)

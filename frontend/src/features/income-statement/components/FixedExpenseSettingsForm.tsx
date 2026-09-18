@@ -49,7 +49,10 @@ export function FixedExpenseSettingsForm() {
   };
 
   const handleSaveConcept = (slug: string) => {
-    if (!editLabel.trim() || editAmount === '') return;
+    if (!editLabel.trim() || editAmount === '' || Number(editAmount) < 0) {
+      sileo.error({ title: 'Error', description: 'El monto debe ser mayor o igual a 0.' });
+      return;
+    }
     upsertConcept(
       { slug, input: { label: editLabel, amount: Number(editAmount) } },
       {

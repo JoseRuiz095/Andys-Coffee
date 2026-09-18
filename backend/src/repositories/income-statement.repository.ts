@@ -74,6 +74,11 @@ export interface ExpenseRangeRow {
   createdByName: string | null;
 }
 
+export interface PurchaseRangeRow {
+  total: Prisma.Decimal;
+  purchasedAt: Date;
+}
+
 export const incomeStatementRepository = {
   async findSessionsInRange(from: Date, to: Date, cashRegisterId?: string): Promise<SessionRangeRow[]> {
     const sessions = await prisma.cashSession.findMany({
@@ -192,6 +197,20 @@ export const incomeStatementRepository = {
     }));
   },
 
+  /** Only 'received' purchases count as real expenses — a 'draft' purchase may still be cancelled/edited. */
+  async findPurchasesInRange(from: Date, to: Date): Promise<PurchaseRangeRow[]> {
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        status: 'received',
+        purchasedAt: { gte: from, lt: to },
+      },
+      select: { total: true, purchasedAt: true },
+      orderBy: { purchasedAt: 'asc' },
+    });
+
+    return purchases.map((p) => ({ total: p.total, purchasedAt: p.purchasedAt }));
+  },
+
   async findLatestFinalSnapshotBefore(dateStr: string) {
     return prisma.incomeStatementDailySnapshot.findFirst({
       where: { isFinal: true, date: { lt: new Date(`${dateStr}T00:00:00Z`) } },
@@ -302,6 +321,23 @@ export const incomeStatementRepository = {
 
   async upsertFixedExpenseConcept(slug: string, input: { label: string; amount: number }): Promise<FixedExpenseSettings> {
     const key = `${FIXED_EXPENSE_KEY_PREFIX}${slug}`;
+    const existing = await prisma.systemPreference.findUnique({ where: { key } });
+
+    // Check for slug collision on create (not edit)
+    if (!existing) {
+      const allConcepts = await prisma.systemPreference.findMany({
+        where: { key: { startsWith: FIXED_EXPENSE_KEY_PREFIX } },
+      });
+      const existingWithDifferentLabel = allConcepts.some(
+        (c) => c.key.slice(FIXED_EXPENSE_KEY_PREFIX.length) === slug && c.label !== input.label
+      );
+      if (existingWithDifferentLabel) {
+        throw new Error(
+          `Ya existe un concepto de gasto fijo con el slug "${slug}". Usa un nombre diferente.`
+        );
+      }
+    }
+
     await prisma.systemPreference.upsert({
       where: { key },
       update: { value: String(input.amount), type: 'number', label: input.label },

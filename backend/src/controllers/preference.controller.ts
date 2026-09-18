@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { PreferenceService } from '../services/preference.service';
-import { preferenceSchema, updatePreferenceSchema } from '../validators/preference.validator';
+import { preferenceSchema, updatePreferenceSchema, generalPreferencesSchema } from '../validators/preference.validator';
 import type { AuthUser } from '../services/auth.service';
 
 export async function listPreferences(req: Request, res: Response) {
@@ -37,7 +37,8 @@ export async function getPreference(req: Request, res: Response) {
 
 export async function updatePreference(req: Request, res: Response) {
   const user = req.user as AuthUser;
-  const data = updatePreferenceSchema.parse(req.body);
+  const key = req.params.key as string;
+  const data = updatePreferenceSchema.parse({ ...req.body, key });
 
   try {
     const preference = await PreferenceService.updatePreference(
@@ -73,6 +74,35 @@ export async function deletePreference(req: Request, res: Response) {
     }
     if (error.name === 'NotFoundError') {
       return res.status(404).json({ error: error.message, statusCode: 404 });
+    }
+    throw error;
+  }
+}
+
+export async function getGeneralPreferences(req: Request, res: Response) {
+  const user = req.user as AuthUser;
+
+  try {
+    const preferences = await PreferenceService.getGeneralPreferences(user);
+    return res.json({ data: preferences });
+  } catch (error: any) {
+    if (error.name === 'AuthorizationError') {
+      return res.status(403).json({ error: error.message, statusCode: 403 });
+    }
+    throw error;
+  }
+}
+
+export async function upsertGeneralPreferences(req: Request, res: Response) {
+  const user = req.user as AuthUser;
+  const data = generalPreferencesSchema.parse(req.body);
+
+  try {
+    const preferences = await PreferenceService.upsertGeneralPreferences(data, user);
+    return res.json({ data: preferences });
+  } catch (error: any) {
+    if (error.name === 'AuthorizationError') {
+      return res.status(403).json({ error: error.message, statusCode: 403 });
     }
     throw error;
   }

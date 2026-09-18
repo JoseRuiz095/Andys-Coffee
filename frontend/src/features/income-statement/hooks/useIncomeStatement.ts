@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IncomeStatementAPI, type DistributionSettings, type FixedExpenseSettings } from '../api/income-statement.api';
+import { IncomeStatementAPI, type DistributionSettings } from '../api/income-statement.api';
 
 const QUERY_KEY = 'incomeStatement';
 

@@ -4,9 +4,11 @@ import { prisma } from '../config/prisma';
 import { PurchaseRepository } from '../repositories/purchase.repository';
 import { SupplierRepository } from '../repositories/supplier.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { createPurchaseSchema } from '../validators/purchase.validator';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
+import { getZonedCalendarDate } from '../utils/businessDate';
 
 export const PurchaseService = {
   async findAll(user: AuthUser, status?: string, page: number = 1, limit: number = 20) {
@@ -184,7 +186,13 @@ export const PurchaseService = {
       const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx);
 
       return updatedPurchase;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async (updatedPurchase) => {
+      // A newly-received purchase may now count as a variable expense (if made during business
+      // hours) — invalidate any frozen snapshot for that day so it gets recalculated.
+      const dateStr = getZonedCalendarDate(updatedPurchase.purchasedAt);
+      await incomeStatementRepository.invalidateSnapshot(dateStr);
+      return updatedPurchase;
+    });
   },
 
   async deletePurchase(id: string, user: AuthUser) {

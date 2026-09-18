@@ -17,17 +17,28 @@ export function DistributionSettingsForm() {
     setSuppliesPercent(String(data.suppliesPercent));
   }, [data]);
 
-  const sum =
-    (Number(savingsPercent) || 0) + (Number(businessFundPercent) || 0) + (Number(suppliesPercent) || 0);
+  const savings = Number(savingsPercent) || 0;
+  const business = Number(businessFundPercent) || 0;
+  const supplies = Number(suppliesPercent) || 0;
+  const sum = savings + business + supplies;
   const sumIsValid = Math.abs(sum - 100) < 0.01;
 
+  // Per-field validation
+  const isSavingsValid = savings >= 0 && savings <= 100;
+  const isBusinessValid = business >= 0 && business <= 100;
+  const isSuppliesValid = supplies >= 0 && supplies <= 100;
+  const allFieldsValid = isSavingsValid && isBusinessValid && isSuppliesValid && sumIsValid;
+
   const handleSave = () => {
-    if (!sumIsValid) return;
+    if (!allFieldsValid) {
+      sileo.error({ title: 'Error', description: 'Corrige los errores antes de guardar.' });
+      return;
+    }
     updateSettings(
       {
-        savingsPercent: Number(savingsPercent),
-        businessFundPercent: Number(businessFundPercent),
-        suppliesPercent: Number(suppliesPercent),
+        savingsPercent: savings,
+        businessFundPercent: business,
+        suppliesPercent: supplies,
       },
       {
         onSuccess: () => sileo.success({ title: 'Guardado', description: 'Porcentajes de distribución actualizados.' }),
@@ -60,45 +71,66 @@ export function DistributionSettingsForm() {
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Ahorro (%)
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.01"
-            value={savingsPercent}
-            onChange={(e) => setSavingsPercent(e.target.value)}
-            className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-            style={fieldStyle}
-          />
-        </label>
-        <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Fondo del Negocio (%)
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.01"
-            value={businessFundPercent}
-            onChange={(e) => setBusinessFundPercent(e.target.value)}
-            className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-            style={fieldStyle}
-          />
-        </label>
-        <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Surtido (%)
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.01"
-            value={suppliesPercent}
-            onChange={(e) => setSuppliesPercent(e.target.value)}
-            className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-            style={fieldStyle}
-          />
-        </label>
+        <div>
+          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Ahorro (%)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={savingsPercent}
+              onChange={(e) => setSavingsPercent(e.target.value)}
+              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ ...fieldStyle, borderColor: !isSavingsValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
+            />
+          </label>
+          {!isSavingsValid && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+              Debe estar entre 0 y 100
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Fondo del Negocio (%)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={businessFundPercent}
+              onChange={(e) => setBusinessFundPercent(e.target.value)}
+              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ ...fieldStyle, borderColor: !isBusinessValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
+            />
+          </label>
+          {!isBusinessValid && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+              Debe estar entre 0 y 100
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Surtido (%)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={suppliesPercent}
+              onChange={(e) => setSuppliesPercent(e.target.value)}
+              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ ...fieldStyle, borderColor: !isSuppliesValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
+            />
+          </label>
+          {!isSuppliesValid && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+              Debe estar entre 0 y 100
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -117,7 +149,7 @@ export function DistributionSettingsForm() {
 
       <button
         onClick={handleSave}
-        disabled={!sumIsValid || isPending}
+        disabled={!allFieldsValid || isPending}
         className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
         style={{ backgroundColor: 'var(--color-primary)' }}
       >

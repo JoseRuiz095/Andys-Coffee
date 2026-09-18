@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { OrderService } from '../services/order.service';
-import { filterQuerySchema, updateOrderStatusSchema } from '../validators/order.validator';
+import { filterQuerySchema, updateOrderStatusSchema, settlePaymentSchema } from '../validators/order.validator';
 import { AuthUser } from '../services/auth.service';
 
 const getAuthenticatedUser = (req: Request): AuthUser => {
@@ -54,4 +54,31 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
     // Other errors (like not found) will be handled by the generic error handler
     throw error;
   }
+});
+
+export const getPendingPayments = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const payments = await OrderService.getPendingPayments(user);
+  res.status(200).json(payments);
+});
+
+export const settleOrderPayment = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const paymentId = String(req.params.paymentId);
+  const { method } = await settlePaymentSchema.parseAsync(req.body);
+  const payment = await OrderService.settlePayment(paymentId, method, user);
+  res.status(200).json(payment);
+});
+
+export const getPendingDeliveries = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const deliveries = await OrderService.getPendingDeliveries(user);
+  res.status(200).json(deliveries);
+});
+
+export const handoffOrderDelivery = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const id = String(req.params.id);
+  const order = await OrderService.handoffDelivery(id, user);
+  res.status(200).json(order);
 });

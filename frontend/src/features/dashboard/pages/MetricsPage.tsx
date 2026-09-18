@@ -11,8 +11,9 @@ import { UpcomingInventory } from '../components/UpcomingInventory';
 import { RecentMovements } from '../components/RecentMovements';
 import type { PeriodType } from '../hooks/useDashboard';
 import { IncomeStatementPage } from '../../income-statement';
+import { PendingPaymentsPage } from '../../pending-payments';
 
-type AdminView = 'metrics' | 'income-statement';
+type AdminView = 'metrics' | 'income-statement' | 'pending-payments';
 
 function MetricsOverview() {
   const [period, setPeriod] = React.useState<PeriodType>('today');
@@ -103,7 +104,7 @@ export function MetricsPage() {
   const [activeView, setActiveView] = React.useState<AdminView>('metrics');
   const prevViewRef = useRef<AdminView>(activeView);
 
-  const views: AdminView[] = ['metrics', 'income-statement'];
+  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments'];
   const currentIndex = views.indexOf(activeView);
   const prevIndex = views.indexOf(prevViewRef.current);
   const direction = currentIndex > prevIndex ? 1 : -1;
@@ -147,6 +148,16 @@ export function MetricsPage() {
           >
             Estado de Resultados
           </button>
+          <button
+            onClick={() => handleViewChange('pending-payments')}
+            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+            style={{
+              borderColor: activeView === 'pending-payments' ? 'var(--color-primary)' : 'transparent',
+              color: activeView === 'pending-payments' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+            }}
+          >
+            Cuentas por Cobrar
+          </button>
         </nav>
       </div>
 
@@ -175,6 +186,19 @@ export function MetricsPage() {
             transition={{ duration: 0.3 }}
           >
             <IncomeStatementPage />
+          </motion.div>
+        )}
+        {activeView === 'pending-payments' && (
+          <motion.div
+            key="pending-payments-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+          >
+            <PendingPaymentsPage />
           </motion.div>
         )}
       </AnimatePresence>

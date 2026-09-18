@@ -214,7 +214,7 @@ export const OrderService = {
   },
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
-    const { items, paymentMethod, cashSessionId, cashReceived, ...restOfOrder } = orderData;
+    const { items, paymentMethod, cashSessionId, cashReceived, hasDelivery, deliveryAmount, deliveryResponsible, deliveryPaymentMethod, ...restOfOrder } = orderData;
     const today = new Date();
     const currentDay = today.getDay();
 
@@ -466,7 +466,15 @@ export const OrderService = {
         data: { subtotal, discount: totalDiscount, total: finalTotal, totalCost: totalOrderCost, inventoryProcessed: true },
         include: { items: { include: { extras: true } } },
       });
-      await tx.payment.create({ data: { orderId: order.id, method: paymentMethod, amount: finalTotal, createdById: userId } });
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          method: paymentMethod,
+          amount: finalTotal,
+          status: paymentMethod === 'pending' ? 'pending' : 'paid',
+          createdById: userId,
+        },
+      });
       if (isCashPayment) {
         await tx.cashMovement.create({
           data: {
@@ -485,6 +493,76 @@ export const OrderService = {
           where: { id: openCashSession.id },
           data: { expectedAmount: { increment: finalTotal } },
         });
+      }
+
+      // Mandadito (delivery): the delivery amount is NEVER part of the order's revenue
+      // (subtotal/total/Payment.amount above already exclude it). What happens next depends
+      // on who is responsible for the money — see order.validator.ts / income statement docs.
+      if (hasDelivery && deliveryAmount) {
+        const deliveryAmountDecimal = new Prisma.Decimal(deliveryAmount);
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: {
+            hasDelivery: true,
+            deliveryAmount: deliveryAmountDecimal,
+            deliveryResponsible,
+            deliveryPaymentMethod: deliveryResponsible === 'customer_to_business' ? deliveryPaymentMethod : null,
+          },
+        });
+
+        if (deliveryResponsible === 'customer_to_business' && deliveryPaymentMethod === 'cash') {
+          // Third-party cash physically enters the drawer but is NOT revenue — it's pending
+          // handoff to the courier (see OrderService.handoffDelivery).
+          await tx.cashMovement.create({
+            data: {
+              cashSessionId: openCashSession.id,
+              type: 'delivery_collected',
+              amount: deliveryAmountDecimal,
+              referenceType: 'order',
+              referenceId: order.id,
+              description: `Mandadito recibido — Venta #${order.orderNumber.toString()}`,
+              createdById: userId,
+            },
+          });
+          await tx.cashSession.update({
+            where: { id: openCashSession.id },
+            data: { expectedAmount: { increment: deliveryAmountDecimal } },
+          });
+        }
+
+        if (deliveryResponsible === 'business_absorbs') {
+          // This IS a real expense for Andy's — auto-create an Expense so it flows into
+          // Gastos Variables through the existing mechanism, no income-statement changes needed.
+          // The courier is always paid in cash from the drawer, regardless of how the food was paid.
+          const deliveryExpense = await tx.expense.create({
+            data: {
+              category: 'mandadito',
+              description: `Mandadito absorbido — Venta #${order.orderNumber.toString()}`,
+              amount: deliveryAmountDecimal,
+              paymentMethod: 'cash',
+              cashSessionId: openCashSession.id,
+              createdById: userId,
+            },
+          });
+          await tx.cashMovement.create({
+            data: {
+              cashSessionId: openCashSession.id,
+              type: 'expense',
+              amount: deliveryAmountDecimal,
+              referenceType: 'expense',
+              referenceId: deliveryExpense.id,
+              description: `Mandadito absorbido — Venta #${order.orderNumber.toString()}`,
+              createdById: userId,
+            },
+          });
+          await tx.cashSession.update({
+            where: { id: openCashSession.id },
+            data: { expectedAmount: { decrement: deliveryAmountDecimal } },
+          });
+        }
+
+        // 'customer_to_courier': purely informational fields on the Order, no financial movement.
       }
 
       auditLog({
@@ -535,7 +613,146 @@ export const OrderService = {
       }
       throw error;
     }
-  }
+  },
+
+  async getPendingPayments(user: AuthUser) {
+    if (!user.permissions?.includes('sales.read')) {
+      throw new AuthorizationError('No tienes permiso para consultar pagos pendientes.');
+    }
+
+    return prisma.payment.findMany({
+      where: { status: 'pending' },
+      include: {
+        order: {
+          select: { orderNumber: true, customerName: true, total: true, createdAt: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  },
+
+  async settlePayment(paymentId: string, settleMethod: 'cash' | 'transfer', user: AuthUser) {
+    if (!user.permissions?.includes('sales.create')) {
+      throw new AuthorizationError('No tienes permiso para liquidar pagos pendientes.');
+    }
+
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { order: true } });
+    if (!payment) {
+      throw new NotFoundError('Pago no encontrado.');
+    }
+    if (payment.status !== 'pending') {
+      const error = new Error('Este pago ya fue liquidado o no está pendiente.');
+      error.name = 'BusinessRuleError';
+      throw error;
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedPayment = await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: 'paid', method: settleMethod, paidAt: new Date() },
+      });
+
+      if (settleMethod === 'cash') {
+        const openCashSession = await tx.cashSession.findFirst({
+          where: { status: 'open' },
+          orderBy: { openedAt: 'desc' },
+        });
+        if (!openCashSession) {
+          const error = new Error('No hay una caja abierta para liquidar en efectivo.');
+          error.name = 'BusinessRuleError';
+          throw error;
+        }
+
+        await tx.cashMovement.create({
+          data: {
+            cashSessionId: openCashSession.id,
+            type: 'sale',
+            amount: payment.amount,
+            referenceType: 'order',
+            referenceId: payment.orderId,
+            description: `Liquidación de pago pendiente — Venta #${payment.order.orderNumber.toString()}`,
+            createdById: user.id,
+          },
+        });
+        await tx.cashSession.update({
+          where: { id: openCashSession.id },
+          data: { expectedAmount: { increment: payment.amount } },
+        });
+      }
+
+      return updatedPayment;
+    });
+  },
+
+  async getPendingDeliveries(user: AuthUser) {
+    if (!user.permissions?.includes('sales.read')) {
+      throw new AuthorizationError('No tienes permiso para consultar mandaditos pendientes.');
+    }
+
+    return prisma.order.findMany({
+      where: { hasDelivery: true, deliveryResponsible: 'customer_to_business', deliveryHandedOff: false },
+      select: { id: true, orderNumber: true, customerName: true, deliveryAmount: true, deliveryPaymentMethod: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  },
+
+  async handoffDelivery(orderId: string, user: AuthUser) {
+    if (!user.permissions?.includes('sales.create')) {
+      throw new AuthorizationError('No tienes permiso para liquidar mandaditos.');
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundError('Pedido no encontrado.');
+    }
+    if (!order.hasDelivery || order.deliveryResponsible !== 'customer_to_business') {
+      const error = new Error('Este pedido no tiene un mandadito pendiente de entrega.');
+      error.name = 'BusinessRuleError';
+      throw error;
+    }
+    if (order.deliveryHandedOff) {
+      const error = new Error('El mandadito de este pedido ya fue entregado.');
+      error.name = 'BusinessRuleError';
+      throw error;
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { deliveryHandedOff: true, deliveryHandedOffAt: new Date() },
+      });
+
+      if (order.deliveryPaymentMethod === 'cash') {
+        const openCashSession = await tx.cashSession.findFirst({
+          where: { status: 'open' },
+          orderBy: { openedAt: 'desc' },
+        });
+        if (!openCashSession) {
+          const error = new Error('No hay una caja abierta para entregar el mandadito.');
+          error.name = 'BusinessRuleError';
+          throw error;
+        }
+
+        await tx.cashMovement.create({
+          data: {
+            cashSessionId: openCashSession.id,
+            type: 'delivery_handoff',
+            amount: order.deliveryAmount,
+            referenceType: 'order',
+            referenceId: orderId,
+            description: `Mandadito entregado al repartidor — Venta #${order.orderNumber.toString()}`,
+            createdById: user.id,
+          },
+        });
+        await tx.cashSession.update({
+          where: { id: openCashSession.id },
+          data: { expectedAmount: { decrement: order.deliveryAmount } },
+        });
+      }
+
+      return updatedOrder;
+    });
+  },
 };
 
 type CreateOrderInput = z.infer<typeof createOrderSchema>;

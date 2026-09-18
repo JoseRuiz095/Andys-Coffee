@@ -1,6 +1,7 @@
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
+import type { GeneralPreferencesInput } from '../validators/preference.validator';
 
 export const PreferenceService = {
   async getAllPreferences(user: AuthUser) {
@@ -46,6 +47,18 @@ export const PreferenceService = {
       throw new ValidationError('El valor de preferencia es requerido.');
     }
 
+    // Reject keys with reserved prefixes — they must use dedicated endpoints
+    const RESERVED_PREFIXES = [
+      'income_statement.distribution.',
+      'expenses.fixed.',
+      'general.',
+    ];
+    if (RESERVED_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      throw new ValidationError(
+        `La clave "${key}" está reservada. Usa el endpoint dedicado para modificar esta preferencia.`
+      );
+    }
+
     return PreferenceRepository.upsert(key, value, type, label, description);
   },
 
@@ -60,5 +73,21 @@ export const PreferenceService = {
     }
 
     return PreferenceRepository.delete(key);
+  },
+
+  async getGeneralPreferences(user: AuthUser) {
+    if (!user.permissions?.includes('users.read')) {
+      throw new AuthorizationError('No tienes permiso para consultar preferencias generales.');
+    }
+
+    return PreferenceRepository.getGeneralPreferences();
+  },
+
+  async upsertGeneralPreferences(input: GeneralPreferencesInput, user: AuthUser) {
+    if (!user.permissions?.includes('users.update')) {
+      throw new AuthorizationError('No tienes permiso para modificar preferencias generales.');
+    }
+
+    return PreferenceRepository.upsertGeneralPreferences(input);
   },
 };

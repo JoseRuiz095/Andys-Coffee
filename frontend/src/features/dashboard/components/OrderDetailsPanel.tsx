@@ -13,6 +13,9 @@ import { Button } from '../../../shared/components/Button'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import type { OrderItem } from '../types/order.types'
 
+type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
+type DeliveryPaymentMethod = 'cash' | 'transfer'
+
 interface OrderDetailsPanelProps {
   customerName?: string
   items?: OrderItem[]
@@ -21,6 +24,10 @@ interface OrderDetailsPanelProps {
   isLoading?: boolean
   orderNotes?: string
   paymentMethod?: string
+  hasDelivery?: boolean
+  deliveryAmount?: string
+  deliveryResponsible?: DeliveryResponsible
+  deliveryPaymentMethod?: DeliveryPaymentMethod
   onClearOrder?: () => void
   onRemoveItem?: (itemId: string) => void
   onUpdateItemNote?: (itemId: string, note: string) => void
@@ -28,6 +35,10 @@ interface OrderDetailsPanelProps {
   onNotesChange?: (notes: string) => void
   onCustomerNameChange?: (name: string) => void
   onPaymentMethodChange?: (method: string) => void
+  onHasDeliveryChange?: (value: boolean) => void
+  onDeliveryAmountChange?: (value: string) => void
+  onDeliveryResponsibleChange?: (value: DeliveryResponsible) => void
+  onDeliveryPaymentMethodChange?: (value: DeliveryPaymentMethod) => void
 }
 
 export function OrderDetailsPanel({
@@ -38,12 +49,20 @@ export function OrderDetailsPanel({
   isLoading = true,
   orderNotes,
   paymentMethod,
+  hasDelivery = false,
+  deliveryAmount = '',
+  deliveryResponsible,
+  deliveryPaymentMethod,
   onRemoveItem,
   onUpdateItemNote,
   onProcessTransaction,
   onNotesChange,
   onCustomerNameChange,
   onPaymentMethodChange,
+  onHasDeliveryChange,
+  onDeliveryAmountChange,
+  onDeliveryResponsibleChange,
+  onDeliveryPaymentMethodChange,
 }: OrderDetailsPanelProps) {
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null)
   const [note, setNote] = useState('')
@@ -166,7 +185,105 @@ export function OrderDetailsPanel({
             </option>
             <option value="Efectivo">Efectivo</option>
             <option value="Transferencia">Transferencia</option>
+            <option value="Pago Pendiente">Pago Pendiente</option>
           </select>
+
+          {/* Mandadito (delivery) */}
+          <label className="mt-3 flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            <input
+              type="checkbox"
+              checked={hasDelivery}
+              onChange={(e) => onHasDeliveryChange?.(e.target.checked)}
+            />
+            ¿Mandadito?
+          </label>
+
+          {hasDelivery && (
+            <div className="mt-3 space-y-3 rounded-xl border p-3" style={{ borderColor: 'var(--color-border)' }}>
+              <div>
+                <label className="mb-1 block text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                  Costo del mandadito
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="$0.00"
+                  value={deliveryAmount}
+                  onChange={(e) => onDeliveryAmountChange?.(e.target.value)}
+                  className="w-full rounded-xl border px-3 py-2"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-input-bg)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <p className="mb-1 text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                  ¿Quién recibe/paga el mandadito?
+                </p>
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <input
+                      type="radio"
+                      name="deliveryResponsible"
+                      checked={deliveryResponsible === 'customer_to_courier'}
+                      onChange={() => onDeliveryResponsibleChange?.('customer_to_courier')}
+                    />
+                    Cliente paga directamente al repartidor
+                  </label>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <input
+                      type="radio"
+                      name="deliveryResponsible"
+                      checked={deliveryResponsible === 'customer_to_business'}
+                      onChange={() => onDeliveryResponsibleChange?.('customer_to_business')}
+                    />
+                    Cliente paga el mandadito a Andy's
+                  </label>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <input
+                      type="radio"
+                      name="deliveryResponsible"
+                      checked={deliveryResponsible === 'business_absorbs'}
+                      onChange={() => onDeliveryResponsibleChange?.('business_absorbs')}
+                    />
+                    Andy's absorbe el mandadito
+                  </label>
+                </div>
+              </div>
+
+              {deliveryResponsible === 'customer_to_business' && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                    Método de pago del mandadito
+                  </p>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                      <input
+                        type="radio"
+                        name="deliveryPaymentMethod"
+                        checked={deliveryPaymentMethod === 'cash'}
+                        onChange={() => onDeliveryPaymentMethodChange?.('cash')}
+                      />
+                      Efectivo
+                    </label>
+                    <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                      <input
+                        type="radio"
+                        name="deliveryPaymentMethod"
+                        checked={deliveryPaymentMethod === 'transfer'}
+                        onChange={() => onDeliveryPaymentMethodChange?.('transfer')}
+                      />
+                      Transferencia
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Order Details */}

@@ -3,8 +3,8 @@ import { StatBlock } from './StatBlock';
 import { formatPercent } from '../../../shared/utils/formatCurrency';
 
 export function DistribucionSection({ summary }: { summary: DayFinancialSummary }) {
-  const { distribucion, movimientos } = summary;
-  const noDistribution = movimientos.gananciaNeta <= 0;
+  const { distribucion } = summary;
+  const noDistribution = distribucion.gananciaDistribuible <= 0;
 
   return (
     <section
@@ -14,12 +14,16 @@ export function DistribucionSection({ summary }: { summary: DayFinancialSummary 
       <h3 className="mb-3 text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
         Distribución
       </h3>
+      <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+        <StatBlock label="Gasto Operativo Fijo (Luz + Sueldos)" value={-distribucion.gastosOperativosFijos} />
+        <StatBlock label="Ganancia Distribuible" value={distribucion.gananciaDistribuible} emphasize />
+      </div>
       {noDistribution ? (
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          Sin distribución (la ganancia neta del día no fue positiva).
+        <p className="mt-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Sin distribución (la ganancia distribuible del día no fue positiva).
         </p>
       ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="mt-2 divide-y" style={{ borderColor: 'var(--color-border)' }}>
           <StatBlock label={`Ahorro (${formatPercent(distribucion.porcentajes.ahorro)})`} value={distribucion.ahorro} />
           <StatBlock
             label={`Fondo del Negocio (${formatPercent(distribucion.porcentajes.fondoNegocio)})`}
