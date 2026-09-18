@@ -81,4 +81,16 @@ export const createOrderSchema = z.strictObject({
 
 export const updateOrderStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus),
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
+export const updateOrderSchema = z.strictObject({
+  customerName: z.string().trim().min(1).max(120).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
+}).refine((data) => data.customerName !== undefined || data.notes !== undefined, {
+  message: 'Debes indicar al menos un campo a editar.',
+});
+
+export const orderByDateQuerySchema = z.strictObject({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD).'),
 });

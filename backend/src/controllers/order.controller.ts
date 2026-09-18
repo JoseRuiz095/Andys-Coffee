@@ -1,7 +1,13 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { OrderService } from '../services/order.service';
-import { filterQuerySchema, updateOrderStatusSchema, settlePaymentSchema } from '../validators/order.validator';
+import {
+  filterQuerySchema,
+  updateOrderStatusSchema,
+  settlePaymentSchema,
+  updateOrderSchema,
+  orderByDateQuerySchema,
+} from '../validators/order.validator';
 import { AuthUser } from '../services/auth.service';
 
 const getAuthenticatedUser = (req: Request): AuthUser => {
@@ -81,4 +87,19 @@ export const handoffOrderDelivery = asyncHandler(async (req: Request, res: Respo
   const id = String(req.params.id);
   const order = await OrderService.handoffDelivery(id, user);
   res.status(200).json(order);
+});
+
+export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const id = String(req.params.id);
+  const data = await updateOrderSchema.parseAsync(req.body);
+  const order = await OrderService.updateOrder(id, data, user);
+  res.status(200).json(order);
+});
+
+export const getOrdersByDate = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const { date } = await orderByDateQuerySchema.parseAsync(req.query);
+  const orders = await OrderService.findByDate(date, user);
+  res.status(200).json(orders);
 });

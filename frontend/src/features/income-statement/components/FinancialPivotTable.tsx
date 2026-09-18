@@ -19,7 +19,6 @@ const ROWS: PivotRow[] = [
     getTotal: (t) => t.ingresosTransferencia,
   },
   { label: 'Ingresos Totales', kind: 'flow', getValue: (d) => d.movimientos.ingresosTotales, getTotal: (t) => t.ingresosTotales },
-  { label: 'Costo de Venta (informativo)', kind: 'info', getValue: (d) => d.movimientos.costoVenta },
   { label: 'Gastos Variables', kind: 'flow', getValue: (d) => d.movimientos.gastos, getTotal: (t) => t.gastos },
   { label: 'Ganancia Neta', kind: 'flow', getValue: (d) => d.movimientos.gananciaNeta, getTotal: (t) => t.gananciaNeta },
   { label: 'Efectivo Esperado', kind: 'info', getValue: (d) => d.conciliacion.efectivoEsperado },

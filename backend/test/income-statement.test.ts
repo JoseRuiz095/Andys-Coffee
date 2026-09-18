@@ -6,8 +6,11 @@ import {
   shouldCarryForwardAccumulated,
   type DaySubsetRows,
   type DistributionPercentages,
+  type BusinessHours,
 } from '../src/services/income-statement.service';
 import type { SessionRangeRow, PaymentRangeRow, CogsRangeRow, ExpenseRangeRow } from '../src/repositories/income-statement.repository';
+
+const BUSINESS_HOURS: BusinessHours = { openMinutes: 9 * 60, closeMinutes: 22 * 60 }; // 09:00-22:00
 
 const money = (value: number) => new Prisma.Decimal(value);
 
@@ -44,14 +47,14 @@ function cogs(amount: number): CogsRangeRow {
   return { costSnapshot: money(amount), orderCreatedAt: new Date('2026-06-15T14:00:00.000Z') };
 }
 
-function expense(paymentMethod: string, amount: number): ExpenseRangeRow {
+function expense(paymentMethod: string, amount: number, expenseDate = new Date('2026-06-15T15:00:00.000Z')): ExpenseRangeRow {
   return {
     id: 'expense-1',
     amount: money(amount),
     paymentMethod,
     category: 'insumos',
     description: 'Gasto de prueba',
-    expenseDate: new Date('2026-06-15T15:00:00.000Z'),
+    expenseDate,
     cashSessionId: 'session-1',
     cashRegisterId: 'register-1',
     createdByName: 'Cajero',
@@ -255,4 +258,39 @@ test('una sesión aún abierta ese día marca la conciliación como PENDIENTE, n
   assert.equal(core.expectedCash?.toNumber(), 800);
   assert.equal(core.cashStatus, 'PENDIENTE');
   assert.equal(core.actualCash, null);
+});
+
+test('sin horario configurado (businessHours=null), todos los gastos cuentan — comportamiento por defecto sin cambios', () => {
+  const rows: DaySubsetRows = {
+    sessions: [],
+    payments: [payment('cash', 1000)],
+    cogsRows: [],
+    expenses: [
+      expense('cash', 100, new Date('2026-06-15T15:00:00.000Z')), // 09:00 America/Mexico_City
+      expense('cash', 50, new Date('2026-06-16T05:00:00.000Z')), // 23:00 America/Mexico_City (would be "outside hours")
+    ],
+    purchases: [],
+  };
+
+  const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
+
+  assert.equal(core.totalExpenses.toNumber(), 150);
+});
+
+test('con horario configurado, solo los gastos registrados dentro del horario de servicio cuentan en Gastos Variables', () => {
+  const rows: DaySubsetRows = {
+    sessions: [],
+    payments: [payment('cash', 1000)],
+    cogsRows: [],
+    expenses: [
+      expense('cash', 100, new Date('2026-06-15T15:00:00.000Z')), // 09:00 local -> dentro (09:00-22:00)
+      expense('cash', 50, new Date('2026-06-16T05:00:00.000Z')), // 23:00 local -> fuera de horario
+    ],
+    purchases: [],
+  };
+
+  const core = computeDayCore(rows, DEFAULT_PERCENTAGES, money(0), BUSINESS_HOURS);
+
+  assert.equal(core.totalExpenses.toNumber(), 100);
+  assert.equal(core.netProfit.toNumber(), 900); // 1000 - 100 (the out-of-hours expense is excluded)
 });

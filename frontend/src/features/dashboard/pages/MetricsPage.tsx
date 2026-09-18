@@ -12,8 +12,9 @@ import { RecentMovements } from '../components/RecentMovements';
 import type { PeriodType } from '../hooks/useDashboard';
 import { IncomeStatementPage } from '../../income-statement';
 import { PendingPaymentsPage } from '../../pending-payments';
+import { PendingDeliveriesPage } from '../../deliveries';
 
-type AdminView = 'metrics' | 'income-statement' | 'pending-payments';
+type AdminView = 'metrics' | 'income-statement' | 'pending-payments' | 'pending-deliveries';
 
 function MetricsOverview() {
   const [period, setPeriod] = React.useState<PeriodType>('today');
@@ -104,7 +105,7 @@ export function MetricsPage() {
   const [activeView, setActiveView] = React.useState<AdminView>('metrics');
   const prevViewRef = useRef<AdminView>(activeView);
 
-  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments'];
+  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments', 'pending-deliveries'];
   const currentIndex = views.indexOf(activeView);
   const prevIndex = views.indexOf(prevViewRef.current);
   const direction = currentIndex > prevIndex ? 1 : -1;
@@ -158,6 +159,16 @@ export function MetricsPage() {
           >
             Cuentas por Cobrar
           </button>
+          <button
+            onClick={() => handleViewChange('pending-deliveries')}
+            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+            style={{
+              borderColor: activeView === 'pending-deliveries' ? 'var(--color-primary)' : 'transparent',
+              color: activeView === 'pending-deliveries' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+            }}
+          >
+            Mandaditos por Entregar
+          </button>
         </nav>
       </div>
 
@@ -199,6 +210,19 @@ export function MetricsPage() {
             transition={{ duration: 0.3 }}
           >
             <PendingPaymentsPage />
+          </motion.div>
+        )}
+        {activeView === 'pending-deliveries' && (
+          <motion.div
+            key="pending-deliveries-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+          >
+            <PendingDeliveriesPage />
           </motion.div>
         )}
       </AnimatePresence>

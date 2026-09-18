@@ -187,15 +187,19 @@ export function computeDayCore(
   const totalCogs = sumDecimals(rows.cogsRows, (i) => i.costSnapshot);
   const grossProfit = totalRevenue.minus(totalCogs);
 
-  // Received purchases made during business hours count as a variable expense too.
-  const purchasesInHours = businessHours
-    ? rows.purchases.filter((p) => {
-        const { hour, minute } = getZonedTimeOfDay(p.purchasedAt);
-        const minutesOfDay = hour * 60 + minute;
-        return minutesOfDay >= businessHours.openMinutes && minutesOfDay < businessHours.closeMinutes;
-      })
-    : [];
-  const totalExpenses = sumDecimals(rows.expenses, (e) => e.amount).plus(sumDecimals(purchasesInHours, (p) => p.total));
+  // Both manual expenses and received purchases only count as a variable expense when they
+  // happened during business hours (open/close configured in Preferencias del Sistema).
+  const inBusinessHours = <T,>(items: T[], getInstant: (item: T) => Date): T[] => {
+    if (!businessHours) return items;
+    return items.filter((item) => {
+      const { hour, minute } = getZonedTimeOfDay(getInstant(item));
+      const minutesOfDay = hour * 60 + minute;
+      return minutesOfDay >= businessHours.openMinutes && minutesOfDay < businessHours.closeMinutes;
+    });
+  };
+  const expensesInHours = inBusinessHours(rows.expenses, (e) => e.expenseDate);
+  const purchasesInHours = businessHours ? inBusinessHours(rows.purchases, (p) => p.purchasedAt) : [];
+  const totalExpenses = sumDecimals(expensesInHours, (e) => e.amount).plus(sumDecimals(purchasesInHours, (p) => p.total));
 
   const openingFund = sumDecimals(rows.sessions, (s) => s.openingAmount);
   const hadOperation = rows.sessions.length > 0 || rows.payments.length > 0 || rows.expenses.length > 0;
