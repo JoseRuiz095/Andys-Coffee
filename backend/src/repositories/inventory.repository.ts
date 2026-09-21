@@ -5,31 +5,6 @@ import { paginationMeta, paginationOffset } from '../utils/pagination';
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
 export const InventoryRepository = {
-  async findAll(where: Prisma.IngredientWhereInput = {}, select: Prisma.IngredientSelect = {}) {
-    return prisma.ingredient.findMany({
-      where: { ...where, deletedAt: null },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        currentStock: true,
-        minimumStock: true,
-        averageCost: true,
-        isActive: true,
-        createdAt: true,
-        unit: {
-          select: {
-            id: true,
-            name: true,
-            abbreviation: true,
-          },
-        },
-        ...select,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  },
-
   async findById(id: string) {
     return prisma.ingredient.findFirst({
       where: { id, deletedAt: null },
