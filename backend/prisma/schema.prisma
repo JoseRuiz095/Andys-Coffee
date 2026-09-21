@@ -83,7 +83,6 @@ model Category {
   updatedAt           DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   products            Product[]
   combos              Combo[]
-  PromotionOnCategory PromotionOnCategory[]
 
   @@index([isActive, displayOrder], map: "categories_active_idx")
   @@map("categories")
@@ -107,7 +106,6 @@ model Product {
   extras             ProductExtra[]
   category           Category?            @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
   recipes            Recipe[]
-  PromotionOnProduct PromotionOnProduct[]
 
   @@index([isActive, displayOrder], map: "products_active_idx")
   @@index([categoryId], map: "products_category_idx")
@@ -294,13 +292,6 @@ model Supplier {
   @@map("suppliers")
 }
 
-model PurchaseInvoiceCounter {
-  date  String  @id
-  count Int     @default(0)
-
-  @@map("purchase_invoice_counters")
-}
-
 model Purchase {
   id            String         @id @default(dbgenerated("(gen_random_uuid())::text"))
   supplierId    String?
@@ -463,7 +454,6 @@ model Order {
   cashSession        CashSession? @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
   createdBy          User?        @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   payments           Payment[]
-  ticket             Ticket?
 
   @@unique([createdById, idempotencyKey], map: "orders_createdBy_idempotencyKey_unique")
   @@index([status])
@@ -534,17 +524,6 @@ model Payment {
   @@map("payments")
 }
 
-model Ticket {
-  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
-  orderId      String    @unique
-  ticketNumber BigInt    @unique @default(autoincrement())
-  printedAt    DateTime? @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
-  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@map("tickets")
-}
-
 enum OrderStatus {
   pending
   preparing
@@ -562,41 +541,21 @@ enum PromotionType {
 }
 
 model Promotion {
-  id            String                @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id            String        @id @default(dbgenerated("(gen_random_uuid())::text"))
   name          String
   description   String?
-  type          PromotionType         @default(PERCENTAGE)
-  discountValue Decimal               @db.Decimal(10, 2)
+  type          PromotionType @default(PERCENTAGE)
+  discountValue Decimal       @db.Decimal(10, 2)
   buyQuantity   Int?
   getQuantity   Int?
   startDate     DateTime
   endDate       DateTime
   activeOnDays  Int[]
-  isActive      Boolean               @default(true)
-  createdAt     DateTime              @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
-  products      PromotionOnProduct[]
-  categories    PromotionOnCategory[]
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 
   @@map("promotions")
-}
-
-model PromotionOnProduct {
-  promotionId String
-  productId   String
-  promotion   Promotion @relation(fields: [promotionId], references: [id])
-  product     Product   @relation(fields: [productId], references: [id])
-
-  @@id([promotionId, productId])
-}
-
-model PromotionOnCategory {
-  promotionId String
-  categoryId  String
-  promotion   Promotion @relation(fields: [promotionId], references: [id])
-  category    Category  @relation(fields: [categoryId], references: [id])
-
-  @@id([promotionId, categoryId])
 }
 
 enum NotificationType {

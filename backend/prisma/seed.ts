@@ -774,9 +774,8 @@ async function main() {
   // PROMOCIONES
   // ==========================================================
   console.log("Creando promociones...");
-  // Limpiar relaciones primero antes de eliminar promociones
-  await prisma.promotionOnProduct.deleteMany({});
-  await prisma.promotionOnCategory.deleteMany({});
+  // Note: PromotionOnProduct y PromotionOnCategory fueron eliminadas
+  // Las promociones ahora se crean sin relaciones directas a productos/categorías
   await prisma.promotion.deleteMany({});
 
   const promotionDefinitions = [
@@ -788,7 +787,6 @@ async function main() {
       buyQuantity: 1,
       getQuantity: 1,
       activeOnDays: [1], // Lunes
-      productSKUs: ["BEV-007", "BEV-016"],
     },
     {
       name: "Promo Miércoles: Día del Bagel",
@@ -796,7 +794,6 @@ async function main() {
       type: PromotionType.FIXED_PRICE,
       discountValue: 75,
       activeOnDays: [3], // Miércoles
-      categoryName: "Bagels",
     },
     {
       name: "Promo Viernes: 2 Cafés de Sabor por $99",
@@ -805,10 +802,6 @@ async function main() {
       discountValue: 99,
       buyQuantity: 2,
       activeOnDays: [5], // Viernes
-      productSKUs: [
-        "BEV-003", "BEV-004", "BEV-005", "BEV-006",
-        "BEV-012", "BEV-013", "BEV-014", "BEV-015",
-      ],
     },
   ];
 
@@ -826,26 +819,8 @@ async function main() {
       isActive: true,
     };
 
-    const productsToConnect = [];
-    if (promoDef.productSKUs) {
-      for (const sku of promoDef.productSKUs) {
-        const product = await prisma.product.findUnique({ where: { sku } });
-        if (product) productsToConnect.push({ productId: product.id });
-      }
-    }
-    
-    const categoriesToConnect = [];
-    if (promoDef.categoryName) {
-      const categoryId = categoryMap.get(promoDef.categoryName);
-      if (categoryId) categoriesToConnect.push({ categoryId });
-    }
-
     await prisma.promotion.create({
-      data: {
-        ...promoData,
-        products: { create: productsToConnect },
-        categories: { create: categoriesToConnect },
-      },
+      data: promoData,
     });
   }
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface DrawerProps {
   isOpen: boolean
@@ -16,10 +17,8 @@ interface DrawerProps {
  * focused detail views (e.g. a selected user or a role's permissions) rather
  * than short forms.
  *
- * Note: any ConfirmDialog/Modal rendered as a *child* of Drawer would be
- * visually clipped, because framer-motion's `x` transform on the sliding
- * panel creates a new containing block for `position: fixed` descendants.
- * Render those as siblings of <Drawer> instead.
+ * Rendered via portal to escape parent stacking contexts and ensure fixed
+ * positioning works correctly regardless of ancestor transforms.
  */
 export function Drawer({
   isOpen,
@@ -56,28 +55,31 @@ export function Drawer({
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/50"
-      onClick={onClose}
-      role="presentation"
-    >
-      <motion.div
-        className={`h-full w-full overflow-y-auto shadow-lg ${widthClassName}`}
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'tween', duration: 0.25 }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={ariaLabelledBy}
-      >
-        {children}
-      </motion.div>
-    </div>
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/50"
+          onClick={onClose}
+          role="presentation"
+        >
+          <motion.div
+            className={`h-screen w-full overflow-y-auto shadow-lg ${widthClassName}`}
+            style={{ backgroundColor: 'var(--color-surface)' }}
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'tween', duration: 0.25 }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={ariaLabelledBy}
+          >
+            {children}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body
   )
 }

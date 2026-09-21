@@ -137,6 +137,20 @@ Este documento registra el progreso del proyecto a través de 8 fases completada
 
 ---
 
+### Phase 11: Code Cleanup & Bug Fixes ✅
+- [x] Auditoría y remoción de código muerto (fases 1-7)
+- [x] Eliminar repository method: `InventoryRepository.findAll()`
+- [x] Eliminar componentes frontend: `ProductsCatalogPage`, `ProductFormModal`, `ProductsTable`
+- [x] Eliminar modelos Prisma: `Ticket`, `PromotionOnProduct`, `PromotionOnCategory`, `PurchaseInvoiceCounter`
+- [x] Crear migración para eliminar tablas obsoletas
+- [x] Actualizar `menu.service.ts` (promociones globales)
+- [x] Actualizar `order.service.ts` (referencias removidas)
+- [x] TypeScript válido post-cleanup
+- [x] Bug fix: Drawer visual (Portal pattern para escapar stacking contexts)
+- [x] Bug fix: Combo prices distribution (dividir precio equitativamente)
+- [x] Bug fix: Corrección de órdenes existentes con script
+- [x] Bug fix: Validación Zod en `/api/orders/by-date` (z.strictObject → z.object)
+
 ## 🔄 EN PROGRESO
 
 ### Reportes
@@ -313,15 +327,32 @@ npm run dev:backend && npm run dev:frontend
 
 ## 🎯 RESUMEN DE PROGRESO
 
-**Completado**: 10 fases (Base, Catálogo, Cash, POS, Inventory, Orders, Manual Exits, Refactoring, Expenses, Dashboard)
+**Completado**: 11 fases (Base, Catálogo, Cash, POS, Inventory, Orders, Manual Exits, Refactoring, Expenses, Dashboard, Code Cleanup & Bug Fixes)
 **En Progreso**: Reportes, Order management completo
 **Próxima**: Reportes financieros, validación final, auditoría de seguridad completa
-**Status General**: Proyecto en fase de extensión (10 phases completadas, necesita reportes y order management completo)
+**Status General**: Proyecto en fase de mantenimiento y extensión (11 phases completadas, código limpio y funcional)
 
-### Último ciclo (Sept 16, 2026 — ESTA SESIÓN)
+### Ciclo Sept 16, 2026
 - ✅ **Auditoría Dashboard**: Identificadas 0 views existentes, 18 métricas factibles
 - ✅ **Expenses completo**: 5 archivos backend + 6 archivos frontend + bug fixes
 - ✅ **Dashboard completo**: 4 endpoints + 4 componentes UI + hooks TanStack Query
 - ✅ **Build status**: TypeScript valida, frontend bundlea sin errores
 
-Última actualización: **Sept 16, 2026 (EOD)**
+### Ciclo Sept 21, 2026 — ESTA SESIÓN ✅
+- ✅ **Auditoría de código muerto**: 8 elementos identificados y removidos
+  - Eliminada `InventoryRepository.findAll()` (método duplicado nunca llamado)
+  - Eliminados 3 componentes frontend obsoletos (ProductsCatalogPage, ProductFormModal, ProductsTable)
+  - Eliminados 4 modelos Prisma sin relaciones activas (Ticket, PromotionOnProduct, PromotionOnCategory, PurchaseInvoiceCounter)
+  - Creada migración para limpiar BD
+  - Actualizado menu.service.ts y order.service.ts
+- ✅ **Bug fixes críticos**:
+  - Drawer visual: Portal pattern para escapar stacking contexts (Framer Motion transforms)
+  - Combo prices: Distribución equitativa entre items (ej: $110 combo ÷ 2 items = $55 c/u)
+  - Órdenes históricas: Script para corregir precios retroactivamente
+  - Validación Zod: `/api/orders/by-date` con parámetros adicionales
+- ✅ **Verificaciones**:
+  - TypeScript: backend + frontend compilan sin errores
+  - Prisma: schema válido, migrations aplicadas
+  - Backend: inicializa sin errores
+
+Última actualización: **Sept 21, 2026 (EOD) — Proyecto en estado LIMPIO y FUNCIONAL**

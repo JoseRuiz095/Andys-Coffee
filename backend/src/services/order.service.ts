@@ -35,15 +35,13 @@ export async function getNextCustomerName(tx: Prisma.TransactionClient): Promise
 
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
-  promotions: (PricingPromotion & { products: { productId: string }[]; categories: { categoryId: string }[] })[],
+  promotions: PricingPromotion[],
 ) {
+  // Nota: Relaciones PromotionOnProduct/PromotionOnCategory fueron eliminadas (código muerto)
+  // Ahora se aplican todas las promociones globales a todos los productos
   return orderItems.flatMap((item) => {
     if (item.sourceComboId) return [];
-    const applicable = promotions.filter((promotion) =>
-      promotion.products.some((entry) => entry.productId === item.productId)
-      || Boolean(item.product?.categoryId && promotion.categories.some((entry) => entry.categoryId === item.product?.categoryId)),
-    );
-    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), applicable);
+    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), promotions);
     return pricing.discount.gt(0) ? [{ orderItemId: item.id, amount: pricing.discount }] : [];
   });
 }
@@ -337,8 +335,6 @@ export const OrderService = {
             discountValue: true,
             buyQuantity: true,
             getQuantity: true,
-            products: { select: { productId: true } },
-            categories: { select: { categoryId: true } },
           },
         }),
       ]);
@@ -445,13 +441,19 @@ export const OrderService = {
         } else if (item.comboId) {
           const combo = combosMap.get(item.comboId);
           if (!combo) throw new ValidationError(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
-          subtotal = subtotal.add(combo.price.mul(item.quantity));
+          const comboTotalPrice = combo.price.mul(item.quantity);
+          subtotal = subtotal.add(comboTotalPrice);
+
+          const comboItemCount = new Prisma.Decimal(combo.items.length || 1);
+          const pricePerItem = comboTotalPrice.div(comboItemCount);
+
           for (const comboItem of combo.items) {
             const quantity = comboItem.quantity.mul(item.quantity);
             const itemCost = comboItem.product.cost.mul(quantity);
             totalOrderCost = totalOrderCost.add(itemCost);
+
             createdOrderItems.push(await tx.orderItem.create({
-              data: { orderId: order.id, productId: comboItem.productId, productName: `${comboItem.product.name} (Combo: ${combo.name})`, quantity, unitPrice: 0, subtotal: 0, costSnapshot: itemCost, sourceComboId: combo.id, notes: item.note },
+              data: { orderId: order.id, productId: comboItem.productId, productName: `${comboItem.product.name} (Combo: ${combo.name})`, quantity, unitPrice: combo.price.div(comboItemCount), subtotal: pricePerItem, costSnapshot: itemCost, sourceComboId: combo.id, notes: item.note },
               include: { product: true },
             }));
           }

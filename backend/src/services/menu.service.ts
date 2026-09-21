@@ -41,21 +41,16 @@ export const MenuService = {
         discountValue: true,
         buyQuantity: true,
         getQuantity: true,
-        products: { select: { productId: true } },
-        categories: { select: { categoryId: true } },
       },
     });
 
     const activePromotions = promotionsByDate;
 
     // 2. Crear mapas para búsqueda rápida de promociones
+    // Nota: Las relaciones PromotionOnProduct y PromotionOnCategory fueron eliminadas (código muerto)
     const promotionsByProduct = new Map<string, MenuPromotion[]>();
     const promotionsByCategory = new Map<string, MenuPromotion[]>();
-    for (const promo of activePromotions) {
-      if (!isValidPromotion(promo)) continue;
-      promo.products.forEach(p => promotionsByProduct.set(p.productId, [...(promotionsByProduct.get(p.productId) ?? []), promo]));
-      promo.categories.forEach(c => promotionsByCategory.set(c.categoryId, [...(promotionsByCategory.get(c.categoryId) ?? []), promo]));
-    }
+    // Promociones ahora se aplican globalmente sin mapeo específico a productos/categorías
 
     // 3. Seleccionar únicamente los campos que necesita el menú público.
     const categories = await prisma.category.findMany({
@@ -104,10 +99,9 @@ export const MenuService = {
     return categories.map(category => {
       // Mapear y transformar productos, aplicando la lógica de promoción
       const products = category.products.map(product => {
-        const promotions = [
-          ...(promotionsByProduct.get(product.id) ?? []),
-          ...(promotionsByCategory.get(product.categoryId || '') ?? []),
-        ];
+        // Nota: Relaciones PromotionOnProduct/PromotionOnCategory fueron eliminadas (código muerto)
+        // Ahora se aplican todas las promociones globales a todos los productos
+        const promotions = activePromotions;
         const pricing = calculateBestPromotion(product.price, 1, promotions);
         const promotionData = pricing.promotion ? {
           id: pricing.promotion.id,

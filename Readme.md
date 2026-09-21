@@ -111,41 +111,41 @@ El proyecto está dividido en dos aplicaciones independientes:
 
 ## Fase 1: Base
 
-- [ ] Configuración inicial frontend/backend.
-- [ ] Autenticación y login.
-- [ ] Gestión de usuarios.
-- [ ] Roles y permisos.
+- [x] Configuración inicial frontend/backend.
+- [x] Autenticación y login.
+- [x] Gestión de usuarios.
+- [x] Roles y permisos.
 
 ## Fase 2: Catálogo
 
-- [ ] Categorías.
-- [ ] Productos.
-- [ ] Extras.
-- [ ] Combos.
+- [x] Categorías.
+- [x] Productos.
+- [x] Extras.
+- [x] Combos.
 
 ## Fase 3: Caja y finanzas 
 
-- [ ] Apertura y cierre de caja.
-- [ ] Corte de caja.
-- [ ] Gastos.
-- [ ] Compras.
+- [x] Apertura y cierre de caja.
+- [x] Corte de caja.
+- [x] Gastos.
+- [x] Compras.
 
 ## Fase 4: Punto de venta
 
-- [ ] Interfaz de caja.
-- [ ] Pedidos.
+- [x] Interfaz de caja.
+- [x] Pedidos.
 - [ ] Métodos de pago.
 - [ ] Ticket de venta.
 
 ## Fase 5: Inventario y recetas
 
-- [ ] Inventario.
+- [x] Inventario.
 - [ ] Recetas.
 - [ ] Descuento automático de ingredientes.
 
 ## Fase 6: Datos y reportes
 
-- [ ] Dashboard.
+- [x] Dashboard.
 - [ ] Reportes.
 - [ ] Estadísticas.
 - [ ] Exportaciones.

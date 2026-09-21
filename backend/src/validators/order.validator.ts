@@ -91,6 +91,6 @@ export const updateOrderSchema = z.strictObject({
   message: 'Debes indicar al menos un campo a editar.',
 });
 
-export const orderByDateQuerySchema = z.strictObject({
+export const orderByDateQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD).'),
 });
