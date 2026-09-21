@@ -73,3 +73,19 @@ export const getCashSessionsHistory = asyncHandler(async (req: Request, res: Res
   const result = await CashService.getSessionsHistory(query);
   res.status(200).json(result);
 });
+
+export const reopenCashSession = asyncHandler(async (req: Request, res: Response) => {
+  const sessionId = String(req.params.sessionId);
+  const reason = req.body.reason as string | undefined;
+  const session = await CashService.reopenSession(sessionId, getAuthenticatedUserId(req), reason);
+  auditLog({
+    requestId: req.id,
+    actor: { id: getAuthenticatedUserId(req), name: req.user?.name, role: req.user?.roleName },
+    action: 'CASH_SESSION_REOPENED',
+    entity: 'cash_session',
+    entityId: session.id,
+    previousState: 'closed',
+    newState: session.status,
+  }, `Cash session reopened. Reason: ${reason || 'No reason provided'}`);
+  res.status(200).json({ session });
+});

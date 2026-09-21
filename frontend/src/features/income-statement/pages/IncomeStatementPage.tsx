@@ -8,6 +8,7 @@ import { WeekTable } from '../components/WeekTable';
 import { MonthTable } from '../components/MonthTable';
 import { RangeTable } from '../components/RangeTable';
 import { DayDetailDrawer } from '../components/DayDetailDrawer';
+import { getTodayDateString, getCurrentYearMonth } from '../../../shared/utils/dateUtils';
 import {
   useIncomeStatementDay,
   useIncomeStatementWeek,
@@ -15,20 +16,12 @@ import {
   useIncomeStatementRange,
 } from '../hooks/useIncomeStatement';
 
-function todayDateString() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function currentYearMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
 export function IncomeStatementPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>('day');
-  const [date, setDate] = React.useState(todayDateString());
-  const [month, setMonth] = React.useState(currentYearMonth());
-  const [rangeFrom, setRangeFrom] = React.useState(todayDateString());
-  const [rangeTo, setRangeTo] = React.useState(todayDateString());
+  const [date, setDate] = React.useState(getTodayDateString());
+  const [month, setMonth] = React.useState(getCurrentYearMonth());
+  const [rangeFrom, setRangeFrom] = React.useState(getTodayDateString());
+  const [rangeTo, setRangeTo] = React.useState(getTodayDateString());
   const [drawerDate, setDrawerDate] = React.useState<string | null>(null);
 
   const dayQuery = useIncomeStatementDay(date, undefined, viewMode === 'day');

@@ -5,6 +5,7 @@ import { InventoryRepository } from '../repositories/inventory.repository';
 import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ingredientCreateSchema, ingredientUpdateSchema } from '../validators/inventory.validator';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
+import { auditLog } from '../utils/logger';
 
 const EXIT_REASON_LABELS: Record<string, string> = {
   waste: 'Merma / Desperdicio',
@@ -244,7 +245,7 @@ export const InventoryService = {
 
   async setIngredientActive(id: string, isActive: boolean, user: AuthUser) {
     // Authorization
-    if (!user.permissions?.includes('inventory.create_ingredient')) {
+    if (!user.permissions?.includes('inventory.update_ingredient')) {
       throw new AuthorizationError('No tienes permiso para modificar ingredientes.');
     }
 
@@ -286,7 +287,24 @@ export const InventoryService = {
       );
     }
 
-    return InventoryRepository.delete(id);
+    const deleted = await InventoryRepository.delete(id);
+
+    // Audit log for ingredient deletion
+    auditLog(
+      {
+        actor: { id: user.id, name: user.name, role: user.roleName },
+        action: 'INGREDIENT_DELETED',
+        entity: 'ingredient',
+        entityId: id,
+        metadata: {
+          name: ingredient.name,
+          sku: ingredient.sku,
+        },
+      },
+      `Ingrediente eliminado: ${ingredient.name} (${ingredient.sku})`
+    );
+
+    return deleted;
   },
 
   async getUnits(user: AuthUser) {

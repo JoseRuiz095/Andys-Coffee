@@ -50,6 +50,7 @@ export interface DayFinancialSummary {
   conciliacion: {
     fondoInicial: number;
     efectivoEsperado: number | null;
+    efectivoYTransferencias: number | null;
     efectivoReal: number | null;
     diferencia: number | null;
     estado: CashStatus;
@@ -84,6 +85,7 @@ export interface DayDetailResponse extends DayFinancialSummary {
     closingAmount: number | null;
     difference: number | null;
     status: string;
+    cashStatus: 'PENDIENTE' | 'CUADRADA' | 'SOBRANTE' | 'FALTANTE';
     closingReason: string | null;
   }>;
   expenses: Array<{
@@ -141,6 +143,7 @@ export interface DayCore {
   distributableProfit: Prisma.Decimal;
   openingFund: Prisma.Decimal;
   expectedCash: Prisma.Decimal | null;
+  expectedCashAndTransfer: Prisma.Decimal | null;
   actualCash: Prisma.Decimal | null;
   cashDifference: Prisma.Decimal | null;
   cashStatus: CashStatus;
@@ -212,12 +215,14 @@ export function computeDayCore(
 
   const openSessionsCount = rows.sessions.filter((s) => s.status === 'open').length;
   let expectedCash: Prisma.Decimal | null = null;
+  let expectedCashAndTransfer: Prisma.Decimal | null = null;
   let actualCash: Prisma.Decimal | null = null;
   let cashDifference: Prisma.Decimal | null = null;
   let cashStatus: CashStatus = null;
 
   if (rows.sessions.length > 0) {
     expectedCash = sumDecimals(rows.sessions, (s) => s.expectedAmount);
+    expectedCashAndTransfer = expectedCash.plus(transferRevenue); // Efectivo esperado + transferencias cobradas
     if (openSessionsCount > 0) {
       cashStatus = 'PENDIENTE';
     } else {
@@ -251,6 +256,7 @@ export function computeDayCore(
     distributableProfit,
     openingFund,
     expectedCash,
+    expectedCashAndTransfer,
     actualCash,
     cashDifference,
     cashStatus,
@@ -287,6 +293,7 @@ function buildSummaryDto(
     conciliacion: {
       fondoInicial: core.openingFund.toNumber(),
       efectivoEsperado: toNum(core.expectedCash),
+      efectivoYTransferencias: toNum(core.expectedCashAndTransfer),
       efectivoReal: toNum(core.actualCash),
       diferencia: toNum(core.cashDifference),
       estado: core.cashStatus,
@@ -370,6 +377,9 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
     conciliacion: {
       fondoInicial: snapshot.openingFund.toNumber(),
       efectivoEsperado: snapshot.expectedCash?.toNumber() ?? null,
+      efectivoYTransferencias: snapshot.expectedCash && snapshot.transferRevenue
+        ? snapshot.expectedCash.plus(snapshot.transferRevenue).toNumber()
+        : null,
       efectivoReal: snapshot.actualCash?.toNumber() ?? null,
       diferencia: snapshot.cashDifference?.toNumber() ?? null,
       estado: (snapshot.cashStatus as CashStatus) ?? null,
@@ -432,7 +442,7 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
 
   const businessHours = parseBusinessHours(generalPrefs.businessHoursOpen, generalPrefs.businessHoursClose);
   const byDay = bucketRows(dateStrs, sessions, payments, cogsRows, expenses, purchases);
-  const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [s.date.toISOString().split('T')[0], s]));
+  const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [getZonedCalendarDate(s.date), s]));
   const today = getTodayInZone();
 
   let runningSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
@@ -600,20 +610,27 @@ export const incomeStatementService = {
 
     return {
       ...summary,
-      sessions: sessions.map((s) => ({
-        id: s.id,
-        cashRegisterName: s.cashRegisterName,
-        openedAt: s.openedAt,
-        closedAt: s.closedAt,
-        openedByName: s.openedByName,
-        closedByName: s.closedByName,
-        openingAmount: s.openingAmount.toNumber(),
-        expectedAmount: s.expectedAmount.toNumber(),
-        closingAmount: toNum(s.closingAmount),
-        difference: toNum(s.difference),
-        status: s.status,
-        closingReason: s.closingReason,
-      })),
+      sessions: sessions.map((s) => {
+        let cashStatus: 'PENDIENTE' | 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' = 'PENDIENTE';
+        if (s.status === 'closed' && s.difference !== null) {
+          cashStatus = s.difference.isZero() ? 'CUADRADA' : (s.difference.greaterThan(0) ? 'SOBRANTE' : 'FALTANTE');
+        }
+        return {
+          id: s.id,
+          cashRegisterName: s.cashRegisterName,
+          openedAt: s.openedAt,
+          closedAt: s.closedAt,
+          openedByName: s.openedByName,
+          closedByName: s.closedByName,
+          openingAmount: s.openingAmount.toNumber(),
+          expectedAmount: s.expectedAmount.toNumber(),
+          closingAmount: toNum(s.closingAmount),
+          difference: toNum(s.difference),
+          status: s.status,
+          cashStatus,
+          closingReason: s.closingReason,
+        };
+      }),
       expenses: expenses.map((e) => ({
         id: e.id,
         category: e.category,

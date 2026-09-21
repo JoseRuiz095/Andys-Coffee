@@ -98,7 +98,7 @@ export const CashService = {
       timeZone: CASH_TIMEZONE,
     }).format(now));
 
-    // Get configured closing hour, fallback to 14:00 if not set
+    // Get configured closing hour, fallback to 22:00 if not set (from SystemPreference)
     const generalPrefs = await PreferenceRepository.getGeneralPreferences();
     const [closeHour] = generalPrefs.businessHoursClose.split(':').map(Number);
 
@@ -151,6 +151,49 @@ export const CashService = {
 
       throw error;
     }
+  },
+
+  async reopenSession(sessionId: string, reopenedById: string, reason?: string): Promise<CashSessionWithDetails> {
+    const reopenedSession = await prismaTransaction(async (tx) => {
+      const session = await tx.cashSession.findUnique({
+        where: { id: sessionId },
+        include: { cashRegister: true, closedBy: true, openedBy: true },
+      });
+
+      if (!session) {
+        throw new CashBusinessRuleError('Sesión de caja no encontrada.');
+      }
+
+      if (session.status === 'open') {
+        throw new CashBusinessRuleError('Esta sesión ya está abierta.');
+      }
+
+      // Reopen the session
+      return tx.cashSession.update({
+        where: { id: sessionId },
+        data: {
+          status: 'open',
+          closedAt: null,
+          closedById: null,
+          closingAmount: null,
+          difference: null,
+        },
+        include: { cashRegister: true, closedBy: true, openedBy: true },
+      }) as Promise<CashSessionWithDetails>;
+    });
+
+    // Invalidate the income statement snapshot for the day this session was in
+    const dateStr = getZonedCalendarDate(reopenedSession.openedAt);
+    await incomeStatementRepository.invalidateSnapshot(dateStr);
+
+    // Dispatch notification after transaction completes
+    await createCashNotification({
+      title: 'Reapertura de sesión de caja',
+      message: `La caja ${reopenedSession.cashRegister.name} fue reabierta por reapertura manual. ${reason ? `Motivo: ${reason}` : ''}`,
+      referenceId: reopenedSession.id,
+    });
+
+    return reopenedSession;
   },
 };
 

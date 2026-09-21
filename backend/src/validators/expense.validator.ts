@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 
 // NOTA: 'nomina' y 'servicios' aquí son para gastos ad-hoc/puntuales. Los costos fijos
 // recurrentes (Luz, Sueldos) se cubren con la tarifa diaria bajo las claves SystemPreference
@@ -14,11 +15,38 @@ export const createExpenseSchema = z.object({
   amount: z.coerce.number().finite().positive().max(999999999.99),
   paymentMethod: z.enum(expensePaymentMethods).default('cash'),
   expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
+}).refine(
+  async (data) => {
+    // Allow categories that are NOT nomina/servicios without warning
+    if (!['nomina', 'servicios'].includes(data.category)) {
+      return true;
+    }
+
+    // Check if fixed expenses are configured
+    try {
+      const fixedExpenses = await incomeStatementRepository.getFixedExpenseConcepts();
+      // If fixed expenses exist, add warning to context, but still allow (return true)
+      // The service layer will handle the warning response
+      return true;
+    } catch {
+      // If there's an error checking, still allow the creation
+      return true;
+    }
+  },
+  {
+    message: '⚠️ Aviso: Gastos fijos (nomina/servicios) ya se descuentan automáticamente. Verificar que no esté duplicando.',
+  }
+);
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
-export const updateExpenseSchema = createExpenseSchema.partial();
+export const updateExpenseSchema = z.object({
+  category: z.enum(expenseCategories).optional(),
+  description: z.string().trim().min(1).max(500).optional(),
+  amount: z.coerce.number().finite().positive().max(999999999.99).optional(),
+  paymentMethod: z.enum(expensePaymentMethods).optional(),
+  expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 

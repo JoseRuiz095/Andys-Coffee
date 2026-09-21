@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSession, getCashSessionsHistory } from '../controllers/cash.controller';
+import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSession, getCashSessionsHistory, reopenCashSession } from '../controllers/cash.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
@@ -23,6 +23,12 @@ router.patch(
   checkPermission('cash.correct'),
   validate(correctCashClosingSchema),
   correctCashClosing,
+);
+router.post(
+  '/sessions/:sessionId/reopen',
+  requireAuth,
+  checkPermission('cash.close'),
+  reopenCashSession,
 );
 
 export default router;

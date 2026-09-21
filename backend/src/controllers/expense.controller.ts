@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ExpenseService } from '../services/expense.service';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -27,9 +28,23 @@ export const getExpense = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const createExpense = asyncHandler(async (req: Request, res: Response) => {
-  const input = createExpenseSchema.parse(req.body);
+  const input = await createExpenseSchema.parseAsync(req.body);
   const userId = getAuthenticatedUserId(req);
   const expense = await ExpenseService.create(input, userId);
+
+  // Check if category matches nomina/servicios and fixed expenses are configured
+  let warning: string | null = null;
+  if (['nomina', 'servicios'].includes(input.category)) {
+    try {
+      const fixedExpenses = await incomeStatementRepository.getFixedExpenseConcepts();
+      if (fixedExpenses && Object.values(fixedExpenses).some((val) => val > 0)) {
+        warning = '⚠️ Aviso: Gastos fijos (nomina/servicios) ya se descuentan automáticamente. Verificar que no esté duplicando.';
+      }
+    } catch {
+      // Silently ignore error in warning check
+    }
+  }
+
   auditLog(
     {
       requestId: req.id,
@@ -41,7 +56,7 @@ export const createExpense = asyncHandler(async (req: Request, res: Response) =>
     },
     'Expense created'
   );
-  res.status(201).json({ expense });
+  res.status(201).json({ expense, warning });
 });
 
 export const updateExpense = asyncHandler(async (req: Request, res: Response) => {

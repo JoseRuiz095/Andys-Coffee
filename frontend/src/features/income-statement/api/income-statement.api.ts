@@ -19,6 +19,7 @@ export interface DayFinancialSummary {
   conciliacion: {
     fondoInicial: number;
     efectivoEsperado: number | null;
+    efectivoYTransferencias: number | null;
     efectivoReal: number | null;
     diferencia: number | null;
     estado: CashStatus;
@@ -53,6 +54,7 @@ export interface DayDetailResponse extends DayFinancialSummary {
     closingAmount: number | null;
     difference: number | null;
     status: string;
+    cashStatus: CashStatus;
     closingReason: string | null;
   }>;
   expenses: Array<{

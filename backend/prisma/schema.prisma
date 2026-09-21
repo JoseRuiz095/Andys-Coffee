@@ -204,6 +204,7 @@ model Ingredient {
   minimumStock  Decimal             @default(0) @db.Decimal(14, 4)
   averageCost   Decimal             @default(0) @db.Decimal(14, 4)
   isActive      Boolean             @default(true)
+  deletedAt     DateTime?           @db.Timestamptz(6)
   createdAt     DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
   extraRecipes  ExtraRecipe[]
@@ -213,7 +214,7 @@ model Ingredient {
   recipes       Recipe[]
   countItems    InventoryCountItem[]
 
-  @@index([isActive], map: "ingredients_active_idx")
+  @@index([isActive, deletedAt], map: "ingredients_active_deleted_idx")
   // @@index([currentStock, minimumStock], map: "inventory_low_stock_idx", where: raw("(\"isActive\" = true)"))
   // The following exist in the database via raw-SQL migration
   // 20260914000000_add_duplicate_prevention_indexes but can't be declared here: Prisma's

@@ -1,10 +1,7 @@
 import React from 'react';
 import { sileo } from 'sileo';
+import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
-
-function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
-}
 
 interface EditAccumulatedBalancesModalProps {
   isOpen: boolean;

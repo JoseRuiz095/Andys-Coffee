@@ -4,6 +4,7 @@ import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { PencilIcon } from '../../../components/ui/PencilIcon'
 import { XIcon } from '../../../components/ui/XIcon'
+import { getTodayDateString } from '../../../shared/utils/dateUtils'
 import {
   useCreateCount,
   useGetCount,
@@ -57,7 +58,7 @@ export function InventoryPhysical() {
   const [isConfirmingDeleteCount, setIsConfirmingDeleteCount] = useState(false)
   const [countsPage, setCountsPage] = useState(1)
   const [countsStatusFilter, setCountsStatusFilter] = useState('all')
-  const [countsDateFilter, setCountsDateFilter] = useState(new Date().toISOString().slice(0, 10))
+  const [countsDateFilter, setCountsDateFilter] = useState(getTodayDateString())
 
   useEffect(() => {
     try {

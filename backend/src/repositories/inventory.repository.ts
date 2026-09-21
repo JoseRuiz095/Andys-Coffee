@@ -7,7 +7,7 @@ type PrismaClient = Prisma.TransactionClient | typeof prisma;
 export const InventoryRepository = {
   async findAll(where: Prisma.IngredientWhereInput = {}, select: Prisma.IngredientSelect = {}) {
     return prisma.ingredient.findMany({
-      where,
+      where: { ...where, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -31,8 +31,8 @@ export const InventoryRepository = {
   },
 
   async findById(id: string) {
-    return prisma.ingredient.findUnique({
-      where: { id },
+    return prisma.ingredient.findFirst({
+      where: { id, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -85,8 +85,8 @@ export const InventoryRepository = {
   },
 
   async findBySku(sku: string) {
-    return prisma.ingredient.findUnique({
-      where: { sku },
+    return prisma.ingredient.findFirst({
+      where: { sku, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -112,6 +112,7 @@ export const InventoryRepository = {
     return prisma.ingredient.findFirst({
       where: {
         isActive: true,
+        deletedAt: null,
         name: {
           equals: name,
           mode: 'insensitive',
@@ -142,6 +143,7 @@ export const InventoryRepository = {
     return prisma.ingredient.findMany({
       where: {
         isActive: true,
+        deletedAt: null,
         OR: [
           {
             name: {
@@ -186,10 +188,12 @@ export const InventoryRepository = {
     where: Prisma.IngredientWhereInput = {},
   ) {
     const skip = paginationOffset(page, limit);
+    // Exclude soft-deleted ingredients
+    const whereWithDeleted = { ...where, deletedAt: null };
 
     const [ingredients, total] = await Promise.all([
       prisma.ingredient.findMany({
-        where,
+        where: whereWithDeleted,
         skip,
         take: limit,
         select: {
@@ -211,7 +215,7 @@ export const InventoryRepository = {
         },
         orderBy: { name: 'asc' },
       }),
-      prisma.ingredient.count({ where }),
+      prisma.ingredient.count({ where: whereWithDeleted }),
     ]);
 
     return {
@@ -226,6 +230,7 @@ export const InventoryRepository = {
     return prisma.ingredient.findMany({
       where: {
         isActive: true,
+        deletedAt: null,
         currentStock: { lte: prisma.ingredient.fields.minimumStock },
       },
       select: {
@@ -331,7 +336,7 @@ export const InventoryRepository = {
     // Prisma's aggregate _sum can only sum a single column, not a product of two
     // (currentStock * averageCost), so the per-row value has to be computed here.
     const ingredients = await prisma.ingredient.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       select: {
         currentStock: true,
         averageCost: true,
@@ -349,10 +354,11 @@ export const InventoryRepository = {
   async getInventorySummary() {
     const [totalIngredients, lowStockCount, outOfStockCount, totalValue] =
       await Promise.all([
-        prisma.ingredient.count({ where: { isActive: true } }),
+        prisma.ingredient.count({ where: { isActive: true, deletedAt: null } }),
         prisma.ingredient.count({
           where: {
             isActive: true,
+            deletedAt: null,
             currentStock: {
               gt: 0,
               lte: prisma.ingredient.fields.minimumStock,
@@ -362,6 +368,7 @@ export const InventoryRepository = {
         prisma.ingredient.count({
           where: {
             isActive: true,
+            deletedAt: null,
             currentStock: { lte: 0 },
           },
         }),
@@ -473,7 +480,11 @@ export const InventoryRepository = {
   },
 
   async delete(id: string) {
-    return prisma.ingredient.delete({ where: { id } });
+    // Soft delete: mark as deleted instead of removing the record
+    return prisma.ingredient.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   },
 
   async countRelations(id: string) {
@@ -602,8 +613,8 @@ export const InventoryRepository = {
     id: string,
     client: PrismaClient = prisma,
   ) {
-    return client.ingredient.findUnique({
-      where: { id },
+    return client.ingredient.findFirst({
+      where: { id, deletedAt: null },
       select: {
         id: true,
         name: true,

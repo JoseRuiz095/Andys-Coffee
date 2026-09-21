@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DashboardSummary } from '../components/DashboardSummary';
 import { TopProducts } from '../components/TopProducts';
@@ -13,8 +13,12 @@ import type { PeriodType } from '../hooks/useDashboard';
 import { IncomeStatementPage } from '../../income-statement';
 import { PendingPaymentsPage } from '../../pending-payments';
 import { PendingDeliveriesPage } from '../../deliveries';
+import { DailyOrdersPage } from '../../daily-orders';
+import { hasPermission } from '../../auth/utils/permissions';
+import { authStore } from '../../auth/store/auth.store';
+import type { AuthUser } from '../../auth/types/auth.types';
 
-type AdminView = 'metrics' | 'income-statement' | 'pending-payments' | 'pending-deliveries';
+type AdminView = 'metrics' | 'income-statement' | 'pending-payments' | 'pending-deliveries' | 'daily-orders';
 
 function MetricsOverview() {
   const [period, setPeriod] = React.useState<PeriodType>('today');
@@ -103,12 +107,22 @@ function MetricsOverview() {
 
 export function MetricsPage() {
   const [activeView, setActiveView] = React.useState<AdminView>('metrics');
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user);
   const prevViewRef = useRef<AdminView>(activeView);
 
-  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments', 'pending-deliveries'];
+  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments', 'pending-deliveries', 'daily-orders'];
   const currentIndex = views.indexOf(activeView);
   const prevIndex = views.indexOf(prevViewRef.current);
   const direction = currentIndex > prevIndex ? 1 : -1;
+
+  useEffect(() => {
+    const handleAuthChanged = () => {
+      setCurrentUser(authStore.getState().user);
+    };
+
+    window.addEventListener('auth:changed', handleAuthChanged);
+    return () => window.removeEventListener('auth:changed', handleAuthChanged);
+  }, []);
 
   const handleViewChange = (view: AdminView) => {
     prevViewRef.current = activeView;
@@ -169,6 +183,18 @@ export function MetricsPage() {
           >
             Mandaditos por Entregar
           </button>
+          {hasPermission(currentUser, 'sales.read') && (
+            <button
+              onClick={() => handleViewChange('daily-orders')}
+              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderColor: activeView === 'daily-orders' ? 'var(--color-primary)' : 'transparent',
+                color: activeView === 'daily-orders' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              }}
+            >
+              Órdenes del Día
+            </button>
+          )}
         </nav>
       </div>
 
@@ -223,6 +249,19 @@ export function MetricsPage() {
             transition={{ duration: 0.3 }}
           >
             <PendingDeliveriesPage />
+          </motion.div>
+        )}
+        {activeView === 'daily-orders' && hasPermission(currentUser, 'sales.read') && (
+          <motion.div
+            key="daily-orders-view"
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3 }}
+          >
+            <DailyOrdersPage />
           </motion.div>
         )}
       </AnimatePresence>

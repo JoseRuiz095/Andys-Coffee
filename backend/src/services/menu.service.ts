@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { PromotionType } from '@prisma/client';
 import { calculateBestPromotion, isValidPromotion } from './pricing.service';
+import { getTodayInZone } from '../utils/businessDate';
 
 type MenuPromotion = {
   id: string;
@@ -20,15 +21,16 @@ export const MenuService = {
    * Solo incluye elementos activos y filtra combos y promociones según el día actual.
    */
   async getFullMenu() {
-    const today = new Date();
-    const currentDay = today.getDay(); // Domingo = 0, Lunes = 1, ...
+    const today = getTodayInZone();
+    const todayDate = new Date(today + ' 00:00:00');
+    const currentDay = todayDate.getDay(); // Domingo = 0, Lunes = 1, ...
 
     // 1. Filtrar fecha y día en la base de datos para evitar traer promociones inactivas.
     const promotionsByDate = await prisma.promotion.findMany({
       where: {
         isActive: true,
-        startDate: { lte: today },
-        endDate: { gte: today },
+        startDate: { lte: todayDate },
+        endDate: { gte: todayDate },
         OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
       },
       select: {

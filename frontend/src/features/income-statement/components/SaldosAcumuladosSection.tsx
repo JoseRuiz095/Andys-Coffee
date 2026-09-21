@@ -2,10 +2,7 @@ import React from 'react';
 import type { DayFinancialSummary } from '../api/income-statement.api';
 import { StatBlock } from './StatBlock';
 import { EditAccumulatedBalancesModal } from './EditAccumulatedBalancesModal';
-
-function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
-}
+import { getTodayDateString } from '../../../shared/utils/dateUtils';
 
 export function SaldosAcumuladosSection({ summary }: { summary: DayFinancialSummary }) {
   const { saldosAcumulados, date } = summary;

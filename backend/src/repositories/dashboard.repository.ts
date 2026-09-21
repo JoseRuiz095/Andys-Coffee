@@ -1,5 +1,13 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
+import {
+  getTodayInZone,
+  addCalendarDays,
+  getZonedDayBoundaries,
+  getMonthRange,
+  getWeekRange,
+} from '../utils/businessDate';
+import { CASH_TIMEZONE } from '../config/app';
 
 interface DateRange {
   from: Date;
@@ -7,47 +15,45 @@ interface DateRange {
 }
 
 /**
- * Converts a period string to a UTC date range
- * Period is always interpreted as local business day (not timezone-converted)
+ * Converts a period string to a UTC date range using business timezone (America/Mexico_City)
+ * This ensures Dashboard and IncomeStatement use the same business day definition
  */
 export function getPeriodDateRange(
   period: 'today' | 'yesterday' | 'week' | 'month' | 'customRange',
   customFrom?: string,
   customTo?: string,
 ): DateRange {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = getTodayInZone(CASH_TIMEZONE);
 
   switch (period) {
     case 'today': {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return { from: today, to: tomorrow };
+      const { start, end } = getZonedDayBoundaries(today, CASH_TIMEZONE);
+      return { from: start, to: end };
     }
     case 'yesterday': {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return { from: yesterday, to: today };
+      const yesterday = addCalendarDays(today, -1);
+      const { start, end } = getZonedDayBoundaries(yesterday, CASH_TIMEZONE);
+      return { from: start, to: end };
     }
     case 'week': {
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return { from: sevenDaysAgo, to: tomorrow };
+      const { weekStart, weekEnd } = getWeekRange(today);
+      const startBoundary = getZonedDayBoundaries(weekStart, CASH_TIMEZONE);
+      const endBoundary = getZonedDayBoundaries(weekEnd, CASH_TIMEZONE);
+      return { from: startBoundary.start, to: endBoundary.end };
     }
     case 'month': {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      return { from: monthStart, to: monthEnd };
+      const { monthStart, monthEnd } = getMonthRange(today.slice(0, 7)); // YYYY-MM
+      const startBoundary = getZonedDayBoundaries(monthStart, CASH_TIMEZONE);
+      const endBoundary = getZonedDayBoundaries(monthEnd, CASH_TIMEZONE);
+      return { from: startBoundary.start, to: endBoundary.end };
     }
     case 'customRange': {
       if (!customFrom || !customTo) {
         throw new Error('customFrom and customTo required for customRange');
       }
-      const from = new Date(`${customFrom}T00:00:00Z`);
-      const to = new Date(`${customTo}T23:59:59.999Z`);
-      return { from, to };
+      const fromBoundary = getZonedDayBoundaries(customFrom, CASH_TIMEZONE);
+      const toBoundary = getZonedDayBoundaries(customTo, CASH_TIMEZONE);
+      return { from: fromBoundary.start, to: toBoundary.end };
     }
     default:
       throw new Error(`Unknown period: ${period}`);

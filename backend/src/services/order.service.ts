@@ -15,7 +15,7 @@ import { auditLog } from '../utils/logger';
 import { calculateBestPromotion, type PricingPromotion } from './pricing.service';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
-import { getZonedDayBoundaries } from '../utils/businessDate';
+import { getZonedDayBoundaries, getTodayInZone } from '../utils/businessDate';
 
 // --- Custom Errors for Service Layer ---
 
@@ -273,8 +273,9 @@ export const OrderService = {
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
     const { items, paymentMethod, cashSessionId, cashReceived, hasDelivery, deliveryAmount, deliveryResponsible, deliveryPaymentMethod, ...restOfOrder } = orderData;
-    const today = new Date();
-    const currentDay = today.getDay();
+    const today = getTodayInZone();
+    const todayDate = new Date(today + ' 00:00:00');
+    const currentDay = todayDate.getDay();
 
     const productIds = items.map(item => item.productId).filter(Boolean) as string[];
     const comboIds = items.map(item => item.comboId).filter(Boolean) as string[];
@@ -326,8 +327,8 @@ export const OrderService = {
         tx.promotion.findMany({
           where: {
             isActive: true,
-            startDate: { lte: today },
-            endDate: { gte: today },
+            startDate: { lte: todayDate },
+            endDate: { gte: todayDate },
             OR: [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: currentDay } }],
           },
           select: {

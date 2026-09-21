@@ -84,17 +84,7 @@ export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDraw
                           <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                             {s.cashRegisterName}
                           </span>
-                          <CashStatusBadge
-                            status={
-                              s.status === 'open'
-                                ? 'PENDIENTE'
-                                : s.difference === 0
-                                  ? 'CUADRADA'
-                                  : (s.difference ?? 0) > 0
-                                    ? 'SOBRANTE'
-                                    : 'FALTANTE'
-                            }
-                          />
+                          <CashStatusBadge status={s.cashStatus} />
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2" style={{ color: 'var(--color-text-secondary)' }}>
                           <span>Abierta por {s.openedByName}</span>
