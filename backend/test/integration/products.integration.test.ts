@@ -14,7 +14,7 @@ const testId = randomUUID();
 // ProductService. "manage:products" (the previous value here) doesn't exist in the seed
 // data and isn't grantable through the role-management UI — using it masked a real bug
 // where ProductService checked a permission the route layer never granted.
-const permissionNames = ["products.create", "products.update", "products.delete"];
+const permissionNames = ["products.read", "products.create", "products.update", "products.delete"];
 const roleName = `integration-role-${testId}`;
 const managerEmail = `manager-${testId}@example.com`;
 const viewerEmail = `viewer-${testId}@example.com`;
@@ -181,7 +181,11 @@ test("permite crear, actualizar y eliminar productos con los permisos products.*
 
 test("responde 404 para un producto inexistente", { skip: !integrationEnabled }, async () => {
   const missingId = randomUUID();
-  const getResponse = await fetch(`${baseUrl}/api/products/${missingId}`);
+  // M-01: product records (cost, recipes) are not public.
+  const anonymousResponse = await fetch(`${baseUrl}/api/products/${missingId}`);
+  assert.equal(anonymousResponse.status, 401);
+
+  const getResponse = await requestProduct(`/api/products/${missingId}`, {}, manager);
   assert.equal(getResponse.status, 404);
 
   for (const [method, body] of [

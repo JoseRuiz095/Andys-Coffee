@@ -1,3 +1,5 @@
+// Must be the first import: points prisma and the app at the local test database.
+import "../setup/test-env";
 import { expect, request as playwrightRequest, test, type Page } from "@playwright/test";
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
@@ -8,7 +10,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { prisma } from "../../src/config/prisma";
 
-const backendRoot = path.resolve(__dirname, "../..");
+// Playwright runs from backend/ (npm scripts); __dirname is unavailable in this ESM package.
+const backendRoot = process.cwd();
 const frontendRoot = path.resolve(backendRoot, "../frontend");
 const frontendOrigin = "http://127.0.0.1:5173";
 const unauthorizedOrigin = "http://127.0.0.1:5174";
@@ -143,7 +146,7 @@ test.beforeAll(async () => {
   // Matches the real permissions seeded in prisma/seed.ts and checked by
   // product.routes.ts / ProductService (see products.integration.test.ts for the
   // same fix and why "manage:products" was wrong).
-  const permissionNames = ["products.create", "products.update", "products.delete"];
+  const permissionNames = ["products.read", "products.create", "products.update", "products.delete"];
   const permissions = await Promise.all(
     permissionNames.map((name) =>
       prisma.permission.upsert({ where: { name }, update: {}, create: { name } })

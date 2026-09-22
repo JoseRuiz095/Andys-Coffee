@@ -103,6 +103,29 @@ export function getZonedInstant(
   return zonedWallTimeToUtc(year, month, day, Math.floor(minutesOfDay / 60), minutesOfDay % 60, 0, timeZone);
 }
 
+function timeToMinutes(time: string): number {
+  const [hour, minute] = time.split(':').map(Number);
+  return hour * 60 + (minute || 0);
+}
+
+/**
+ * Instant in the middle of the business day `dateStr` (open/close as "HH:MM" in
+ * `timeZone`). Used for records dated by calendar day only (e.g. a back-dated expense)
+ * so they fall inside business hours, where the income statement counts them.
+ * Falls back to local noon if the configured hours are not a valid same-day range.
+ */
+export function getBusinessMidpointInstant(
+  dateStr: string,
+  businessHoursOpen: string,
+  businessHoursClose: string,
+  timeZone: string = CASH_TIMEZONE,
+): Date {
+  const open = timeToMinutes(businessHoursOpen);
+  const close = timeToMinutes(businessHoursClose);
+  const midpoint = close > open ? Math.floor((open + close) / 2) : 12 * 60;
+  return getZonedInstant(dateStr, midpoint, timeZone);
+}
+
 /** Calendar date (YYYY-MM-DD) that `instant` falls on, in `timeZone`. */
 export function getZonedCalendarDate(instant: Date, timeZone: string = CASH_TIMEZONE): string {
   return new Intl.DateTimeFormat('en-CA', {

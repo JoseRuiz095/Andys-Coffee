@@ -142,17 +142,28 @@ export const UserRepository = {
     });
   },
 
+  /** Sets a new password and revokes every existing session in the same write. */
   async updatePasswordHash(id: string, passwordHash: string) {
     return prisma.user.update({
       where: { id },
-      data: { passwordHash },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
       select: {
         id: true,
         name: true,
         email: true,
         isActive: true,
         roleId: true,
+        tokenVersion: true,
       },
+    });
+  },
+
+  /** Revokes every session of the user (JWTs signed with an older version stop working). */
+  async incrementTokenVersion(id: string) {
+    return prisma.user.update({
+      where: { id },
+      data: { tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
     });
   },
 
@@ -169,6 +180,7 @@ export const UserRepository = {
         email: true,
         roleId: true,
         isActive: true,
+        tokenVersion: true,
         role: {
           select: {
             name: true,

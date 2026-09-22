@@ -212,7 +212,7 @@ export const UserService = {
     // Hash new password
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
-    // Update password
+    // Update password (this also revokes every existing session of the user)
     return UserRepository.updatePasswordHash(userId, newPasswordHash);
   },
 

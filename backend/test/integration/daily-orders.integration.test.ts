@@ -53,9 +53,15 @@ before(async () => {
   baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
 
   // Create test role with necessary permissions
+  const salesRead = await prisma.permission.upsert({
+    where: { name: 'sales.read' },
+    update: {},
+    create: { name: 'sales.read' },
+  });
   const role = await prisma.role.create({
     data: {
       name: testRoleName,
+      permissions: { create: { permissionId: salesRead.id } },
     },
   });
 
@@ -76,7 +82,7 @@ before(async () => {
     roleId: user.roleId,
     roleName: testRoleName,
     isActive: user.isActive,
-    permissions: [],
+    permissions: ['sales.read'],
   };
 });
 

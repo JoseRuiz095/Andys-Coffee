@@ -6,7 +6,7 @@ import { CashRepository } from '../repositories/cash.repository';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { CashBusinessRuleError } from './cash.service';
 import { NotFoundError } from '../utils/errors';
-import { getTodayInZone, getZonedCalendarDate, getZonedDayBoundaries, getZonedInstant } from '../utils/businessDate';
+import { getBusinessMidpointInstant, getTodayInZone, getZonedCalendarDate, getZonedDayBoundaries } from '../utils/businessDate';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListQuery } from '../validators/expense.validator';
 
@@ -15,11 +15,6 @@ function businessDayRange(startDate?: string, endDate?: string) {
     gte: startDate ? getZonedDayBoundaries(startDate).start : undefined,
     lt: endDate ? getZonedDayBoundaries(endDate).end : undefined,
   };
-}
-
-function toMinutes(time: string): number {
-  const [hour, minute] = time.split(':').map(Number);
-  return hour * 60 + (minute || 0);
 }
 
 /**
@@ -31,10 +26,7 @@ function toMinutes(time: string): number {
 async function resolveExpenseInstant(dateStr: string): Promise<Date> {
   if (dateStr === getTodayInZone()) return new Date();
   const { businessHoursOpen, businessHoursClose } = await PreferenceRepository.getGeneralPreferences();
-  const open = toMinutes(businessHoursOpen);
-  const close = toMinutes(businessHoursClose);
-  const midpoint = close > open ? Math.floor((open + close) / 2) : 12 * 60;
-  return getZonedInstant(dateStr, midpoint);
+  return getBusinessMidpointInstant(dateStr, businessHoursOpen, businessHoursClose);
 }
 
 export const ExpenseService = {

@@ -23,7 +23,7 @@ interface ReconciliationResult {
  * expectedAmount (order.service.ts, expense.service.ts, cash.repository.ts).
  * CLOSING records the counted cash, not a drawer change, so it contributes nothing.
  */
-function expectedAmountEffect(type: string, amount: Prisma.Decimal): Prisma.Decimal {
+export function expectedAmountEffect(type: string, amount: Prisma.Decimal): Prisma.Decimal {
   switch (type) {
     case 'CLOSING':
       return new Prisma.Decimal(0);

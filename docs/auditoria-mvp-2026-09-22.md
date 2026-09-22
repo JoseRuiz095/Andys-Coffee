@@ -199,7 +199,7 @@ Sin commits ni operaciones git. Verificación: backend `tsc --noEmit` ✅ (inclu
 
 | ID | Estado | Cambio |
 | -- | ------ | ------ |
-| C-01 | ✅ Corregido | `expense.service.ts`: la fecha explícita se guarda a mitad del horario de negocio en `CASH_TIMEZONE` (hoy = hora actual); al editar solo se mueve si cambia el día. Nuevo helper `getZonedInstant` en `utils/businessDate.ts`. **Datos históricos:** script sin ejecutar en `backend/scripts/fix-expense-dates-c01.sql` |
+| C-01 | ✅ Corregido | `expense.service.ts`: la fecha explícita se guarda a mitad del horario de negocio en `CASH_TIMEZONE` (hoy = hora actual); al editar solo se mueve si cambia el día. Nuevo helper `getZonedInstant` en `utils/businessDate.ts`. **Datos históricos:** revisado en Supabase el 2026-09-22: 0 gastos registrados, no hubo nada que corregir (el script `backend/scripts/fix-expense-dates-c01.sql` queda solo como referencia) |
 | C-02 | ✅ Corregido | Las reversas de una venta de caja cerrada van a la sesión abierta actual (o se pide abrir caja); ya no se toca el corte cerrado. Se invalida el snapshot del día de la orden y del gasto de mandadito borrado |
 | H-01 | ✅ | `checkPermission('sales.create')` en `POST /api/orders` |
 | H-02 | ✅ | `settlePayment` y `handoffDelivery` usan `updateMany` condicionado + Serializable |
@@ -212,10 +212,10 @@ Sin commits ni operaciones git. Verificación: backend `tsc --noEmit` ✅ (inclu
 | M-03 | ✅ | Conciliación aplica el signo por tipo y excluye `CLOSING` |
 | M-04 | ✅ | Crear/editar usuario rechaza roles con permisos que el actor no tiene |
 | M-05 | ✅ | `helmet()` + `x-powered-by` desactivado |
-| M-06 | ⏸ Pendiente | Requiere columna nueva (`tokenVersion`) y migración en la BD remota → decisión del desarrollador |
+| M-06 | ✅ Aplicado (2026-09-22) | Columna `users.tokenVersion` (migración `20260922200000_add_user_token_version`, aplicada en Supabase). El JWT lleva la versión (`tv`) y `requireAuth` rechaza versiones anteriores. Logout y cambio de contraseña incrementan la versión; el cambio de contraseña reemite la cookie del dispositivo actual. Test: `session-revocation.integration.test.ts` |
 | M-07 | ✅ | Editar gasto invalida el día anterior y el nuevo |
 | M-08 | ✅ | Nuevo `shared/utils/queryInvalidation.ts`; lo usan cancelar orden, liquidar pago, entregar mandadito, crear orden y gastos |
-| M-09 | ⏸ Pendiente | Aplicar `remove_unused_models` en la BD es una acción sobre datos remotos → decisión del desarrollador |
+| M-09 | ✅ Aplicado (2026-09-22) | `prisma migrate deploy` en Supabase. Antes se respaldaron las 11 filas que existían (`PromotionOnCategory`: 1, `PromotionOnProduct`: 10; `tickets` y `purchase_invoice_counters` vacías) en `backend/prisma/backups/2026-09-22-remove_unused_models.json`. `migrate status`: al día; `GET /api/menu` responde 200 |
 | M-10 | ✅ | El seed ya no resetea la contraseña del admin ni borra permisos personalizados; exige `ADMIN_SEED_PASSWORD` en producción |
 | M-11 | ✅ | Pestaña "Cortes de caja" en Configuración (`cash.read`); botón "Corregir" solo con `cash.correct`; colores de tema |
 | L-01 | ✅ | `bcrypt.compare` siempre se ejecuta (hash ficticio) |
@@ -243,3 +243,66 @@ Lint frontend:     71 problemas (deuda TD-06, preexistente)
 ¿Sistema listo para fase de testing?: SÍ, con una condición previa:
   crear una base de datos de pruebas aislada (R-01) antes de correr tests de integración.
 ```
+
+---
+
+## Fase 7 — Testing (2026-09-22)
+
+### Base de datos de pruebas aislada (R-01 resuelto)
+
+- `backend/test/db/docker-compose.yml`: PostgreSQL 16 en Docker (puerto 55432, datos en `tmpfs`), con TLS y un CA propio (`test/db/generate-certs.sh`), porque `config/prisma.ts` exige `verify-full` igual que en producción.
+- `backend/test/setup/test-env.ts`: se carga con `--import` **antes** que cualquier módulo, fija el entorno de pruebas por encima de `backend/.env` y **aborta si la URL de BD no es `localhost`**. Ningún test puede volver a escribir en Supabase.
+- Los E2E de Playwright importan ese mismo setup como primer import.
+- Las 25 migraciones (incluida `remove_unused_models`, pendiente en Supabase) se aplican limpias sobre una BD vacía y el seed corre con TLS verificado.
+
+```bash
+cd backend
+npm run test:db:up        # genera certificados + levanta el contenedor
+npm run test:db:prepare   # migrate deploy + seed
+npm run test:critical     # unit + integration + e2e
+npm run test:db:down      # borra el contenedor
+```
+
+### Resultados
+
+| Suite | Antes (Fase 0) | Ahora |
+| ----- | -------------- | ----- |
+| Unit | 41/45 | **67/67** |
+| Integración | nunca ejecutada contra una BD aislada | **47/47** |
+| E2E (Playwright) | 1 spec en el script | **5/5** (3 specs, en serie) |
+| Cobertura `src/` (unit + integración) | — | ~69% líneas |
+
+### Tests nuevos
+
+| Archivo | Cubre |
+| ------- | ----- |
+| `test/integration/financial-regressions.integration.test.ts` | C-01, C-02, H-01, H-02 (liquidación concurrente), H-03, H-04, H-05, M-02, M-04 |
+| `test/integration/inventory-flows.integration.test.ts` | Salidas manuales, conteo físico draft→completed→applied, rollback atómico al violar stock ≥ 0 (L-10), recepción concurrente de compra (una sola vez) |
+| `test/e2e/cash-history.e2e.spec.ts` | M-11 en navegador: corrección de corte con `cash.correct`, sin botón con solo `cash.read`; capturas claro/oscuro en `test-results/` |
+| `test/cash-reconciliation.test.ts` | M-03 (signos por tipo de movimiento), validador de reapertura |
+| `test/businessDate.test.ts`, `test/error-handler.test.ts`, `test/http-security.test.ts` (ampliados) | C-01 (hora de negocio), L-02, L-03, L-10, M-01, M-05 |
+
+### Tests existentes corregidos (estaban desactualizados, no eran fallas del código)
+
+- `orders.integration.test.ts`: usaba el permiso antiguo `view:orders` y la transición `pending → completed`, que la máquina de estados no permite.
+- `daily-orders.integration.test.ts`: el rol de prueba no tenía `sales.read`.
+- `income-statement.integration.test.ts`: esperaba repartir una ganancia distribuible negativa (desde que existen los gastos fijos no se reparte nada si es ≤ 0).
+- `products.integration.test.ts`, `sec-003.e2e.spec.ts`: necesitan `products.read` tras M-01.
+- `sec-006-auth-session.spec.ts`: el botón "Cerrar sesión" ahora está dentro de la pestaña "Sesión".
+- `security.test.ts`, E2E: dejaron de usar `__dirname` (paquete ESM).
+
+### Pendiente
+
+- Cobertura baja en categorías, dashboard, notificaciones y controllers de inventario (funciones < 20%).
+- L-05, L-06, L-07 (redondeo de combos, `costSnapshot` de extras, fecha de promociones): ya hay red de tests de integración para cambiarlos con seguridad.
+- M-06, M-09, script de datos C-01 y R-08: decisiones del desarrollador (no se tocó Supabase).
+
+### Decisión R-08 (2026-09-22) — aplicada
+
+Decisión del desarrollador: **cerrar sesión no toca la caja.**
+
+- `SettingsPage.tsx`: el logout ya no cierra la caja. El corte se hace solo desde "Cierre de caja", con el efectivo contado y el motivo si hay diferencia.
+- `CashService.closeIfBusinessDayEnded`: el auto-cierre de fin de jornada (hora de cierre configurada; en Supabase es 14:00) se mantiene como red de seguridad. Queda marcado con `closingReason = "Cierre automático sin conteo"` y un comentario que pide corregirlo con el conteo real desde "Cortes de caja".
+- Tests: `sec-006-auth-session.spec.ts` verifica que la caja sigue abierta después del logout; `cash-session.integration.test.ts` verifica la etiqueta del auto-cierre.
+- En Supabase no había cortes afectados: los 4 cortes cerrados son manuales.
+- **Estado "Sin conteo"** (seguimiento de R-08): un día con un corte automático sin corregir ya no sale "Caja cuadrada" en el estado de resultados. Sale **"Sin conteo"** (`SIN_CONTEO`), sin efectivo real ni diferencia. En "Cortes de caja" la columna Diferencia muestra "Sin conteo". Al corregir el corte con el conteo real, su `closingReason` pasa a ser el motivo de la corrección (el original queda en `AuditLog`) y el día vuelve a Cuadrada/Sobrante/Faltante. Constante compartida: `AUTO_CLOSE_REASON` en `backend/src/config/app.ts`. Sin cambios de esquema.

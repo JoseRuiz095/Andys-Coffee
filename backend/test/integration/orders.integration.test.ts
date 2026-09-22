@@ -68,8 +68,9 @@ function authUser(record: { id: string; name: string; email: string; roleId: str
 before(async () => {
   if (!integrationEnabled) return;
 
-  const [viewOrders, salesCancel] = await Promise.all([
-    prisma.permission.upsert({ where: { name: "view:orders" }, update: {}, create: { name: "view:orders" } }),
+  const [salesRead, salesCreate, salesCancel] = await Promise.all([
+    prisma.permission.upsert({ where: { name: "sales.read" }, update: {}, create: { name: "sales.read" } }),
+    prisma.permission.upsert({ where: { name: "sales.create" }, update: {}, create: { name: "sales.create" } }),
     prisma.permission.upsert({ where: { name: "sales.cancel" }, update: {}, create: { name: "sales.cancel" } }),
   ]);
   const [ownerRole, modifierRole, managerRole] = await Promise.all([
@@ -78,7 +79,7 @@ before(async () => {
     prisma.role.create({
       data: {
         name: managerRoleName,
-        permissions: { create: [{ permissionId: viewOrders.id }, { permissionId: salesCancel.id }] },
+        permissions: { create: [{ permissionId: salesRead.id }, { permissionId: salesCreate.id }, { permissionId: salesCancel.id }] },
       },
     }),
   ]);
@@ -92,7 +93,7 @@ before(async () => {
   owner = authUser(ownerRecord, ownerRoleName, []);
   otherOwner = authUser(otherOwnerRecord, ownerRoleName, []);
   modifier = authUser(modifierRecord, modifierRoleName, ["sales.cancel"]);
-  manager = authUser(managerRecord, managerRoleName, ["view:orders", "sales.cancel"]);
+  manager = authUser(managerRecord, managerRoleName, ["sales.read", "sales.create", "sales.cancel"]);
 
   const [ownerOrder, otherOrder] = await Promise.all([
     prisma.order.create({ data: { createdById: owner.id, customerName: "Owner order" } }),
@@ -151,7 +152,7 @@ test("permite modificar con permiso y registra la auditoría del cambio", { skip
 
   const allowedResponse = await requestOrder(`/api/orders/${ownerOrderId}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status: "completed" }),
+    body: JSON.stringify({ status: "preparing" }),
   }, manager);
   assert.equal(allowedResponse.status, 200);
 
@@ -163,7 +164,7 @@ test("permite modificar con permiso y registra la auditoría del cambio", { skip
   assert.deepEqual(audit.metadata, {
     orderId: ownerOrderId,
     previousStatus: "pending",
-    newStatus: "completed",
+    newStatus: "preparing",
   });
 });
 

@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { prisma } from "../../src/config/prisma";
 import { CashService } from "../../src/services/cash.service";
+import { AUTO_CLOSE_REASON } from "../../src/config/app";
+import { incomeStatementService } from "../../src/services/income-statement.service";
+import { getZonedCalendarDate } from "../../src/utils/businessDate";
 
 // Coverage for CashService, which had zero prior tests. Also exercises the FASE 3 fix:
 // notification dispatch for open/close now happens after the transaction commits instead
@@ -108,5 +111,34 @@ test(
     // Clean up: close it properly so the register is free for other tests/runs.
     await CashService.closeSession(userId, { closingAmount: 20, reason: "Cierre de limpieza" });
     void session;
+  },
+);
+
+test(
+  "R-08: el cierre automático de fin de jornada queda marcado como 'sin conteo'",
+  { skip: !integrationEnabled },
+  async () => {
+    await CashService.openSession({ openingAmount: 40, cashRegisterId }, userId);
+
+    // 23:30 in America/Mexico_City (UTC-6): always after any configured closing hour.
+    const closed = await CashService.closeIfBusinessDayEnded(userId, new Date("2026-09-23T05:30:00Z"));
+
+    assert.ok(closed);
+    assert.equal(closed?.status, "closed");
+    assert.equal(closed?.closingReason, AUTO_CLOSE_REASON);
+    assert.match(closed?.closingComment ?? "", /conteo real/);
+
+    // Reports must not call an uncounted cut "CUADRADA".
+    const day = getZonedCalendarDate(closed!.openedAt);
+    const before = await incomeStatementService.getDayFinancials(day, cashRegisterId);
+    assert.equal(before.conciliacion.estado, "SIN_CONTEO");
+    assert.equal(before.conciliacion.efectivoReal, null);
+
+    // Correcting it with the real count turns it into a counted cut.
+    await CashService.correctClosing(userId, closed!.id, { correctedAmount: 35, reason: "Conteo real al día siguiente" });
+    const corrected = await prisma.cashSession.findUniqueOrThrow({ where: { id: closed!.id } });
+    assert.equal(corrected.closingReason, "Conteo real al día siguiente");
+    const after = await incomeStatementService.getDayFinancials(day, cashRegisterId);
+    assert.equal(after.conciliacion.estado, "FALTANTE");
   },
 );

@@ -3,7 +3,6 @@ import { APP_ROUTES } from '../../../shared/constants/routes'
 import { authStore } from '../../auth/store/auth.store'
 import { hasPermission } from '../../auth/utils/permissions'
 import { logout } from '../../auth/services/auth.service'
-import { closeCashSession, getActiveCashSession } from '../../dashboard/services/cash.service'
 import { useTheme } from '../../../shared/assets/theme'
 import { Card } from '../../../shared/components/Card'
 import { Button } from '../../../shared/components/Button'
@@ -36,27 +35,16 @@ export function SettingsPage() {
     return () => window.removeEventListener('auth:changed', syncUser)
   }, [])
 
+  // Logging out never touches the cash drawer: the cut must be done with the real counted
+  // cash from "Cierre de caja" (closing it here with the expected amount hid shortages).
   const handleLogout = async () => {
     try {
-      const session = await getActiveCashSession()
-      if (session) {
-        await closeCashSession({
-          closingAmount: Number(session.expectedAmount),
-          reason: 'Cierre al cerrar sesión',
-          comment: 'Cierre automático al cerrar sesión.',
-        })
-      }
+      await logout()
     } catch {
-      // Logout must still complete if the session was already closed or unavailable.
-    } finally {
-      try {
-        await logout()
-      } catch {
-        // The local session is cleared even if the API is unavailable.
-      }
-      authStore.clearSession()
-      navigateTo(APP_ROUTES.login)
+      // The local session is cleared even if the API is unavailable.
     }
+    authStore.clearSession()
+    navigateTo(APP_ROUTES.login)
   }
 
   // Granular permission checks

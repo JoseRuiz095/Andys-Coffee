@@ -23,10 +23,13 @@ type UserWithRole = User & {
 // bcrypt hash (12 rounds) of a random string; only used to equalize login timing.
 const TIMING_SAFE_DUMMY_HASH = bcrypt.hashSync(`timing-${Date.now()}-${Math.random()}`, 12);
 
+/** Result of a successful login: the public user plus the session version to sign into the JWT. */
+export type AuthenticatedUser = AuthUser & { tokenVersion: number };
+
 export async function authenticateUser(
   email: string,
   password: string
-): Promise<AuthUser | null> {
+): Promise<AuthenticatedUser | null> {
   const user = await prisma.user.findUnique({
     where: { email },
     include: { role: { select: { name: true } } },
@@ -58,10 +61,15 @@ export async function authenticateUser(
     roleName: user.role?.name ?? undefined,
     isActive: user.isActive,
     permissions: rolePermissions.map((rp) => rp.permission.name),
+    tokenVersion: user.tokenVersion,
   };
 }
 
-export function createJwtToken(user: AuthUser): string {
+/**
+ * Signs a session token. `tokenVersion` must match User.tokenVersion for requireAuth to
+ * accept it (claim `tv`); bumping the column revokes every token issued before.
+ */
+export function createJwtToken(user: AuthUser, tokenVersion = 0): string {
   return jwt.sign(
     {
       sub: user.id,
@@ -69,6 +77,7 @@ export function createJwtToken(user: AuthUser): string {
       roleId: user.roleId,
       roleName: user.roleName ?? undefined,
       permissions: user.permissions,
+      tv: tokenVersion,
     },
     JWT_SECRET,
     {

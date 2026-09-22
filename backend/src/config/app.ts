@@ -25,3 +25,7 @@ export const TRUST_PROXY: boolean | number | string = !trustProxyEnv
 // Store timezone used to decide when the business day ends for automatic cash-session
 // closing (see cash.service.ts).
 export const CASH_TIMEZONE = process.env.CASH_TIMEZONE || 'America/Mexico_City';
+
+// closingReason of cash cuts closed by the end-of-day job instead of a real count. Reports
+// treat those cuts as "SIN_CONTEO" until someone corrects them with the counted cash.
+export const AUTO_CLOSE_REASON = 'Cierre automático sin conteo';

@@ -2,7 +2,8 @@ import { apiClient } from '../../../app/api';
 
 const BASE_URL = '/income-statement';
 
-export type CashStatus = 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' | 'PENDIENTE' | null;
+// SIN_CONTEO: the cut was closed automatically at the end of the day and nobody counted the cash yet.
+export type CashStatus = 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' | 'PENDIENTE' | 'SIN_CONTEO' | null;
 
 export interface DayFinancialSummary {
   date: string;

@@ -1,3 +1,5 @@
+// Must be the first import: points prisma and the app at the local test database.
+import "../setup/test-env";
 import { expect, test } from "@playwright/test";
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
@@ -7,7 +9,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { prisma } from "../../src/config/prisma";
 
-const backendRoot = path.resolve(__dirname, "../..");
+// Playwright runs from backend/ (npm scripts); __dirname is unavailable in this ESM package.
+const backendRoot = process.cwd();
 const frontendRoot = path.resolve(backendRoot, "../frontend");
 const frontendOrigin = "http://127.0.0.1:5173";
 const backendOrigin = "http://127.0.0.1:4000";
@@ -15,6 +18,8 @@ const testEmail = `sec006-${randomUUID()}@example.com`;
 const testPassword = `SEC006-${randomUUID()}-Password!`;
 const testRoleName = `sec006-role-${randomUUID()}`;
 let testRoleId: string;
+let cashRegisterId: string;
+let cashSessionId: string;
 let backendServer: Server;
 let viteServer: ChildProcess;
 
@@ -58,7 +63,7 @@ test.beforeAll(async () => {
   });
   testRoleId = role.id;
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: "SEC-006 E2E User",
       email: testEmail,
@@ -66,6 +71,14 @@ test.beforeAll(async () => {
       roleId: testRoleId,
     },
   });
+
+  // R-08: an open cash drawer must survive the user logging out.
+  const register = await prisma.cashRegister.create({ data: { name: `sec006-register-${randomUUID()}` } });
+  cashRegisterId = register.id;
+  const cashSession = await prisma.cashSession.create({
+    data: { cashRegisterId, openedById: user.id, status: "open", openingAmount: 100, expectedAmount: 100 },
+  });
+  cashSessionId = cashSession.id;
 
   const { app } = await import("../../src/app");
   backendServer = createServer(app);
@@ -79,6 +92,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await prisma.cashSession.deleteMany({ where: { cashRegisterId } });
+  await prisma.cashRegister.deleteMany({ where: { id: cashRegisterId } });
   await prisma.user.deleteMany({ where: { email: testEmail } });
   if (testRoleId) await prisma.role.delete({ where: { id: testRoleId } });
   stopProcess(viteServer);
@@ -134,12 +149,19 @@ test("SEC-006: sesión segura, refresh y logout", async ({ page, context }) => {
 
   await page.goto(`${frontendOrigin}/settings`);
   await expect(page).toHaveURL(`${frontendOrigin}/settings`);
+  // The logout button lives in the "Sesión" tab of Configuración.
+  await page.getByRole("button", { name: /^sesi[oó]n$/i }).click();
   await page.getByRole("button", { name: /cerrar sesi[oó]n|logout/i }).click();
   await expect(page).toHaveURL(/login/);
 
   expect(
     (await page.request.get(`${backendOrigin}/api/auth/me`)).status(),
   ).toBe(401);
+
+  // R-08: logging out does not close (nor fake a count for) the open cash drawer.
+  const drawer = await prisma.cashSession.findUniqueOrThrow({ where: { id: cashSessionId } });
+  expect(drawer.status).toBe("open");
+  expect(drawer.closingAmount).toBeNull();
 
   await page.reload();
   await expect(page).toHaveURL(/login/);

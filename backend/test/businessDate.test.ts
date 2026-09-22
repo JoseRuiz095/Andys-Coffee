@@ -6,6 +6,9 @@ import {
   getZonedCalendarDate,
   getWeekRange,
   getMonthRange,
+  getZonedInstant,
+  getBusinessMidpointInstant,
+  getZonedTimeOfDay,
 } from '../src/utils/businessDate';
 
 const TZ = 'America/Mexico_City'; // UTC-6 (no DST in Mexico as of 2022+)
@@ -52,4 +55,25 @@ test('getMonthRange returns every calendar date in the month, including short/le
   const feb2026 = getMonthRange('2026-02', TZ); // non-leap year
   assert.equal(feb2026.monthEnd, '2026-02-28');
   assert.equal(feb2026.days.length, 28);
+});
+
+// --- C-01: back-dated expenses must land inside business hours ---
+
+test('getZonedInstant converts a local wall-clock time to the matching UTC instant', () => {
+  assert.equal(getZonedInstant('2026-09-10', 15 * 60 + 30, TZ).toISOString(), '2026-09-10T21:30:00.000Z');
+  assert.equal(getZonedInstant('2026-09-10', 0, TZ).toISOString(), '2026-09-10T06:00:00.000Z');
+});
+
+test('getBusinessMidpointInstant places the record mid business day, on the same local date', () => {
+  const instant = getBusinessMidpointInstant('2026-09-10', '09:00', '22:00', TZ);
+  assert.equal(instant.toISOString(), '2026-09-10T21:30:00.000Z'); // 15:30 local
+  assert.equal(getZonedCalendarDate(instant, TZ), '2026-09-10');
+  // Regression: the old code stored 12:00Z = 06:00 local, before opening, and the income
+  // statement silently dropped the expense.
+  const { hour } = getZonedTimeOfDay(instant, TZ);
+  assert.ok(hour >= 9 && hour < 22, `hour ${hour} must be inside business hours`);
+});
+
+test('getBusinessMidpointInstant falls back to local noon for an invalid range', () => {
+  assert.equal(getBusinessMidpointInstant('2026-09-10', '22:00', '09:00', TZ).toISOString(), '2026-09-10T18:00:00.000Z');
 });

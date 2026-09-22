@@ -19,6 +19,7 @@ import {
   addCalendarDays,
 } from '../utils/businessDate';
 import type { DistributionSettingsInput } from '../validators/income-statement.validator';
+import { AUTO_CLOSE_REASON } from '../config/app';
 
 export class IncomeStatementBusinessRuleError extends Error {
   constructor(message: string) {
@@ -27,7 +28,12 @@ export class IncomeStatementBusinessRuleError extends Error {
   }
 }
 
-type CashStatus = 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' | 'PENDIENTE' | null;
+// PENDIENTE: a session is still open. SIN_CONTEO: every session is closed but at least one
+// was closed by the end-of-day job without a real count, so there is no actual cash to compare.
+type CashStatus = 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' | 'PENDIENTE' | 'SIN_CONTEO' | null;
+
+const isUncountedClosing = (session: { status: string; closingReason: string | null }) =>
+  session.status === 'closed' && session.closingReason === AUTO_CLOSE_REASON;
 
 export interface DistributionPercentages {
   savingsPercent: number;
@@ -85,7 +91,7 @@ export interface DayDetailResponse extends DayFinancialSummary {
     closingAmount: number | null;
     difference: number | null;
     status: string;
-    cashStatus: 'PENDIENTE' | 'CUADRADA' | 'SOBRANTE' | 'FALTANTE';
+    cashStatus: Exclude<CashStatus, null>;
     closingReason: string | null;
   }>;
   expenses: Array<{
@@ -225,6 +231,8 @@ export function computeDayCore(
     expectedCashAndTransfer = expectedCash.plus(transferRevenue); // Efectivo esperado + transferencias cobradas
     if (openSessionsCount > 0) {
       cashStatus = 'PENDIENTE';
+    } else if (rows.sessions.some(isUncountedClosing)) {
+      cashStatus = 'SIN_CONTEO';
     } else {
       actualCash = sumDecimals(rows.sessions, (s) => s.closingAmount);
       cashDifference = actualCash.minus(expectedCash);
@@ -611,8 +619,10 @@ export const incomeStatementService = {
     return {
       ...summary,
       sessions: sessions.map((s) => {
-        let cashStatus: 'PENDIENTE' | 'CUADRADA' | 'SOBRANTE' | 'FALTANTE' = 'PENDIENTE';
-        if (s.status === 'closed' && s.difference !== null) {
+        let cashStatus: Exclude<CashStatus, null> = 'PENDIENTE';
+        if (isUncountedClosing(s)) {
+          cashStatus = 'SIN_CONTEO';
+        } else if (s.status === 'closed' && s.difference !== null) {
           cashStatus = s.difference.isZero() ? 'CUADRADA' : (s.difference.greaterThan(0) ? 'SOBRANTE' : 'FALTANTE');
         }
         return {

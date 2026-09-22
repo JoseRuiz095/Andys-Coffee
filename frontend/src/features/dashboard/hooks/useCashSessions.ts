@@ -7,6 +7,7 @@ export interface CashSession {
   openingAmount: number | string
   expectedAmount: number | string
   closingAmount?: number | string
+  closingReason?: string | null
   status: string
   openedAt: string
   closedAt?: string

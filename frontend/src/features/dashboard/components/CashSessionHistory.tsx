@@ -4,6 +4,9 @@ import { Spinner } from '../../../shared/components/Spinner'
 import { sileo } from 'sileo'
 import { cashDifferenceReasons } from '../constants'
 
+// Must match AUTO_CLOSE_REASON in backend/src/config/app.ts.
+const AUTO_CLOSE_REASON = 'Cierre automático sin conteo'
+
 export function CashSessionHistory({ canCorrect }: { canCorrect: boolean }) {
   const { data, isLoading } = useCashSessionHistory()
   const { mutate: correctClosing, isPending: isCorrecting } = useCorrectCashClosing()
@@ -72,6 +75,8 @@ export function CashSessionHistory({ canCorrect }: { canCorrect: boolean }) {
               const closing = parseFloat(String(session.closingAmount || 0))
               const difference = closing - expected
               const isCorrectingThis = correctingSessionId === session.id
+              // Closed by the end-of-day job: the "counted" amount is just the expected one.
+              const isUncounted = session.closingReason === AUTO_CLOSE_REASON
 
               return (
                 <tr
@@ -90,9 +95,15 @@ export function CashSessionHistory({ canCorrect }: { canCorrect: boolean }) {
                   <td className="p-4 text-right" style={{ color: 'var(--color-text-primary)' }}>
                     ${closing.toFixed(2)}
                   </td>
-                  <td className="p-4 text-right" style={{ color: difference < 0 ? 'var(--color-text-secondary)' : 'var(--color-primary)' }}>
-                    {difference < 0 ? '-' : ''}${Math.abs(difference).toFixed(2)}
-                  </td>
+                  {isUncounted ? (
+                    <td className="p-4 text-right" style={{ color: 'var(--color-warning)' }}>
+                      Sin conteo
+                    </td>
+                  ) : (
+                    <td className="p-4 text-right" style={{ color: difference < 0 ? 'var(--color-text-secondary)' : 'var(--color-primary)' }}>
+                      {difference < 0 ? '-' : ''}${Math.abs(difference).toFixed(2)}
+                    </td>
+                  )}
                   <td className="p-4 text-center">
                     {isCorrectingThis ? (
                       <div className="space-y-2">

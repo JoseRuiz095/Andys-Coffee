@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries } from '../utils/businessDate';
+import { AUTO_CLOSE_REASON } from '../config/app';
 
 const sessionInclude = {
   cashRegister: true,
@@ -108,7 +109,13 @@ export const CashRepository = {
     const correctedDifference = correctedAmount.sub(session.expectedAmount);
     const correctedSession = await tx.cashSession.update({
       where: { id: session.id },
-      data: { closingAmount: correctedAmount, difference: correctedDifference },
+      data: {
+        closingAmount: correctedAmount,
+        difference: correctedDifference,
+        // A correction is a real count: an uncounted auto-close stops being reported as such
+        // (the original reason stays in the audit log below).
+        ...(session.closingReason === AUTO_CLOSE_REASON && { closingReason: reason }),
+      },
       include: sessionInclude,
     });
 

@@ -5,6 +5,7 @@ const STATUS_LABEL: Record<Exclude<CashStatus, null>, string> = {
   SOBRANTE: 'Sobrante',
   FALTANTE: 'Faltante',
   PENDIENTE: 'Pendiente de cierre',
+  SIN_CONTEO: 'Sin conteo',
 };
 
 const STATUS_COLOR_VAR: Record<Exclude<CashStatus, null>, string> = {
@@ -12,6 +13,7 @@ const STATUS_COLOR_VAR: Record<Exclude<CashStatus, null>, string> = {
   SOBRANTE: '--color-info',
   FALTANTE: '--color-danger',
   PENDIENTE: '--color-warning',
+  SIN_CONTEO: '--color-warning',
 };
 
 export function CashStatusBadge({ status }: { status: CashStatus }) {

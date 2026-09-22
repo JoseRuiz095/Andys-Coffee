@@ -1,6 +1,6 @@
 import { NotificationType, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { CASH_TIMEZONE } from '../config/app';
+import { AUTO_CLOSE_REASON, CASH_TIMEZONE } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
 import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { PreferenceRepository } from '../repositories/preference.repository';
@@ -105,10 +105,13 @@ export const CashService = {
     if (currentHour < closeHour) return null;
     const session = await CashRepository.findActiveSession();
     if (!session) return null;
+    // Safety net only: nobody counted the cash, so the expected amount is recorded and the
+    // cut is labelled as uncounted. An admin should fix it from "Cortes de caja" (cash.correct)
+    // with the real count.
     return this.closeSession(closedById, {
       closingAmount: Number(session.expectedAmount),
-      reason: 'Cierre automático al finalizar la jornada',
-      comment: 'Cierre automático con el efectivo esperado registrado.',
+      reason: AUTO_CLOSE_REASON,
+      comment: 'Nadie contó el efectivo: se registró el monto esperado. Corrige el corte con el conteo real.',
     });
   },
 

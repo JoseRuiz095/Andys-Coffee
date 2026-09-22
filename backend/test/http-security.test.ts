@@ -66,3 +66,16 @@ test("genera y propaga un request ID sin aceptar valores arbitrarios", async () 
   });
   assert.notEqual(arbitraryResponse.headers.get("x-request-id"), "not-a-request-id");
 });
+test("M-05: responde con cabeceras de seguridad y sin X-Powered-By", async () => {
+  const response = await fetch(`${baseUrl}/health`);
+  assert.equal(response.headers.get("x-powered-by"), null);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.ok(response.headers.get("content-security-policy"));
+});
+
+test("M-01: el catálogo de productos (con costos y recetas) no es público", async () => {
+  for (const path of ["/api/products", "/api/products/any-id"]) {
+    const response = await fetch(`${baseUrl}${path}`);
+    assert.equal(response.status, 401, path);
+  }
+});

@@ -19,16 +19,21 @@ function getTokenFromCookie(cookieHeader: string | undefined): string | undefine
   return decodeURIComponent(cookie.slice("token=".length));
 }
 
+/** Session token from the Authorization header or the HttpOnly `token` cookie. */
+export function getRequestToken(req: Request): string | undefined {
+  const authHeader = req.headers.authorization;
+  const tokenFromHeader = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : undefined;
+  return tokenFromHeader ?? getTokenFromCookie(req.headers.cookie);
+}
+
 export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  const authHeader = req.headers.authorization;
-  const tokenFromHeader = authHeader?.startsWith("Bearer ")
-    ? authHeader.split(" ")[1]
-    : undefined;
-  const token = tokenFromHeader ?? getTokenFromCookie(req.headers.cookie);
+  const token = getRequestToken(req);
 
   if (!token) {
     return res.status(401).json({ message: "Token de autenticación ausente." });
@@ -47,6 +52,12 @@ export async function requireAuth(
 
     if (!user || !user.isActive) {
       return res.status(401).json({ message: "Sesión inválida o usuario inactivo." });
+    }
+
+    // Tokens issued before the `tv` claim existed count as version 0.
+    const tokenVersion = typeof payload.tv === "number" ? payload.tv : 0;
+    if (tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({ message: "La sesión fue cerrada. Inicia sesión de nuevo." });
     }
 
     const permissions = user.role?.permissions.map(({ permission }) => permission.name) ?? [];

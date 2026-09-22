@@ -152,8 +152,10 @@ test(
 
     // Distribution (Ahorro/Fondo/Surtido) is applied to gananciaDistribuible (gananciaNeta minus
     // the fixed operating expense), not gananciaNeta directly — must sum exactly to it either way.
+    // Nothing is distributed when it is zero or negative (e.g. here: 100 - 20 - fixed expenses).
     const distTotal = summary.distribucion.ahorro + summary.distribucion.fondoNegocio + summary.distribucion.surtido;
-    assert.ok(Math.abs(distTotal - summary.distribucion.gananciaDistribuible) < 0.001);
+    const expectedDistributed = Math.max(0, summary.distribucion.gananciaDistribuible);
+    assert.ok(Math.abs(distTotal - expectedDistributed) < 0.001, `distributed ${distTotal}, expected ${expectedDistributed}`);
 
     // The day is in the past and fully closed -> a final snapshot must have been persisted.
     const snapshot = await prisma.incomeStatementDailySnapshot.findUnique({

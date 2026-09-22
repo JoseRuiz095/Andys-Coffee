@@ -39,3 +39,36 @@ test('no expone detalles internos para errores desconocidos', () => {
     body: { message: 'Ocurrió un error inesperado en el servidor.' },
   });
 });
+test('L-03: ConflictError y DuplicateError se mapean a 409 sin try/catch en el controller', async () => {
+  const { ConflictError, DuplicateError } = await import('../src/utils/errors');
+
+  const conflict = responseRecorder();
+  errorHandler(new ConflictError('No se puede eliminar.'), request, conflict.response, next);
+  assert.deepEqual(conflict.result(), { statusCode: 409, body: { message: 'No se puede eliminar.' } });
+
+  const duplicate = responseRecorder();
+  errorHandler(new DuplicateError('SUPPLIER', 'Ya existe.', 'abc-123'), request, duplicate.response, next);
+  assert.deepEqual(duplicate.result(), {
+    statusCode: 409,
+    body: { error: 'DUPLICATE_ERROR', message: 'Ya existe.', details: { type: 'SUPPLIER', existingId: 'abc-123' } },
+  });
+});
+
+test('L-10: una violación de CHECK de la BD (P2004) responde 409 en lugar de 500', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const recorder = responseRecorder();
+  const error = new Prisma.PrismaClientKnownRequestError('check violation', { code: 'P2004', clientVersion: 'test' });
+  errorHandler(error, request, recorder.response, next);
+  assert.equal(recorder.result().statusCode, 409);
+});
+
+test('L-02: validate() responde con el mismo formato que el handler global', async () => {
+  const { z } = await import('zod');
+  const { validate } = await import('../src/middleware/validate');
+  const recorder = responseRecorder();
+  validate(z.object({ amount: z.number() }))({ body: { amount: 'x' } } as any, recorder.response, next);
+  const { statusCode, body } = recorder.result() as { statusCode: number; body: { message: string; errors: Record<string, string[]> } };
+  assert.equal(statusCode, 400);
+  assert.equal(body.message, 'Error de validación.');
+  assert.ok(Array.isArray(body.errors.amount), 'errors must be field errors, not a serialized string');
+});
