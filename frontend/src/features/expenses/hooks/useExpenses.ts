@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 import { ExpenseAPI } from '../api/expense.api';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListFilters } from '../types/expense.types';
 
@@ -14,8 +15,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
   const createMutation = useMutation({
     mutationFn: (input: CreateExpenseInput) => ExpenseAPI.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto registrado', description: 'El gasto se registró correctamente.' });
     },
     onError: (error: any) => {
@@ -27,8 +27,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
   const updateMutation = useMutation({
     mutationFn: (input: UpdateExpenseInput) => ExpenseAPI.update(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto actualizado', description: 'El gasto se actualizó correctamente.' });
     },
     onError: (error: any) => {
@@ -40,8 +39,7 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => ExpenseAPI.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto eliminado', description: 'El gasto se eliminó correctamente.' });
     },
     onError: (error: any) => {

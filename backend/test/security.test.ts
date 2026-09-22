@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 import jwt from "jsonwebtoken";
 
+// npm scripts run from backend/; __dirname is not available because the package is ESM.
+const backendRoot = process.cwd();
 const validSecret = "test-secret-with-enough-entropy-123456789";
 const csrfSecret = "12345678901234567890123456789012";
 
@@ -25,7 +27,7 @@ function runTsx(code: string, env: NodeJS.ProcessEnv = {}) {
   }
 
   return execFileSync(process.execPath, ["--import", "tsx", "-e", code], {
-    cwd: resolve(__dirname, ".."),
+    cwd: backendRoot,
     env: childEnv,
     encoding: "utf8",
   });
@@ -61,7 +63,7 @@ test("rotar JWT_SECRET invalida tokens firmados con la clave anterior", async ()
 test("la configuración de Prisma rechaza sslmode inseguro y exige CA", () => {
   assert.throws(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=disable" }), /Database connection must use SSL/);
   assert.throws(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=require", DATABASE_SSL_CA: undefined, DATABASE_SSL_CA_PATH: "missing-ca.crt" }), /ENOENT/);
-  const caPath = resolve(__dirname, "..", "certs", "prod-ca-2021.crt");
+  const caPath = resolve(backendRoot, "certs", "prod-ca-2021.crt");
   assert.ok(readFileSync(caPath, "utf8").length > 0);
   assert.doesNotThrow(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=verify-full", DATABASE_SSL_CA_PATH: "certs/prod-ca-2021.crt" }));
 });

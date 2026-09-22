@@ -9,13 +9,14 @@ import {
 import { prisma } from '../config/prisma';
 import { OrderRepository } from '../repositories/order.repository';
 import { UserRepository } from '../repositories/user.repository';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
-import { auditLog } from '../utils/logger';
+import { auditLog, logger } from '../utils/logger';
 import { calculateBestPromotion, type PricingPromotion } from './pricing.service';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
-import { getZonedDayBoundaries, getTodayInZone } from '../utils/businessDate';
+import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate } from '../utils/businessDate';
 
 // --- Custom Errors for Service Layer ---
 
@@ -24,6 +25,33 @@ class StateTransitionError extends Error {
     super(message);
     this.name = 'StateTransitionError';
   }
+}
+
+function businessRuleError(message: string) {
+  const error = new Error(message);
+  error.name = 'BusinessRuleError';
+  return error;
+}
+
+/**
+ * Cash session that should receive a reversal for money originally recorded in
+ * `originalSessionId`. A closed session is a finished cash cut and must not change, so
+ * the reversal is posted to the currently open session instead (the refund leaves the
+ * drawer today).
+ */
+async function resolveReversalSessionId(tx: Prisma.TransactionClient, originalSessionId: string): Promise<string> {
+  const original = await tx.cashSession.findUnique({ where: { id: originalSessionId }, select: { status: true } });
+  if (original?.status === 'open') return originalSessionId;
+
+  const openSession = await tx.cashSession.findFirst({
+    where: { status: 'open' },
+    orderBy: { openedAt: 'desc' },
+    select: { id: true },
+  });
+  if (!openSession) {
+    throw businessRuleError('La venta pertenece a una caja ya cerrada. Abre la caja para registrar la devolución.');
+  }
+  return openSession.id;
 }
 
 export async function getNextCustomerName(tx: Prisma.TransactionClient): Promise<string> {
@@ -134,7 +162,15 @@ export const OrderService = {
       updateData.completedAt = new Date();
     }
 
-    return prisma.$transaction(async (tx) => {
+    let deletedExpenseDate: Date | null = null;
+    const result = await prisma.$transaction(async (tx) => {
+      // Re-check the status inside the transaction: the read above happened outside it, so
+      // a concurrent request may already have moved (or cancelled) this order.
+      const current = await tx.order.findUnique({ where: { id }, select: { status: true } });
+      if (!current || current.status !== order.status) {
+        throw new StateTransitionError('El pedido cambió de estado mientras se procesaba. Recarga e intenta de nuevo.');
+      }
+
       if (status === OrderStatus.cancelled && order.inventoryProcessed) {
         const inventoryMovements = await tx.inventoryMovement.findMany({
           where: { referenceType: 'order', referenceId: order.id, type: 'sale' },
@@ -161,9 +197,10 @@ export const OrderService = {
           where: { cashSessionId: order.cashSessionId ?? undefined, referenceType: 'order', referenceId: order.id, type: 'sale' },
         });
         for (const movement of saleMovements) {
+          const reversalSessionId = await resolveReversalSessionId(tx, movement.cashSessionId);
           await tx.cashMovement.create({
             data: {
-              cashSessionId: movement.cashSessionId,
+              cashSessionId: reversalSessionId,
               type: 'sale_reversal',
               amount: movement.amount.negated(),
               referenceType: 'order_cancellation',
@@ -173,13 +210,15 @@ export const OrderService = {
             },
           });
           await tx.cashSession.update({
-            where: { id: movement.cashSessionId },
+            where: { id: reversalSessionId },
             data: { expectedAmount: { decrement: movement.amount } },
           });
         }
 
+        // Pending (pay-later) payments are cancelled too, so they leave the pending list
+        // and can no longer be settled for a sale that no longer exists.
         await tx.payment.updateMany({
-          where: { orderId: order.id, status: 'paid' },
+          where: { orderId: order.id, status: { in: ['paid', 'pending'] } },
           data: { status: 'cancelled' },
         });
 
@@ -190,9 +229,10 @@ export const OrderService = {
             where: { referenceType: 'order', referenceId: order.id, type: 'delivery_collected' },
           });
           if (collectedMovement) {
+            const reversalSessionId = await resolveReversalSessionId(tx, collectedMovement.cashSessionId);
             await tx.cashMovement.create({
               data: {
-                cashSessionId: collectedMovement.cashSessionId,
+                cashSessionId: reversalSessionId,
                 type: 'delivery_collected_reversal',
                 amount: collectedMovement.amount.negated(),
                 referenceType: 'order_cancellation',
@@ -202,7 +242,7 @@ export const OrderService = {
               },
             });
             await tx.cashSession.update({
-              where: { id: collectedMovement.cashSessionId },
+              where: { id: reversalSessionId },
               data: { expectedAmount: { decrement: collectedMovement.amount } },
             });
           }
@@ -215,9 +255,10 @@ export const OrderService = {
               where: { referenceType: 'expense', referenceId: deliveryExpense.id, type: 'expense' },
             });
             if (expenseMovement) {
+              const reversalSessionId = await resolveReversalSessionId(tx, expenseMovement.cashSessionId);
               await tx.cashMovement.create({
                 data: {
-                  cashSessionId: expenseMovement.cashSessionId,
+                  cashSessionId: reversalSessionId,
                   type: 'expense_reversal',
                   amount: expenseMovement.amount.negated(),
                   referenceType: 'order_cancellation',
@@ -227,13 +268,14 @@ export const OrderService = {
                 },
               });
               await tx.cashSession.update({
-                where: { id: expenseMovement.cashSessionId },
+                where: { id: reversalSessionId },
                 data: { expectedAmount: { increment: expenseMovement.amount } },
               });
             }
             // The expense was auto-generated by this sale — remove it so it stops
             // counting in Gastos Variables now that the sale no longer exists.
             await tx.expense.delete({ where: { id: deliveryExpense.id } });
+            deletedExpenseDate = deliveryExpense.expenseDate;
           }
         }
 
@@ -267,6 +309,21 @@ export const OrderService = {
       }, 'Order status changed');
       return updatedOrder;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    // Completing or cancelling changes which orders count as revenue for the day the
+    // order was created, so a frozen (final) income-statement snapshot of that day is
+    // dropped and recomputed on the next read.
+    if (status === OrderStatus.completed || status === OrderStatus.cancelled) {
+      const affectedDates = new Set([getZonedCalendarDate(order.createdAt)]);
+      // Assigned inside the transaction callback, which TS flow analysis doesn't track.
+      const expenseDate = deletedExpenseDate as Date | null;
+      if (expenseDate) affectedDates.add(getZonedCalendarDate(expenseDate));
+      for (const dateStr of affectedDates) {
+        await incomeStatementRepository.invalidateSnapshot(dateStr);
+      }
+    }
+
+    return result;
   },
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
@@ -644,18 +701,23 @@ export const OrderService = {
       // serialization conflict on the sales transaction, and only for a freshly created
       // order (not an idempotent replay of an already-committed one).
       if (result.wasCreated) {
-        const usersToNotify = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
+        // The sale is already committed: a notification failure must not turn it into a 500.
+        try {
+          const usersToNotify = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
 
-        if (usersToNotify.length > 0) {
-          await NotificationService.createNotification(
-            {
-              title: 'Nuevo Pedido',
-              message: `Se ha creado un nuevo pedido: #${result.order.orderNumber.toString()} por ${result.order.customerName}.`,
-              type: 'NEW_ORDER',
-              referenceId: result.order.id,
-            },
-            usersToNotify.map((user) => user.id),
-          );
+          if (usersToNotify.length > 0) {
+            await NotificationService.createNotification(
+              {
+                title: 'Nuevo Pedido',
+                message: `Se ha creado un nuevo pedido: #${result.order.orderNumber.toString()} por ${result.order.customerName}.`,
+                type: 'NEW_ORDER',
+                referenceId: result.order.id,
+              },
+              usersToNotify.map((user) => user.id),
+            );
+          }
+        } catch (notificationError) {
+          logger.error({ err: notificationError, orderId: result.order.id, requestId }, 'Order notification failed');
         }
       }
 
@@ -683,7 +745,7 @@ export const OrderService = {
     }
 
     return prisma.payment.findMany({
-      where: { status: 'pending' },
+      where: { status: 'pending', order: { status: { not: 'cancelled' } } },
       include: {
         order: {
           select: { orderNumber: true, customerName: true, total: true, createdAt: true },
@@ -703,16 +765,22 @@ export const OrderService = {
       throw new NotFoundError('Pago no encontrado.');
     }
     if (payment.status !== 'pending') {
-      const error = new Error('Este pago ya fue liquidado o no está pendiente.');
-      error.name = 'BusinessRuleError';
-      throw error;
+      throw businessRuleError('Este pago ya fue liquidado o no está pendiente.');
+    }
+    if (payment.order.status === OrderStatus.cancelled) {
+      throw businessRuleError('No se puede liquidar el pago de un pedido cancelado.');
     }
 
-    return prisma.$transaction(async (tx) => {
-      const updatedPayment = await tx.payment.update({
-        where: { id: paymentId },
+    const updatedPayment = await prisma.$transaction(async (tx) => {
+      // Conditional update: only one of two concurrent settle requests can flip the
+      // payment from 'pending', so the cash movement below is never recorded twice.
+      const claimed = await tx.payment.updateMany({
+        where: { id: paymentId, status: 'pending', order: { status: { not: OrderStatus.cancelled } } },
         data: { status: 'paid', method: settleMethod, paidAt: new Date() },
       });
+      if (claimed.count !== 1) {
+        throw businessRuleError('Este pago ya fue liquidado o no está pendiente.');
+      }
 
       if (settleMethod === 'cash') {
         const openCashSession = await tx.cashSession.findFirst({
@@ -742,8 +810,13 @@ export const OrderService = {
         });
       }
 
-      return updatedPayment;
-    });
+      return tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    // A settled payment now counts as revenue for the day the order was created.
+    await incomeStatementRepository.invalidateSnapshot(getZonedCalendarDate(payment.order.createdAt));
+
+    return updatedPayment;
   },
 
   async getPendingDeliveries(user: AuthUser) {
@@ -773,21 +846,24 @@ export const OrderService = {
       throw new NotFoundError('Pedido no encontrado.');
     }
     if (!order.hasDelivery || order.deliveryResponsible !== 'customer_to_business') {
-      const error = new Error('Este pedido no tiene un mandadito pendiente de entrega.');
-      error.name = 'BusinessRuleError';
-      throw error;
+      throw businessRuleError('Este pedido no tiene un mandadito pendiente de entrega.');
+    }
+    if (order.status === OrderStatus.cancelled) {
+      throw businessRuleError('El pedido está cancelado; su mandadito ya no se entrega.');
     }
     if (order.deliveryHandedOff) {
-      const error = new Error('El mandadito de este pedido ya fue entregado.');
-      error.name = 'BusinessRuleError';
-      throw error;
+      throw businessRuleError('El mandadito de este pedido ya fue entregado.');
     }
 
     return prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
+      // Conditional update so two concurrent handoffs can't both take cash from the drawer.
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, deliveryHandedOff: false, status: { not: OrderStatus.cancelled } },
         data: { deliveryHandedOff: true, deliveryHandedOffAt: new Date() },
       });
+      if (claimed.count !== 1) {
+        throw businessRuleError('El mandadito de este pedido ya fue entregado.');
+      }
 
       if (order.deliveryPaymentMethod === 'cash') {
         const openCashSession = await tx.cashSession.findFirst({
@@ -817,8 +893,8 @@ export const OrderService = {
         });
       }
 
-      return updatedOrder;
-    });
+      return tx.order.findUniqueOrThrow({ where: { id: orderId } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
   async updateOrder(id: string, data: z.infer<typeof updateOrderSchema>, user: AuthUser) {

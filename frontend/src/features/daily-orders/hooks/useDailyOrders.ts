@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 import { DailyOrdersAPI } from '../api/daily-orders.api';
 import { updateOrderStatus } from '../../orders/services/order.service';
 
@@ -12,13 +13,13 @@ export function useDailyOrders(date: string) {
   });
 }
 
-export function useCancelDailyOrder(date: string) {
+export function useCancelDailyOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (orderId: string) => updateOrderStatus(orderId, 'cancelled'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, date] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({
         title: 'Orden cancelada',
         description: 'La orden fue cancelada correctamente.',

@@ -509,21 +509,6 @@ export const InventoryRepository = {
     });
   },
 
-  async updateAverageCost(
-    ingredientId: string,
-    newAverageCost: Prisma.Decimal | number,
-    client: PrismaClient = prisma,
-  ) {
-    return client.ingredient.update({
-      where: { id: ingredientId },
-      data: { averageCost: new Prisma.Decimal(newAverageCost) },
-      select: {
-        id: true,
-        averageCost: true,
-      },
-    });
-  },
-
   async createMovement(
     data: {
       ingredientId: string;

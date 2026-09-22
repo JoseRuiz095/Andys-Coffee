@@ -102,19 +102,6 @@ export const PurchaseRepository = {
     });
   },
 
-  async getPurchaseItems(purchaseId: string) {
-    return prisma.purchaseItem.findMany({
-      where: { purchaseId },
-      include: {
-        ingredient: {
-          include: {
-            unit: true,
-          },
-        },
-      },
-    });
-  },
-
   async findByIdWithItems(
     id: string,
     client: PrismaClient = prisma,
@@ -162,22 +149,6 @@ export const PurchaseRepository = {
         currentStock: true,
         averageCost: true,
       },
-    });
-  },
-
-  async createPurchaseItems(
-    purchaseId: string,
-    items: { ingredientId: string; quantity: string | number; unitCost: string | number; total: string | number }[],
-    client: PrismaClient = prisma,
-  ) {
-    return client.purchaseItem.createMany({
-      data: items.map(item => ({
-        purchaseId,
-        ingredientId: item.ingredientId,
-        quantity: new Prisma.Decimal(item.quantity),
-        unitCost: new Prisma.Decimal(item.unitCost),
-        total: new Prisma.Decimal(item.total),
-      })),
     });
   },
 };

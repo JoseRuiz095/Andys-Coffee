@@ -3,6 +3,8 @@ import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import multer from 'multer';
 import { logger } from '../utils/logger';
+import { DuplicateError } from '../utils/errors';
+import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
 export const errorHandler = (
   err: any,
@@ -48,8 +50,12 @@ export const errorHandler = (
     return res.status(404).json({ message: err.message });
   }
 
-  if (err.name === 'StateTransitionError' || err.name === 'BusinessRuleError') {
+  if (err.name === 'StateTransitionError' || err.name === 'BusinessRuleError' || err.name === 'ConflictError') {
     return res.status(409).json({ message: err.message });
+  }
+
+  if (err instanceof DuplicateError) {
+    return sendDuplicateErrorResponse(res, err);
   }
 
   if (err.code === 'EBADCSRFTOKEN' || (typeof err.message === 'string' && err.message.startsWith('Did not get a valid CSRF token'))) {
@@ -67,7 +73,7 @@ export const errorHandler = (
     if (err.code === 'P2025') {
       return res.status(404).json({ message: 'Recurso no encontrado.' });
     }
-    if (err.code === 'P2003' || err.code === 'P2014') {
+    if (err.code === 'P2003' || err.code === 'P2004' || err.code === 'P2014') {
       return res.status(409).json({ message: 'La operación entra en conflicto con datos existentes.' });
     }
     if (err.code === 'P2034') {

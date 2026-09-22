@@ -628,16 +628,17 @@ async function main() {
   // ==========================================================
 
   console.log("Asignando permisos a roles...");
-  await prisma.rolePermission.deleteMany({ where: { roleId: { in: [adminRoleId, cashierRoleId] } } });
-  
+  // Additive only: re-running the seed must not wipe permissions an admin customized.
   await prisma.rolePermission.createMany({
     data: allPermissions.map((p) => ({ roleId: adminRoleId, permissionId: p.id })),
+    skipDuplicates: true,
   });
 
   const cashierPermissionNames = ["products.read", "sales.read", "sales.create", "cash.open", "cash.close", "cash.read", "inventory.view"];
   const cashierPermissions = allPermissions.filter((p) => cashierPermissionNames.includes(p.name));
   await prisma.rolePermission.createMany({
     data: cashierPermissions.map((p) => ({ roleId: cashierRoleId, permissionId: p.id })),
+    skipDuplicates: true,
   });
 
   // ==========================================================
@@ -645,11 +646,15 @@ async function main() {
   // ==========================================================
 
   console.log("Creando usuario administrador...");
+  if (!process.env.ADMIN_SEED_PASSWORD && process.env.NODE_ENV === "production") {
+    throw new Error("ADMIN_SEED_PASSWORD es obligatorio para ejecutar el seed en producción.");
+  }
   const adminPassword = process.env.ADMIN_SEED_PASSWORD || "CambiarEstaPassword123!";
   const passwordHash = await bcrypt.hash(adminPassword, 12);
+  // The password is only set when the admin is first created; re-seeding never resets it.
   await prisma.user.upsert({
     where: { email: "admin@andyscoffee.local" },
-    update: { roleId: adminRoleId, passwordHash },
+    update: { roleId: adminRoleId },
     create: {
       name: "Administrador",
       email: "admin@andyscoffee.local",

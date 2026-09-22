@@ -33,12 +33,13 @@ test("createPurchaseSchema acepta costo unitario en 0 pero exige cantidad positi
   );
 });
 
-test("createPurchaseSchema rechaza tax negativo", () => {
+test("createPurchaseSchema no acepta tax del cliente (el servicio siempre lo fija en 0)", () => {
   const result = createPurchaseSchema.safeParse({
     items: [{ ingredientId, quantity: 5, unitCost: 10 }],
     tax: -1,
   });
-  assert.equal(result.success, false);
+  assert.equal(result.success, true);
+  assert.equal("tax" in (result.data ?? {}), false);
 });
 
 test("updatePurchaseSchema aplica las mismas reglas de signo", () => {

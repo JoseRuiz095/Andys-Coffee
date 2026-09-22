@@ -13,10 +13,11 @@ import { ProfileForm } from '../components/ProfileForm'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
 import { DistributionSettingsForm, FixedExpenseSettingsForm } from '../../income-statement'
+import { CashSessionHistory } from '../../dashboard/components/CashSessionHistory'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -60,7 +61,9 @@ export function SettingsPage() {
 
   // Granular permission checks
   const canManageUsers = hasPermission(currentUser, 'users.read')
-  const showAdminSection = canManageUsers
+  const canReadCashHistory = hasPermission(currentUser, 'cash.read')
+  const canCorrectCash = hasPermission(currentUser, 'cash.correct')
+  const showAdminSection = canManageUsers || canReadCashHistory
 
   return (
     <div
@@ -156,6 +159,13 @@ export function SettingsPage() {
                   />
                 </>
               )}
+              {canReadCashHistory && (
+                <NavTab
+                  label="Cortes de caja"
+                  isActive={activeTab === 'cash-history'}
+                  onClick={() => setActiveTab('cash-history')}
+                />
+              )}
               <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
               <NavTab
                 label="Sesión"
@@ -210,6 +220,13 @@ export function SettingsPage() {
 
             {/* Roles */}
             {activeTab === 'roles' && canManageUsers && <RolesView currentUser={currentUser} />}
+
+            {/* Cortes de caja */}
+            {activeTab === 'cash-history' && canReadCashHistory && (
+              <Card variant="panel">
+                <CashSessionHistory canCorrect={canCorrectCash} />
+              </Card>
+            )}
 
 
             {/* Sesión */}

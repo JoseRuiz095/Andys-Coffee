@@ -93,6 +93,16 @@ export function getZonedDayBoundaries(
   return { start, end };
 }
 
+/** UTC instant for the wall-clock time `minutesOfDay` (0-1439) on `dateStr` in `timeZone`. */
+export function getZonedInstant(
+  dateStr: string,
+  minutesOfDay: number,
+  timeZone: string = CASH_TIMEZONE,
+): Date {
+  const { year, month, day } = splitDateString(dateStr);
+  return zonedWallTimeToUtc(year, month, day, Math.floor(minutesOfDay / 60), minutesOfDay % 60, 0, timeZone);
+}
+
 /** Calendar date (YYYY-MM-DD) that `instant` falls on, in `timeZone`. */
 export function getZonedCalendarDate(instant: Date, timeZone: string = CASH_TIMEZONE): string {
   return new Intl.DateTimeFormat('en-CA', {

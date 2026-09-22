@@ -77,7 +77,6 @@ export function DailyOrdersPage() {
         isOpen={selectedOrder !== null}
         order={selectedOrder}
         currentUser={currentUser}
-        date={date}
         onClose={() => setSelectedOrder(null)}
       />
     </div>

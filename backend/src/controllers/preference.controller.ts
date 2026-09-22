@@ -11,7 +11,7 @@ export async function listPreferences(req: Request, res: Response) {
     return res.json({ data: preferences });
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     throw error;
   }
@@ -26,10 +26,10 @@ export async function getPreference(req: Request, res: Response) {
     return res.json({ data: preference });
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     if (error.name === 'NotFoundError') {
-      return res.status(404).json({ error: error.message, statusCode: 404 });
+      return res.status(404).json({ message: error.message, statusCode: 404 });
     }
     throw error;
   }
@@ -52,10 +52,10 @@ export async function updatePreference(req: Request, res: Response) {
     return res.json({ data: preference });
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ error: error.message, statusCode: 400 });
+      return res.status(400).json({ message: error.message, statusCode: 400 });
     }
     throw error;
   }
@@ -70,10 +70,10 @@ export async function deletePreference(req: Request, res: Response) {
     return res.status(204).send();
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     if (error.name === 'NotFoundError') {
-      return res.status(404).json({ error: error.message, statusCode: 404 });
+      return res.status(404).json({ message: error.message, statusCode: 404 });
     }
     throw error;
   }
@@ -87,7 +87,7 @@ export async function getGeneralPreferences(req: Request, res: Response) {
     return res.json({ data: preferences });
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     throw error;
   }
@@ -102,7 +102,7 @@ export async function upsertGeneralPreferences(req: Request, res: Response) {
     return res.json({ data: preferences });
   } catch (error: any) {
     if (error.name === 'AuthorizationError') {
-      return res.status(403).json({ error: error.message, statusCode: 403 });
+      return res.status(403).json({ message: error.message, statusCode: 403 });
     }
     throw error;
   }

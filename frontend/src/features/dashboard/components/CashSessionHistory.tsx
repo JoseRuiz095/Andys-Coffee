@@ -4,7 +4,7 @@ import { Spinner } from '../../../shared/components/Spinner'
 import { sileo } from 'sileo'
 import { cashDifferenceReasons } from '../constants'
 
-export function CashSessionHistory() {
+export function CashSessionHistory({ canCorrect }: { canCorrect: boolean }) {
   const { data, isLoading } = useCashSessionHistory()
   const { mutate: correctClosing, isPending: isCorrecting } = useCorrectCashClosing()
   const [correctingSessionId, setCorrectingSessionId] = useState<string | null>(null)
@@ -43,7 +43,7 @@ export function CashSessionHistory() {
 
   if (closedSessions.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
         No hay cierres de caja registrados
       </div>
     )
@@ -145,7 +145,8 @@ export function CashSessionHistory() {
                           <button
                             onClick={() => handleCorrect(session.id)}
                             disabled={isCorrecting || !correctionReason}
-                            className="flex-1 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50"
+                            className="flex-1 px-2 py-1 rounded text-xs disabled:opacity-50"
+                            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-surface)' }}
                           >
                             {isCorrecting ? 'Guardando...' : 'Guardar'}
                           </button>
@@ -166,13 +167,16 @@ export function CashSessionHistory() {
                           </button>
                         </div>
                       </div>
+                    ) : !canCorrect ? (
+                      <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
                     ) : (
                       <button
                         onClick={() => {
                           setCorrectingSessionId(session.id)
                           setCorrectionAmount(closing.toString())
                         }}
-                        className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                        className="px-3 py-1 rounded text-xs"
+                        style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-surface)' }}
                       >
                         Corregir
                       </button>

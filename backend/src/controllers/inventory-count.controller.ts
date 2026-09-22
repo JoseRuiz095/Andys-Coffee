@@ -25,7 +25,7 @@ export const InventoryCountController = {
       res.json(result);
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       throw error;
@@ -43,7 +43,7 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       throw error;
@@ -63,11 +63,11 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       throw error;
@@ -88,7 +88,7 @@ export const InventoryCountController = {
 
       if (!validation.success) {
         const errors = validation.error.flatten();
-        return res.status(400).json({ error: 'Validación fallida', details: errors });
+        return res.status(400).json({ message: 'Validación fallida', errors });
       }
 
       const item = await InventoryCountService.addItem(
@@ -105,15 +105,15 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ message: error.message });
       }
 
       throw error;
@@ -133,15 +133,15 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ message: error.message });
       }
 
       throw error;
@@ -161,11 +161,11 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'ConflictError') {
@@ -189,15 +189,15 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ message: error.message });
       }
 
       throw error;
@@ -218,15 +218,15 @@ export const InventoryCountController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ error: error.message });
+        return res.status(403).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ message: error.message });
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ message: error.message });
       }
 
       throw error;

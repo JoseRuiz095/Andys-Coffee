@@ -245,7 +245,7 @@ export const InventoryService = {
 
   async setIngredientActive(id: string, isActive: boolean, user: AuthUser) {
     // Authorization
-    if (!user.permissions?.includes('inventory.update_ingredient')) {
+    if (!user.permissions?.includes('inventory.create_ingredient')) {
       throw new AuthorizationError('No tienes permiso para modificar ingredientes.');
     }
 

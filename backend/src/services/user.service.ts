@@ -1,8 +1,27 @@
 import bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
+import { RoleRepository } from '../repositories/role.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
+
+/**
+ * An actor may only give a user a role whose permissions the actor already holds —
+ * the same rule RoleService.assignPermissions applies — so users.create/users.update
+ * can't be used to mint an account more privileged than the actor (e.g. an ADMIN).
+ */
+async function assertCanAssignRole(roleId: string, actor: AuthUser) {
+  const role = await RoleRepository.findById(roleId);
+  if (!role) {
+    throw new ValidationError('El rol indicado no existe.');
+  }
+  const missing = role.permissions
+    .map(({ permission }) => permission.name)
+    .filter((name) => !actor.permissions?.includes(name));
+  if (missing.length > 0) {
+    throw new AuthorizationError(`No puedes asignar el rol "${role.name}" porque incluye permisos que no tienes.`);
+  }
+}
 
 export const UserService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, isActive?: boolean, search?: string, roleId?: string) {
@@ -54,6 +73,8 @@ export const UserService = {
       throw new ValidationError('El email del usuario es requerido.');
     }
 
+    await assertCanAssignRole(data.roleId, user);
+
     // Check if user with same email already exists
     const existing = await UserRepository.findByEmailNormalized(data.email);
     if (existing) {
@@ -85,6 +106,10 @@ export const UserService = {
     // Prevent self role change
     if (data.roleId && id === user.id) {
       throw new ValidationError('No puedes cambiar tu propio rol.');
+    }
+
+    if (data.roleId && data.roleId !== existingUser.roleId) {
+      await assertCanAssignRole(data.roleId, user);
     }
 
     // If email is being updated, check for duplicates

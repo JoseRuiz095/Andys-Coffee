@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import csrf from "tiny-csrf";
 import authRoutes from "./routes/auth.routes";
 import menuRoutes from "./routes/menu.routes";
@@ -22,7 +23,7 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import incomeStatementRoutes from "./routes/income-statement.routes";
 import categoryRoutes from "./routes/category.routes";
 import { CSRF_SECRET } from "./config/csrf";
-import { CORS_ORIGINS, isProduction } from "./config/app";
+import { CORS_ORIGINS, isProduction, TRUST_PROXY } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
 
@@ -32,6 +33,10 @@ import { randomUUID } from "node:crypto";
 };
 
 const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", TRUST_PROXY);
+// JSON-only API: the default helmet headers (CSP, nosniff, frame-ancestors, HSTS, ...) are safe here.
+app.use(helmet());
 
 app.use((req, res, next) => {
   const suppliedRequestId = req.get("X-Request-ID");

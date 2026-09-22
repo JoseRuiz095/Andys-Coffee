@@ -3,33 +3,54 @@ import { prisma } from '../config/prisma';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { CashRepository } from '../repositories/cash.repository';
+import { PreferenceRepository } from '../repositories/preference.repository';
 import { CashBusinessRuleError } from './cash.service';
 import { NotFoundError } from '../utils/errors';
-import { getZonedCalendarDate } from '../utils/businessDate';
+import { getTodayInZone, getZonedCalendarDate, getZonedDayBoundaries, getZonedInstant } from '../utils/businessDate';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListQuery } from '../validators/expense.validator';
 
-function dayRangeUtc(startDate?: string, endDate?: string) {
+function businessDayRange(startDate?: string, endDate?: string) {
   return {
-    gte: startDate ? new Date(`${startDate}T00:00:00.000Z`) : undefined,
-    lte: endDate ? new Date(`${endDate}T23:59:59.999Z`) : undefined,
+    gte: startDate ? getZonedDayBoundaries(startDate).start : undefined,
+    lt: endDate ? getZonedDayBoundaries(endDate).end : undefined,
   };
+}
+
+function toMinutes(time: string): number {
+  const [hour, minute] = time.split(':').map(Number);
+  return hour * 60 + (minute || 0);
+}
+
+/**
+ * Instant stored for an expense dated `dateStr` (YYYY-MM-DD, business calendar).
+ * The income statement only counts expenses inside business hours, so a back-dated
+ * expense is placed at the middle of the configured business day (in CASH_TIMEZONE)
+ * instead of a fixed UTC time that can fall before opening. Today's date keeps "now".
+ */
+async function resolveExpenseInstant(dateStr: string): Promise<Date> {
+  if (dateStr === getTodayInZone()) return new Date();
+  const { businessHoursOpen, businessHoursClose } = await PreferenceRepository.getGeneralPreferences();
+  const open = toMinutes(businessHoursOpen);
+  const close = toMinutes(businessHoursClose);
+  const midpoint = close > open ? Math.floor((open + close) / 2) : 12 * 60;
+  return getZonedInstant(dateStr, midpoint);
 }
 
 export const ExpenseService = {
   async findAll(query: ExpenseListQuery) {
     const { page, limit } = query;
     const skip = paginationOffset(page, limit);
-    const range = dayRangeUtc(query.startDate, query.endDate);
+    const range = businessDayRange(query.startDate, query.endDate);
 
     const where: Prisma.ExpenseWhereInput = {
       ...(query.category && { category: query.category }),
       ...(query.createdById && { createdById: query.createdById }),
       ...(query.cashSessionId && { cashSessionId: query.cashSessionId }),
-      ...((range.gte || range.lte) && {
+      ...((range.gte || range.lt) && {
         expenseDate: {
           ...(range.gte && { gte: range.gte }),
-          ...(range.lte && { lte: range.lte }),
+          ...(range.lt && { lt: range.lt }),
         },
       }),
     };
@@ -45,6 +66,7 @@ export const ExpenseService = {
   },
 
   async create(input: CreateExpenseInput, createdById: string) {
+    const expenseDate = input.expenseDate ? await resolveExpenseInstant(input.expenseDate) : undefined;
     const result = await prisma.$transaction(
       async (tx) => {
         const amount = new Prisma.Decimal(input.amount);
@@ -57,7 +79,7 @@ export const ExpenseService = {
           description: input.description,
           amount,
           paymentMethod: input.paymentMethod,
-          expenseDate: input.expenseDate ? new Date(`${input.expenseDate}T12:00:00.000Z`) : undefined,
+          expenseDate,
           cashSessionId: null, // Will be updated if cash + session exists
           createdById,
         });
@@ -197,25 +219,31 @@ export const ExpenseService = {
           }
         }
 
-        return ExpenseRepository.update(tx, id, {
+        // The edit form always resends the date; only move the stored instant when the
+        // calendar day actually changes, so an unrelated edit keeps the original time.
+        const previousDateStr = getZonedCalendarDate(existing.expenseDate);
+        const dateChanged = input.expenseDate !== undefined && input.expenseDate !== previousDateStr;
+
+        const updated = await ExpenseRepository.update(tx, id, {
           ...(input.category !== undefined && { category: input.category }),
           ...(input.description !== undefined && { description: input.description }),
           ...(input.amount !== undefined && { amount: newAmount }),
           ...(input.paymentMethod !== undefined && { paymentMethod: input.paymentMethod }),
-          ...(input.expenseDate !== undefined && { expenseDate: new Date(`${input.expenseDate}T12:00:00.000Z`) }),
+          ...(dateChanged && { expenseDate: await resolveExpenseInstant(input.expenseDate!) }),
           cashSessionId: newCashSessionId,
         });
+        return { updated, previousDateStr };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
-    // Invalidate snapshot for both old and new expense dates (if affected)
-    if (result.expenseDate) {
-      const dateStr = getZonedCalendarDate(result.expenseDate);
+    // Invalidate snapshots for both the old and the new expense dates
+    const affectedDates = new Set([result.previousDateStr, getZonedCalendarDate(result.updated.expenseDate)]);
+    for (const dateStr of affectedDates) {
       await incomeStatementRepository.invalidateSnapshot(dateStr);
     }
 
-    return result;
+    return result.updated;
   },
 
   async remove(id: string, deletedById: string) {

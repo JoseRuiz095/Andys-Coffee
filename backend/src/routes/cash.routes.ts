@@ -3,7 +3,7 @@ import { closeCashSession, correctCashClosing, getActiveCashSession, openCashSes
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
-import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema } from '../validators/cash.validator';
+import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema, reopenCashSessionSchema } from '../validators/cash.validator';
 
 const router = Router();
 
@@ -27,7 +27,9 @@ router.patch(
 router.post(
   '/sessions/:sessionId/reopen',
   requireAuth,
-  checkPermission('cash.close'),
+  // Reopening discards a finished cash count, so it needs the same permission as correcting one.
+  checkPermission('cash.correct'),
+  validate(reopenCashSessionSchema),
   reopenCashSession,
 );
 

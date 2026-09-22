@@ -23,6 +23,12 @@ export const correctCashClosingSchema = z.object({
 
 export type CorrectCashClosingInput = z.infer<typeof correctCashClosingSchema>;
 
+export const reopenCashSessionSchema = z.object({
+  reason: z.string().trim().min(1).max(120),
+});
+
+export type ReopenCashSessionInput = z.infer<typeof reopenCashSessionSchema>;
+
 export const cashSessionHistoryQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

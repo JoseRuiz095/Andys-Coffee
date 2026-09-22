@@ -7,9 +7,10 @@ export const validate = <T>(schema: z.ZodSchema<T>) => (req: Request, res: Respo
     next();
   } catch (error) {
     if (error instanceof ZodError) {
+      // Same shape as the global errorHandler's ZodError branch.
       return res.status(400).json({
-        message: 'Validation error',
-        errors: error.message,
+        message: 'Error de validación.',
+        errors: error.flatten().fieldErrors,
       });
     }
     next(error);

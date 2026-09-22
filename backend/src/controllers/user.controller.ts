@@ -25,8 +25,8 @@ export const UserController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
@@ -45,7 +45,7 @@ export const UserController = {
       res.json(foundUser);
     } catch (error) {
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -68,14 +68,14 @@ export const UserController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -85,7 +85,7 @@ export const UserController = {
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 
@@ -109,19 +109,19 @@ export const UserController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -136,7 +136,7 @@ export const UserController = {
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 
@@ -160,19 +160,19 @@ export const UserController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -182,7 +182,7 @@ export const UserController = {
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 
@@ -203,12 +203,12 @@ export const UserController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -218,7 +218,7 @@ export const UserController = {
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 

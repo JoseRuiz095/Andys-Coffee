@@ -75,7 +75,9 @@ export function AppRouter() {
       return
     }
 
-    if (isAuthenticated && pathname === APP_ROUTES.login) {
+    // Only these paths render a page; anything else (e.g. /menu, /orders) would be blank.
+    const renderedRoutes: string[] = [APP_ROUTES.dashboard, APP_ROUTES.settings]
+    if (isAuthenticated && !renderedRoutes.includes(pathname)) {
       window.history.replaceState({}, '', APP_ROUTES.dashboard)
       setPathname(APP_ROUTES.dashboard)
     }

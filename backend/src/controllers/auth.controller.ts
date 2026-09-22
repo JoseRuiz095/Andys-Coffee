@@ -37,9 +37,8 @@ export async function login(req: Request, res: Response) {
   } catch (error) {
     if (error instanceof ZodError) {
       return res.status(400).json({
-        error: "Validación fallida",
-        statusCode: 400,
-        details: error.issues
+        message: "Error de validación.",
+        errors: error.flatten().fieldErrors,
       });
     }
     throw error;
@@ -87,8 +86,8 @@ export async function changePassword(req: Request, res: Response) {
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
       res.status(400).json({
-        error: 'Datos inválidos',
-        details: (error as any).flatten().fieldErrors,
+        message: 'Error de validación.',
+        errors: (error as ZodError).flatten().fieldErrors,
       });
       return;
     }
@@ -115,8 +114,8 @@ export async function updateProfile(req: Request, res: Response) {
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
       res.status(400).json({
-        error: 'Datos inválidos',
-        details: (error as any).flatten().fieldErrors,
+        message: 'Error de validación.',
+        errors: (error as ZodError).flatten().fieldErrors,
       });
       return;
     }

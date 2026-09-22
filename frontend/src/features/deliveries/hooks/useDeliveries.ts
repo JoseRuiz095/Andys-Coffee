@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeliveriesAPI } from '../api/deliveries.api';
 import { sileo } from 'sileo';
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 
 const QUERY_KEY = 'pendingDeliveries';
 
@@ -17,7 +18,7 @@ export function useHandoffDelivery() {
   return useMutation({
     mutationFn: (orderId: string) => DeliveriesAPI.handoffDelivery(orderId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Mandadito entregado', description: 'Se registró la entrega al repartidor.' });
     },
     onError: (error: any) => {

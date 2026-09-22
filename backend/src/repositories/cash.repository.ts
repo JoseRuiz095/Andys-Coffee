@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { paginationOffset } from '../utils/pagination';
+import { getZonedDayBoundaries } from '../utils/businessDate';
 
 const sessionInclude = {
   cashRegister: true,
@@ -162,18 +163,19 @@ export const CashRepository = {
     limit: number,
   ) {
     const skip = paginationOffset(page, limit);
+    // Business-calendar days (CASH_TIMEZONE), not UTC days.
     const range = {
-      gte: filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : undefined,
-      lte: filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : undefined,
+      gte: filters.startDate ? getZonedDayBoundaries(filters.startDate).start : undefined,
+      lt: filters.endDate ? getZonedDayBoundaries(filters.endDate).end : undefined,
     };
 
     const where: Prisma.CashSessionWhereInput = {
       ...(filters.cashRegisterId && { cashRegisterId: filters.cashRegisterId }),
       ...(filters.status && { status: filters.status }),
-      ...((range.gte || range.lte) && {
+      ...((range.gte || range.lt) && {
         openedAt: {
           ...(range.gte && { gte: range.gte }),
-          ...(range.lte && { lte: range.lte }),
+          ...(range.lt && { lt: range.lt }),
         },
       }),
     };

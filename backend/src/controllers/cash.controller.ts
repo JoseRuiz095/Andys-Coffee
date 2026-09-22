@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CashService } from '../services/cash.service';
-import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema, cashSessionHistoryQuerySchema } from '../validators/cash.validator';
+import { closeCashSessionSchema, correctCashClosingSchema, openCashSessionSchema, cashSessionHistoryQuerySchema, type ReopenCashSessionInput } from '../validators/cash.validator';
 import { auditLog } from '../utils/logger';
 
 function getAuthenticatedUserId(req: Request) {
@@ -76,7 +76,7 @@ export const getCashSessionsHistory = asyncHandler(async (req: Request, res: Res
 
 export const reopenCashSession = asyncHandler(async (req: Request, res: Response) => {
   const sessionId = String(req.params.sessionId);
-  const reason = req.body.reason as string | undefined;
+  const { reason } = req.body as ReopenCashSessionInput;
   const session = await CashService.reopenSession(sessionId, getAuthenticatedUserId(req), reason);
   auditLog({
     requestId: req.id,
@@ -86,6 +86,6 @@ export const reopenCashSession = asyncHandler(async (req: Request, res: Response
     entityId: session.id,
     previousState: 'closed',
     newState: session.status,
-  }, `Cash session reopened. Reason: ${reason || 'No reason provided'}`);
+  }, `Cash session reopened. Reason: ${reason}`);
   res.status(200).json({ session });
 });

@@ -33,7 +33,8 @@ databaseUrlForPool.searchParams.delete("sslmode");
 
 const certificatePath = process.env.DATABASE_SSL_CA_PATH
   ? path.resolve(process.cwd(), process.env.DATABASE_SSL_CA_PATH)
-  : path.resolve(__dirname, "../../certs/prod-ca-2021.crt");
+  // Relative to the working directory (backend/): __dirname does not exist in this ESM package.
+  : path.resolve(process.cwd(), "certs/prod-ca-2021.crt");
 const certificateAuthority = process.env.DATABASE_SSL_CA || fs.readFileSync(certificatePath, "utf8");
 
 const pool = new Pool({

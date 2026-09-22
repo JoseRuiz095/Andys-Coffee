@@ -4,6 +4,7 @@ import { PaginatedOrders } from '../types/orders.types';
 import { getOrders, updateOrderStatus } from '../services/order.service';
 import { OrderStatus } from '../types/backend.types';
 import { sileo } from 'sileo';
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 
 export function useOrders() {
   const [page, setPage] = useState(1);
@@ -21,7 +22,7 @@ export function useOrders() {
   const statusMutation = useMutation({
     mutationFn: ({ id, newStatus }: { id: string; newStatus: OrderStatus }) => updateOrderStatus(id, newStatus),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Estatus de orden actualizada correctamente' });
     },
     onError: () => {

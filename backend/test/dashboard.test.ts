@@ -1,132 +1,92 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getPeriodDateRange } from '../src/repositories/dashboard.repository';
+import assert from 'node:assert/strict';
+import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
-describe('Dashboard Period Range', () => {
+// Pin the business timezone before the config module is loaded (dotenv never overrides
+// an already-set variable). America/Mexico_City is UTC-6 all year (no DST since 2022),
+// so business-day midnight is 06:00Z.
+process.env.CASH_TIMEZONE = 'America/Mexico_City';
+
+type DashboardRepositoryModule = typeof import('../src/repositories/dashboard.repository');
+type DashboardValidatorModule = typeof import('../src/validators/dashboard.validator');
+
+let getPeriodDateRange: DashboardRepositoryModule['getPeriodDateRange'];
+let dashboardSummaryQuerySchema: DashboardValidatorModule['dashboardSummaryQuerySchema'];
+let dashboardSalesQuerySchema: DashboardValidatorModule['dashboardSalesQuerySchema'];
+
+before(async () => {
+  ({ getPeriodDateRange } = await import('../src/repositories/dashboard.repository'));
+  ({ dashboardSummaryQuerySchema, dashboardSalesQuerySchema } = await import('../src/validators/dashboard.validator'));
+});
+
+describe('Dashboard Period Range (business timezone)', () => {
   beforeEach(() => {
-    // Mock current date as 2026-09-16
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-16T12:00:00Z'));
+    // 2026-09-16T12:00Z is Wednesday 2026-09-16 06:00 in Mexico City.
+    mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-16T12:00:00Z') });
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    mock.timers.reset();
   });
 
-  it('should return today range (00:00 to 23:59:59)', () => {
+  it('today covers the local calendar day', () => {
     const range = getPeriodDateRange('today');
-    const from = new Date('2026-09-16T00:00:00Z');
-    const to = new Date('2026-09-17T00:00:00Z');
-
-    expect(range.from.getTime()).toBe(from.getTime());
-    expect(range.to.getTime()).toBe(to.getTime());
+    assert.equal(range.from.toISOString(), '2026-09-16T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-09-17T06:00:00.000Z');
   });
 
-  it('should return yesterday range', () => {
+  it('yesterday covers the previous local calendar day', () => {
     const range = getPeriodDateRange('yesterday');
-    const from = new Date('2026-09-15T00:00:00Z');
-    const to = new Date('2026-09-16T00:00:00Z');
-
-    expect(range.from.getTime()).toBe(from.getTime());
-    expect(range.to.getTime()).toBe(to.getTime());
+    assert.equal(range.from.toISOString(), '2026-09-15T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-09-16T06:00:00.000Z');
   });
 
-  it('should return week range (last 7 days)', () => {
+  it('week covers Monday to Sunday of the current week', () => {
     const range = getPeriodDateRange('week');
-    const from = new Date('2026-09-09T00:00:00Z');
-    const to = new Date('2026-09-17T00:00:00Z');
-
-    expect(range.from.getTime()).toBe(from.getTime());
-    expect(range.to.getTime()).toBe(to.getTime());
+    assert.equal(range.from.toISOString(), '2026-09-14T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-09-21T06:00:00.000Z');
   });
 
-  it('should return month range', () => {
+  it('month covers the whole current month', () => {
     const range = getPeriodDateRange('month');
-    const from = new Date('2026-09-01T00:00:00Z');
-    const to = new Date('2026-10-01T00:00:00Z');
-
-    expect(range.from.getTime()).toBe(from.getTime());
-    expect(range.to.getTime()).toBe(to.getTime());
+    assert.equal(range.from.toISOString(), '2026-09-01T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-10-01T06:00:00.000Z');
   });
 
-  it('should return custom range when provided', () => {
+  it('customRange includes the whole last day (exclusive end)', () => {
     const range = getPeriodDateRange('customRange', '2026-09-10', '2026-09-15');
-    const from = new Date('2026-09-10T00:00:00Z');
-    const to = new Date('2026-09-15T23:59:59.999Z');
-
-    expect(range.from.getTime()).toBe(from.getTime());
-    expect(range.to.getTime()).toBe(to.getTime());
+    assert.equal(range.from.toISOString(), '2026-09-10T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-09-16T06:00:00.000Z');
   });
 
-  it('should throw error if customRange without dates', () => {
-    expect(() => {
-      getPeriodDateRange('customRange');
-    }).toThrow();
+  it('customRange without dates throws', () => {
+    assert.throws(() => getPeriodDateRange('customRange'));
   });
 });
 
 describe('Dashboard Validators', () => {
-  it('should validate dashboard summary query schema', async () => {
-    const { dashboardSummaryQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    const valid = dashboardSummaryQuerySchema.parse({
-      period: 'today',
-    });
-
-    expect(valid.period).toBe('today');
+  it('accepts a summary query for today', () => {
+    assert.equal(dashboardSummaryQuerySchema.parse({ period: 'today' }).period, 'today');
   });
 
-  it('should reject invalid period', async () => {
-    const { dashboardSummaryQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    expect(() => {
-      dashboardSummaryQuerySchema.parse({
-        period: 'invalid',
-      });
-    }).toThrow();
+  it('rejects an invalid period', () => {
+    assert.throws(() => dashboardSummaryQuerySchema.parse({ period: 'invalid' }));
   });
 
-  it('should require from/to for customRange', async () => {
-    const { dashboardSummaryQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    expect(() => {
-      dashboardSummaryQuerySchema.parse({
-        period: 'customRange',
-      });
-    }).toThrow();
+  it('requires from/to for customRange', () => {
+    assert.throws(() => dashboardSummaryQuerySchema.parse({ period: 'customRange' }));
   });
 
-  it('should reject from > to', async () => {
-    const { dashboardSummaryQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    expect(() => {
-      dashboardSummaryQuerySchema.parse({
-        period: 'customRange',
-        from: '2026-09-15',
-        to: '2026-09-10',
-      });
-    }).toThrow();
+  it('rejects from > to', () => {
+    assert.throws(() => dashboardSummaryQuerySchema.parse({ period: 'customRange', from: '2026-09-15', to: '2026-09-10' }));
   });
 
-  it('should accept valid sales query', async () => {
-    const { dashboardSalesQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    const valid = dashboardSalesQuerySchema.parse({
-      period: 'week',
-      limit: 10,
-    });
-
-    expect(valid.period).toBe('week');
-    expect(valid.limit).toBe(10);
+  it('accepts a valid sales query', () => {
+    const valid = dashboardSalesQuerySchema.parse({ period: 'week', limit: 10 });
+    assert.equal(valid.period, 'week');
+    assert.equal(valid.limit, 10);
   });
 
-  it('should reject limit > 100', async () => {
-    const { dashboardSalesQuerySchema } = await import('../src/validators/dashboard.validator');
-
-    expect(() => {
-      dashboardSalesQuerySchema.parse({
-        period: 'today',
-        limit: 150,
-      });
-    }).toThrow();
+  it('rejects limit > 100', () => {
+    assert.throws(() => dashboardSalesQuerySchema.parse({ period: 'today', limit: 150 }));
   });
 });

@@ -20,6 +20,9 @@ type UserWithRole = User & {
   } | null;
 };
 
+// bcrypt hash (12 rounds) of a random string; only used to equalize login timing.
+const TIMING_SAFE_DUMMY_HASH = bcrypt.hashSync(`timing-${Date.now()}-${Math.random()}`, 12);
+
 export async function authenticateUser(
   email: string,
   password: string
@@ -29,11 +32,13 @@ export async function authenticateUser(
     include: { role: { select: { name: true } } },
   });
 
+  // Always run bcrypt, even for unknown/inactive users, so response time doesn't
+  // reveal which emails exist.
+  const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? TIMING_SAFE_DUMMY_HASH);
+
   if (!user || !user.isActive) {
     return null;
   }
-
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
     return null;

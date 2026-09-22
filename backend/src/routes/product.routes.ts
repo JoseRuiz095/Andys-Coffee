@@ -30,9 +30,10 @@ const upload = multer({
   },
 });
 
-// Public routes for anyone to see products
-router.get('/', ProductController.findAll);
-router.get('/:id', ProductController.findOne);
+// Product records include cost, recipes and ingredient stock, so they are not public.
+// The POS reads the public menu from /api/menu instead.
+router.get('/', requireAuth, checkPermission('products.read'), ProductController.findAll);
+router.get('/:id', requireAuth, checkPermission('products.read'), ProductController.findOne);
 
 // Protected routes for administrators with product permissions
 router.post(

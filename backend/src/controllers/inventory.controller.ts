@@ -13,7 +13,7 @@ export const InventoryController = {
       const { q } = req.query as { q?: string };
 
       if (!q) {
-        res.status(400).json({ error: 'Parámetro de búsqueda requerido: q' });
+        res.status(400).json({ message: 'Parámetro de búsqueda requerido: q' });
         return;
       }
 
@@ -22,12 +22,12 @@ export const InventoryController = {
       res.json(results);
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 
@@ -46,14 +46,14 @@ export const InventoryController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Parámetros de búsqueda inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Parámetros de búsqueda inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -71,12 +71,12 @@ export const InventoryController = {
       res.json(ingredient);
     } catch (error) {
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -94,12 +94,12 @@ export const InventoryController = {
       res.json(ingredient);
     } catch (error) {
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -118,19 +118,19 @@ export const InventoryController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Parámetros inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Parámetros inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -147,7 +147,7 @@ export const InventoryController = {
       res.json(ingredients);
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -164,7 +164,7 @@ export const InventoryController = {
       res.json(summary);
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -181,7 +181,7 @@ export const InventoryController = {
       res.json({ totalValue: totalValue.toFixed(2) });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -200,24 +200,24 @@ export const InventoryController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: error.message });
         return;
       }
 
@@ -240,14 +240,14 @@ export const InventoryController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
@@ -297,19 +297,19 @@ export const InventoryController = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({
-          error: 'Datos inválidos',
-          details: error.flatten().fieldErrors,
+          message: 'Datos inválidos',
+          errors: error.flatten().fieldErrors,
         });
         return;
       }
 
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -350,7 +350,7 @@ export const InventoryController = {
       const { isActive } = req.body as { isActive: boolean };
 
       if (typeof isActive !== 'boolean') {
-        res.status(400).json({ error: 'El campo isActive debe ser un booleano.' });
+        res.status(400).json({ message: 'El campo isActive debe ser un booleano.' });
         return;
       }
 
@@ -363,12 +363,12 @@ export const InventoryController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -389,12 +389,12 @@ export const InventoryController = {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 
       if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ error: error.message });
+        res.status(404).json({ message: error.message });
         return;
       }
 
@@ -416,7 +416,7 @@ export const InventoryController = {
       res.json(units);
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ error: error.message });
+        res.status(403).json({ message: error.message });
         return;
       }
 

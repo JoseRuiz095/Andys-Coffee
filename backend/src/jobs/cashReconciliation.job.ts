@@ -17,6 +17,28 @@ interface ReconciliationResult {
 }
 
 /**
+ * Effect of a movement on CashSession.expectedAmount. The stored `amount` sign is not
+ * uniform across types (e.g. 'expense' is stored positive but lowers the drawer, while
+ * 'sale_reversal' is stored negative), so this mirrors how each writer adjusts
+ * expectedAmount (order.service.ts, expense.service.ts, cash.repository.ts).
+ * CLOSING records the counted cash, not a drawer change, so it contributes nothing.
+ */
+function expectedAmountEffect(type: string, amount: Prisma.Decimal): Prisma.Decimal {
+  switch (type) {
+    case 'CLOSING':
+      return new Prisma.Decimal(0);
+    case 'expense':
+    case 'expense_reversal':
+    case 'delivery_handoff':
+      return amount.negated();
+    default:
+      // OPENING, sale, sale_reversal, delivery_collected, delivery_collected_reversal,
+      // expense_adjustment: stored with the same sign as their effect on the drawer.
+      return amount;
+  }
+}
+
+/**
  * Daily reconciliation job that validates each closed cash session's expectedAmount
  * against the actual sum of CashMovement records. Runs at 23:30 by default.
  */
@@ -91,7 +113,7 @@ async function reconcileAllSessions(dateStr: string): Promise<ReconciliationResu
       where: { cashSessionId: session.id },
     });
 
-    const actualSum = movements.reduce((sum, m) => sum.plus(m.amount), new Prisma.Decimal(0));
+    const actualSum = movements.reduce((sum, m) => sum.plus(expectedAmountEffect(m.type, m.amount)), new Prisma.Decimal(0));
     const discrepancy = actualSum.minus(session.expectedAmount);
     const isValid = discrepancy.isZero();
 

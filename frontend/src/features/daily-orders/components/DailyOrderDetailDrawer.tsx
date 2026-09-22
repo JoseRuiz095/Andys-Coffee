@@ -13,7 +13,6 @@ interface DailyOrderDetailDrawerProps {
   isOpen: boolean;
   order: DailyOrder | null;
   currentUser: AuthUser | null;
-  date: string;
   onClose: () => void;
 }
 
@@ -63,11 +62,10 @@ export function DailyOrderDetailDrawer({
   isOpen,
   order,
   currentUser,
-  date,
   onClose,
 }: DailyOrderDetailDrawerProps) {
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-  const { mutate: cancelOrder, isPending: isCancelling } = useCancelDailyOrder(date);
+  const { mutate: cancelOrder, isPending: isCancelling } = useCancelDailyOrder();
 
   if (!order) return null;
 

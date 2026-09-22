@@ -153,7 +153,7 @@ export const CashService = {
     }
   },
 
-  async reopenSession(sessionId: string, reopenedById: string, reason?: string): Promise<CashSessionWithDetails> {
+  async reopenSession(sessionId: string, reopenedById: string, reason: string): Promise<CashSessionWithDetails> {
     const reopenedSession = await prismaTransaction(async (tx) => {
       const session = await tx.cashSession.findUnique({
         where: { id: sessionId },
@@ -167,6 +167,23 @@ export const CashService = {
       if (session.status === 'open') {
         throw new CashBusinessRuleError('Esta sesión ya está abierta.');
       }
+
+      // The closing fields are wiped below, so keep the discarded cash count in the audit trail.
+      await tx.auditLog.create({
+        data: {
+          userId: reopenedById,
+          action: 'CASH_SESSION_REOPENED',
+          cashSessionId: session.id,
+          metadata: {
+            previousClosingAmount: session.closingAmount?.toString() ?? null,
+            previousExpectedAmount: session.expectedAmount.toString(),
+            previousDifference: session.difference?.toString() ?? null,
+            previousClosedAt: session.closedAt?.toISOString() ?? null,
+            previousClosedById: session.closedById,
+            reason,
+          },
+        },
+      });
 
       // Reopen the session
       return tx.cashSession.update({
@@ -189,7 +206,7 @@ export const CashService = {
     // Dispatch notification after transaction completes
     await createCashNotification({
       title: 'Reapertura de sesión de caja',
-      message: `La caja ${reopenedSession.cashRegister.name} fue reabierta por reapertura manual. ${reason ? `Motivo: ${reason}` : ''}`,
+      message: `La caja ${reopenedSession.cashRegister.name} fue reabierta por reapertura manual. Motivo: ${reason}`,
       referenceId: reopenedSession.id,
     });
 

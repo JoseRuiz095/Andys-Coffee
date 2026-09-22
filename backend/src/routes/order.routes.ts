@@ -67,6 +67,7 @@ router.get(
 router.post(
     '/',
     requireAuth,
+    checkPermission('sales.create'),
     validate(createOrderSchema),
     createOrder
 );
