@@ -223,15 +223,16 @@ export const dashboardRepository = {
   async getSalesTrend(from: Date, to: Date) {
     const data = await prisma.$queryRaw<Array<{ date: Date; ordersCount: bigint; revenue: Prisma.Decimal }>>`
       SELECT
-        DATE_TRUNC('day', o."createdAt")::date as date,
+        -- Business day (CASH_TIMEZONE), not the UTC day: late sales stay on their own day.
+        (o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date as date,
         COUNT(DISTINCT o.id)::bigint as "ordersCount",
         COALESCE(SUM(p.amount), 0) as revenue
       FROM orders o
       LEFT JOIN payments p ON o.id = p."orderId" AND p.status = 'paid'
       WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
         AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
-      GROUP BY DATE_TRUNC('day', o."createdAt")
-      ORDER BY date ASC
+      GROUP BY 1
+      ORDER BY 1 ASC
     `;
 
     return data.map((row) => ({
@@ -290,15 +291,16 @@ export const dashboardRepository = {
   async getCostEvolution(from: Date, to: Date) {
     const data = await prisma.$queryRaw<Array<{ date: Date; cogs: Prisma.Decimal | number | string; revenue: Prisma.Decimal | number | string }>>`
       SELECT
-        DATE_TRUNC('day', o."createdAt")::date as date,
+        -- Business day (CASH_TIMEZONE), not the UTC day: late sales stay on their own day.
+        (o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date as date,
         COALESCE(SUM(oi."costSnapshot"), 0) as cogs,
         COALESCE(SUM(oi.subtotal), 0) as revenue
       FROM order_items oi
       JOIN orders o ON oi."orderId" = o.id
       WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
         AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
-      GROUP BY DATE_TRUNC('day', o."createdAt")
-      ORDER BY date ASC
+      GROUP BY 1
+      ORDER BY 1 ASC
     `;
 
     return data.map((row) => {

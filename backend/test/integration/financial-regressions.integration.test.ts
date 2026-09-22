@@ -13,6 +13,7 @@ import { InventoryService } from "../../src/services/inventory.service";
 import { OrderService } from "../../src/services/order.service";
 import { UserService } from "../../src/services/user.service";
 import { ProductService } from "../../src/services/product.service";
+import { dashboardRepository } from "../../src/repositories/dashboard.repository";
 import { getZonedCalendarDate, getZonedDayBoundaries } from "../../src/utils/businessDate";
 
 // Regression coverage for the Fase 6 fixes (docs/auditoria-mvp-2026-09-22.md):
@@ -358,4 +359,17 @@ test("R-04: el detalle del producto sugiere el costo según receta × costo prom
   // Averages move with purchases, and the suggestion follows them.
   await prisma.ingredient.update({ where: { id: ingredientId }, data: { averageCost: 7.255 } });
   assert.equal((await ProductService.findOne(productId))!.suggestedCost?.toNumber(), 7.26);
+});
+
+test("Dashboard: la tendencia de ventas agrupa por día de negocio (una venta a las 23:30 locales no cae al día siguiente)", { skip: !integrationEnabled }, async () => {
+  const DAY = "2026-02-13";
+  const order = await createOrder("cash");
+  const { start, end } = getZonedDayBoundaries(DAY);
+  // 23:30 in Mexico City = 05:30Z of the next UTC day.
+  await prisma.order.update({ where: { id: order.id }, data: { createdAt: new Date(start.getTime() + 23.5 * 3600 * 1000) } });
+
+  const trend = await dashboardRepository.getSalesTrend(start, end);
+  assert.equal(trend.length, 1);
+  assert.equal(new Date(trend[0].date).toISOString().slice(0, 10), DAY);
+  assert.equal(trend[0].revenue, PRODUCT_PRICE);
 });

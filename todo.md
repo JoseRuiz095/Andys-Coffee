@@ -162,7 +162,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] Formato de error unificado `{ message, errors? }` (el frontend ya muestra los mensajes reales)
 - [x] Código muerto confirmado eliminado
 - [x] BD de pruebas aislada en Docker (`npm run test:db:up` / `test:db:prepare`) que nunca toca Supabase
-- [x] Suite: 69 unit + 57 integración + 5 E2E pasando (`npm run test:critical`)
+- [x] Suite: 69 unit + 58 integración + 5 E2E pasando (`npm run test:critical`)
 - [x] Migraciones aplicadas en Supabase: `remove_unused_models`, `add_user_token_version`, `add_snapshot_expenses_outside_hours`, `restore_promotion_links`
 
 **Decisiones de negocio tomadas:**
@@ -176,18 +176,18 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 
 ## 🔴 PENDIENTE — ACCIÓN DEL DESARROLLADOR
 
-- [ ] Agregar `SUPABASE_SERVICE_ROLE_KEY` a `backend/.env` (Supabase → Project Settings → API). Sin ella falla la subida de imágenes de productos. Nunca en el frontend
-- [ ] Commit de los cambios de la auditoría (revisar `backend/.gitignore` y decidir si `backend/prisma/backups/` va al repo)
-- [ ] Levantar un solo backend y un solo frontend (`npm run dev` en cada carpeta); antes había 3 backends duplicados
-- [ ] Apagar la BD de pruebas al terminar: `cd backend && npm run test:db:down`
+- [x] Agregar `SUPABASE_SERVICE_ROLE_KEY` a `backend/.env` (Supabase → Project Settings → API). Sin ella falla la subida de imágenes de productos. Nunca en el frontend
+- [x] Commit de los cambios de la auditoría (revisar `backend/.gitignore` y decidir si `backend/prisma/backups/` va al repo)
+- [x] Levantar un solo backend y un solo frontend (`npm run dev` en cada carpeta); antes había 3 backends duplicados
+- [x] Apagar la BD de pruebas al terminar: `cd backend && npm run test:db:down`
 
 ---
 
-## 🟡 BUGS MENORES
+## 🟡 BUGS MENORES (resueltos Sept 22)
 
-- [ ] Panel del pedido: la imagen de respaldo (logo) no se muestra cuando el producto no tiene imagen
-- [ ] Dashboard: la gráfica de tendencia de ventas agrupa por día UTC, no por día de negocio (ventas después de las 18:00 caen en el día siguiente)
-- [ ] Estado de resultados (tabla por periodo): "Estado de Caja" muestra el código (`SIN_CONTEO`, `CUADRADA`) en vez del texto legible
+- [x] Panel del pedido: la imagen de respaldo (logo) no se mostraba cuando el producto no tiene imagen
+- [x] Dashboard: las gráficas de tendencia de ventas y de costos agrupaban por día UTC; ahora por día de negocio
+- [x] Estado de resultados (tabla por periodo): "Estado de Caja" mostraba el código (`SIN_CONTEO`, `CUADRADA`); ahora muestra el texto legible
 
 ---
 
@@ -286,13 +286,13 @@ npm run build                          # Build de producción
 
 **Completado**: 11 fases de desarrollo + Fase 12 (auditoría, estabilización y testing)
 **Siguiente**: acciones del desarrollador, bugs menores, módulo de reportes
-**Status general**: MVP auditado; sin pendientes críticos ni altos; 131 tests automatizados pasando
+**Status general**: MVP auditado; sin pendientes críticos ni altos; 132 tests automatizados pasando
 
 ### Ciclo Sept 22, 2026 — Auditoría y testing ✅
 - ✅ Auditoría integral (backend, BD, API/seguridad, frontend, flujos de negocio)
 - ✅ Todos los hallazgos críticos, altos y medios corregidos o aplicados
 - ✅ 4 migraciones aplicadas en Supabase, con respaldo previo de datos
-- ✅ Infraestructura de tests aislada + 131 tests
+- ✅ Infraestructura de tests aislada + 132 tests
 
 ### Ciclo Sept 21, 2026 ✅
 - ✅ Auditoría de código muerto (8 elementos; los vínculos de promociones se restauraron el 22/09)

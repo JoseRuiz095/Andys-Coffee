@@ -1,12 +1,5 @@
 import type { CashStatus } from '../api/income-statement.api';
-
-const STATUS_LABEL: Record<Exclude<CashStatus, null>, string> = {
-  CUADRADA: 'Caja cuadrada',
-  SOBRANTE: 'Sobrante',
-  FALTANTE: 'Faltante',
-  PENDIENTE: 'Pendiente de cierre',
-  SIN_CONTEO: 'Sin conteo',
-};
+import { STATUS_LABEL } from '../utils/cashStatus';
 
 const STATUS_COLOR_VAR: Record<Exclude<CashStatus, null>, string> = {
   CUADRADA: '--color-success',

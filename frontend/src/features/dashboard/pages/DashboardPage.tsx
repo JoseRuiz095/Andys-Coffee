@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
@@ -276,7 +277,8 @@ export function DashboardPage() {
         productName: menuItem.name,
         quantity,
         unitPrice: menuItem.price,
-        image: menuItem.imageUrl ?? brandLogo,
+        // Resolved once here (Supabase path -> URL); the app logo is the fallback image.
+        image: (menuItem.imageUrl && getSupabaseImageUrl(menuItem.imageUrl, 'Img', 'public')) || brandLogo,
         type: menuItem.type,
       }
 

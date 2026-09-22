@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 import {
   Dialog,
   DialogContent,
@@ -301,13 +300,11 @@ export function OrderDetailsPanel({
                   style={{ backgroundColor: 'var(--color-surface-hover)' }}
                 >
                   <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-surface-secondary)' }}>
-                    {getSupabaseImageUrl(item.image, 'Img', 'public') && (
-                      <img
-                        src={getSupabaseImageUrl(item.image, 'Img', 'public')}
-                        alt={item.productName}
-                        className="h-full w-full object-cover"
-                      />
-                    )}
+                    <img
+                      src={item.image}
+                      alt={item.productName}
+                      className="h-full w-full object-cover"
+                    />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">

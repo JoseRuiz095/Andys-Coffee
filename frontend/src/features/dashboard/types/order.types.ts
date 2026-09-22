@@ -52,7 +52,7 @@ export interface OrderItem {
   productName: string
   quantity: number
   unitPrice: number
-  image: string
+  image: string // ready-to-use URL (product image or the app logo)
   note?: string
   type: 'product' | 'combo'
   modifications?: {

@@ -1,5 +1,6 @@
 import type { DayFinancialSummary, PeriodTotals } from '../api/income-statement.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
+import { cashStatusLabel } from '../utils/cashStatus';
 
 type RowKind = 'flow' | 'accumulated' | 'info';
 
@@ -31,7 +32,7 @@ const ROWS: PivotRow[] = [
   { label: 'Efectivo + Transferencias', kind: 'info', getValue: (d) => d.conciliacion.efectivoYTransferencias },
   { label: 'Efectivo Real', kind: 'info', getValue: (d) => d.conciliacion.efectivoReal },
   { label: 'Diferencia', kind: 'info', getValue: (d) => d.conciliacion.diferencia },
-  { label: 'Estado de Caja', kind: 'info', getValue: (d) => d.conciliacion.estado ?? '—' },
+  { label: 'Estado de Caja', kind: 'info', getValue: (d) => cashStatusLabel(d.conciliacion.estado) },
   { label: 'Gastos Operativos Fijos', kind: 'flow', getValue: (d) => d.distribucion.gastosOperativosFijos, getTotal: (t) => t.gastosOperativosFijos },
   { label: 'Ganancia Distribuible', kind: 'flow', getValue: (d) => d.distribucion.gananciaDistribuible, getTotal: (t) => t.gananciaDistribuible },
   { label: 'Ahorro', kind: 'flow', getValue: (d) => d.distribucion.ahorro, getTotal: (t) => t.ahorro },
