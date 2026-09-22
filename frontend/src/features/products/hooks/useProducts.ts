@@ -5,24 +5,36 @@ import { useState } from 'react'
 
 export function useProducts(page = 1) {
   const [currentPage, setCurrentPage] = useState(page)
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>()
+  const [statusFilter, setStatusFilter] = useState<boolean | undefined>()
   const queryClient = useQueryClient()
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products', currentPage],
-    queryFn: () => ProductAPI.getAll(currentPage, 50),
+    queryKey: ['products', currentPage, { search, categoryFilter, statusFilter }],
+    queryFn: () =>
+      ProductAPI.getAll(currentPage, 50, {
+        categoryId: categoryFilter,
+        isActive: statusFilter,
+        search: search || undefined,
+      }),
   })
 
   const createMutation = useMutation({
-    mutationFn: (input: CreateProductInput) => ProductAPI.create(input),
+    mutationFn: ({ input, imageFile }: { input: CreateProductInput; imageFile?: File }) =>
+      ProductAPI.create(input, imageFile),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
     },
   })
 
   const updateMutation = useMutation({
-    mutationFn: (input: UpdateProductInput) => ProductAPI.update(input),
+    mutationFn: ({ input, imageFile }: { input: UpdateProductInput; imageFile?: File }) =>
+      ProductAPI.update(input, imageFile),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
     },
   })
 
@@ -30,6 +42,7 @@ export function useProducts(page = 1) {
     mutationFn: (id: string) => ProductAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
     },
   })
 
@@ -38,16 +51,24 @@ export function useProducts(page = 1) {
       ProductAPI.setActive(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
     },
   })
 
   return {
-    products: data?.products || [],
-    total: data?.total || 0,
+    products: data?.data || [],
+    totalPages: data?.pagination?.totalPages ?? 0,
+    total: data?.pagination?.total ?? 0,
     loading: isLoading,
     error,
     page: currentPage,
     setPage: setCurrentPage,
+    search,
+    setSearch,
+    categoryFilter,
+    setCategoryFilter,
+    statusFilter,
+    setStatusFilter,
     create: createMutation.mutate,
     update: updateMutation.mutate,
     delete: deleteMutation.mutate,
@@ -60,14 +81,45 @@ export function useProducts(page = 1) {
 }
 
 export function useCategories() {
+  const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => CategoryAPI.getAll(),
+    queryFn: () => CategoryAPI.getAll(1, 100, false),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (input: Omit<any, 'id' | 'createdAt' | 'updatedAt'>) => CategoryAPI.create(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<any> }) => CategoryAPI.update(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
+    },
+  })
+
+  const setActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => CategoryAPI.setActive(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
+    },
   })
 
   return {
     categories: data?.categories || [],
     loading: isLoading,
     error,
+    create: createMutation.mutate,
+    update: updateMutation.mutate,
+    setActive: setActiveMutation.mutate,
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isLoadingActive: setActiveMutation.isPending,
   }
 }

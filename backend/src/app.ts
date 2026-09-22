@@ -20,6 +20,7 @@ import preferenceRoutes from "./routes/preference.routes";
 import expenseRoutes from "./routes/expense.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import incomeStatementRoutes from "./routes/income-statement.routes";
+import categoryRoutes from "./routes/category.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { CORS_ORIGINS, isProduction } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
@@ -104,6 +105,7 @@ app.use((req, _res, next) => {
 // --- Routes ---
 app.use("/api/auth", authRoutes);
 app.use("/api/menu", menuRoutes);
+app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/notifications", notificationRoutes);

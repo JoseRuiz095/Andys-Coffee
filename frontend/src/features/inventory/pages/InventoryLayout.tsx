@@ -14,7 +14,7 @@ export function InventoryLayout() {
   const [activeView, setActiveView] = useState<InventoryView>('current')
   const prevViewRef = useRef<InventoryView>(activeView)
 
-  const views: InventoryView[] = ['current', 'add-entry', 'entries', 'movements', 'physical', 'exits', 'management']
+  const views: InventoryView[] = ['current', 'management', 'add-entry', 'entries', 'movements', 'physical', 'exits']
   const currentIndex = views.indexOf(activeView)
   const prevIndex = views.indexOf(prevViewRef.current)
   const direction = currentIndex > prevIndex ? 1 : -1

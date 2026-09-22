@@ -2,15 +2,18 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { IngredientIcon } from '../../../components/ui/IngredientIcon'
 import { SupplierIcon } from '../../../components/ui/SupplierIcon'
+import { CoffeeIcon } from '../../../components/ui/coffee'
 import { IngredientsTab } from '../components/tabs/IngredientsTab'
 import { SuppliersTab } from '../components/tabs/SuppliersTab'
+import { ProductsTab } from '../components/tabs/ProductsTab'
 
-type TabType = 'ingredients' | 'suppliers'
+type TabType = 'ingredients' | 'suppliers' | 'products'
 
 export function InventoryManagementPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('ingredients')
+  const [activeTab, setActiveTab] = useState<TabType>('products')
 
   const tabs = [
+    { id: 'products' as const, label: 'Productos', icon: CoffeeIcon },
     { id: 'ingredients' as const, label: 'Ingredientes', icon: IngredientIcon },
     { id: 'suppliers' as const, label: 'Proveedores', icon: SupplierIcon },
   ]
@@ -75,6 +78,7 @@ export function InventoryManagementPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
+          {activeTab === 'products' && <ProductsTab />}
           {activeTab === 'ingredients' && <IngredientsTab />}
           {activeTab === 'suppliers' && <SuppliersTab />}
         </motion.div>

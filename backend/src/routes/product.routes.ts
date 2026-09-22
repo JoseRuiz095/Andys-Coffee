@@ -51,6 +51,13 @@ router.patch(
   ProductController.update
 );
 
+router.patch(
+  '/:id/active',
+  requireAuth,
+  checkPermission('products.update'),
+  ProductController.setActive
+);
+
 router.delete(
   '/:id',
   requireAuth,

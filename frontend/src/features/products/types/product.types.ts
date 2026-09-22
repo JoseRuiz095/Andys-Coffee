@@ -31,5 +31,8 @@ export interface UpdateProductInput extends Partial<CreateProductInput> {
 export interface Category {
   id: string
   name: string
-  displayOrder?: number
+  description?: string
+  imageUrl?: string
+  displayOrder: number
+  isActive: boolean
 }
