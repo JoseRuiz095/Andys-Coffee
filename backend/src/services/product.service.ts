@@ -41,7 +41,18 @@ export const ProductService = {
   },
 
   async findOne(id: string) {
-    return ProductRepository.findById(id);
+    const product = await ProductRepository.findById(id);
+    if (!product) return null;
+
+    // R-04: cost suggested from the recipe at current average ingredient cost. The product's
+    // own `cost` stays manual (it is what sales snapshot); the UI offers this as a hint.
+    const suggestedCost = product.recipes.length > 0
+      ? product.recipes
+          .reduce((total, recipe) => total.add(recipe.quantity.mul(recipe.ingredient.averageCost)), new Prisma.Decimal(0))
+          .toDecimalPlaces(2)
+      : null;
+
+    return { ...product, suggestedCost };
   },
 
   async create(productData: z.infer<typeof createProductSchema>, user: AuthUser, requestId?: string) {

@@ -51,6 +51,8 @@ export interface DayFinancialSummary {
     ingresosTotales: number;
     costoVenta: number;
     gastos: number;
+    /** Part of `gastos` registered outside business hours (informational, already included). */
+    gastosFueraDeHorario: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -113,6 +115,7 @@ export interface PeriodTotals {
   ingresosTotales: number;
   costoVenta: number;
   gastos: number;
+  gastosFueraDeHorario: number;
   gananciaNeta: number;
   gastosOperativosFijos: number;
   gananciaDistribuible: number;
@@ -144,6 +147,7 @@ export interface DayCore {
   totalCogs: Prisma.Decimal;
   grossProfit: Prisma.Decimal;
   totalExpenses: Prisma.Decimal;
+  expensesOutsideHours: Prisma.Decimal;
   fixedOperatingExpenses: Prisma.Decimal;
   netProfit: Prisma.Decimal;
   distributableProfit: Prisma.Decimal;
@@ -196,19 +200,18 @@ export function computeDayCore(
   const totalCogs = sumDecimals(rows.cogsRows, (i) => i.costSnapshot);
   const grossProfit = totalRevenue.minus(totalCogs);
 
-  // Both manual expenses and received purchases only count as a variable expense when they
-  // happened during business hours (open/close configured in Preferencias del Sistema).
-  const inBusinessHours = <T,>(items: T[], getInstant: (item: T) => Date): T[] => {
-    if (!businessHours) return items;
-    return items.filter((item) => {
-      const { hour, minute } = getZonedTimeOfDay(getInstant(item));
-      const minutesOfDay = hour * 60 + minute;
-      return minutesOfDay >= businessHours.openMinutes && minutesOfDay < businessHours.closeMinutes;
-    });
+  // Every manual expense and received purchase of the calendar day counts as a variable
+  // expense (business decision R-03). The part registered outside business hours (open/close
+  // in Preferencias del Sistema) is reported separately, for information only.
+  const isOutsideBusinessHours = (instant: Date): boolean => {
+    if (!businessHours) return false;
+    const { hour, minute } = getZonedTimeOfDay(instant);
+    const minutesOfDay = hour * 60 + minute;
+    return minutesOfDay < businessHours.openMinutes || minutesOfDay >= businessHours.closeMinutes;
   };
-  const expensesInHours = inBusinessHours(rows.expenses, (e) => e.expenseDate);
-  const purchasesInHours = businessHours ? inBusinessHours(rows.purchases, (p) => p.purchasedAt) : [];
-  const totalExpenses = sumDecimals(expensesInHours, (e) => e.amount).plus(sumDecimals(purchasesInHours, (p) => p.total));
+  const totalExpenses = sumDecimals(rows.expenses, (e) => e.amount).plus(sumDecimals(rows.purchases, (p) => p.total));
+  const expensesOutsideHours = sumDecimals(rows.expenses.filter((e) => isOutsideBusinessHours(e.expenseDate)), (e) => e.amount)
+    .plus(sumDecimals(rows.purchases.filter((p) => isOutsideBusinessHours(p.purchasedAt)), (p) => p.total));
 
   const openingFund = sumDecimals(rows.sessions, (s) => s.openingAmount);
   const hadOperation = rows.sessions.length > 0 || rows.payments.length > 0 || rows.expenses.length > 0;
@@ -259,6 +262,7 @@ export function computeDayCore(
     totalCogs,
     grossProfit,
     totalExpenses,
+    expensesOutsideHours,
     fixedOperatingExpenses,
     netProfit,
     distributableProfit,
@@ -296,6 +300,7 @@ function buildSummaryDto(
       ingresosTotales: core.totalRevenue.toNumber(),
       costoVenta: core.totalCogs.toNumber(),
       gastos: core.totalExpenses.toNumber(),
+      gastosFueraDeHorario: core.expensesOutsideHours.toNumber(),
       gananciaNeta: core.netProfit.toNumber(),
     },
     conciliacion: {
@@ -380,6 +385,7 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
       ingresosTotales: snapshot.totalRevenue.toNumber(),
       costoVenta: snapshot.totalCogs.toNumber(),
       gastos: snapshot.totalExpenses.toNumber(),
+      gastosFueraDeHorario: snapshot.expensesOutsideHours.toNumber(),
       gananciaNeta: snapshot.netProfit.toNumber(),
     },
     conciliacion: {
@@ -502,6 +508,7 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
           totalCogs: core.totalCogs,
           grossProfit: core.grossProfit,
           totalExpenses: core.totalExpenses,
+          expensesOutsideHours: core.expensesOutsideHours,
           netProfit: core.netProfit,
           expectedCash: core.expectedCash,
           actualCash: core.actualCash,
@@ -544,6 +551,7 @@ function computeTotals(days: DayFinancialSummary[]): PeriodTotals {
     ingresosTotales: sum((d) => d.movimientos.ingresosTotales),
     costoVenta: sum((d) => d.movimientos.costoVenta),
     gastos: sum((d) => d.movimientos.gastos),
+    gastosFueraDeHorario: sum((d) => d.movimientos.gastosFueraDeHorario),
     gananciaNeta: sum((d) => d.movimientos.gananciaNeta),
     gastosOperativosFijos: sum((d) => d.distribucion.gastosOperativosFijos),
     gananciaDistribuible: sum((d) => d.distribucion.gananciaDistribuible),

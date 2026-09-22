@@ -80,6 +80,15 @@ export function useProducts(page = 1) {
   }
 }
 
+/** Product detail (incl. recipe-based suggested cost); disabled until an id is given. */
+export function useProductDetail(id: string | undefined) {
+  return useQuery({
+    queryKey: ['products', 'detail', id],
+    queryFn: () => ProductAPI.getById(id!),
+    enabled: Boolean(id),
+  })
+}
+
 export function useCategories() {
   const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery({

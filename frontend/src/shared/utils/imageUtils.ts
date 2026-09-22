@@ -16,6 +16,12 @@ export function getSupabaseImageUrl(
   bucketName: string = 'Img',
   accessType: 'public' | 'sign' = 'public'
 ): string | undefined {
+  // Images uploaded through the API are stored as full public URLs (UploadService); older
+  // ones as bucket-relative paths like 'Menu/latte.jpg'. Full URLs are used as-is.
+  if (/^https?:\/\//i.test(imagePath)) {
+    return imagePath;
+  }
+
   if (!SUPABASE_URL || !imagePath) {
     return undefined;
   }

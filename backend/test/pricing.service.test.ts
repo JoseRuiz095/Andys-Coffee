@@ -48,3 +48,15 @@ test('rechaza descuentos mal configurados y evita totales negativos', () => {
   assert.equal(result.discount.toNumber(), 10);
   assert.equal(result.total.toNumber(), 0);
 });
+test('N-01: una promoción solo aplica a sus productos o a los de sus categorías', async () => {
+  const { promotionsForProduct } = await import('../src/services/pricing.service');
+  const byProduct = { id: 'p1', products: [{ productId: 'latte' }], categories: [] };
+  const byCategory = { id: 'p2', products: [], categories: [{ categoryId: 'bagels' }] };
+  const unlinked = { id: 'p3', products: [], categories: [] };
+  const all = [byProduct, byCategory, unlinked];
+
+  assert.deepEqual(promotionsForProduct(all, { id: 'latte', categoryId: 'bebidas' }).map((p) => p.id), ['p1']);
+  assert.deepEqual(promotionsForProduct(all, { id: 'bagel-1', categoryId: 'bagels' }).map((p) => p.id), ['p2']);
+  assert.deepEqual(promotionsForProduct(all, { id: 'americano', categoryId: 'bebidas' }), []);
+  assert.deepEqual(promotionsForProduct(all, { id: 'sin-categoria', categoryId: null }), []);
+});

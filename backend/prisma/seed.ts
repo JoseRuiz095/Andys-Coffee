@@ -794,6 +794,8 @@ async function main() {
       buyQuantity: 1,
       getQuantity: 1,
       activeOnDays: [1], // Lunes
+      productNames: ["Latte Andy's", "Latte Andy's Frio"],
+      categoryNames: [] as string[],
     },
     {
       name: "Promo Miércoles: Día del Bagel",
@@ -801,6 +803,8 @@ async function main() {
       type: PromotionType.FIXED_PRICE,
       discountValue: 75,
       activeOnDays: [3], // Miércoles
+      productNames: [] as string[],
+      categoryNames: ["Bagels"],
     },
     {
       name: "Promo Viernes: 2 Cafés de Sabor por $99",
@@ -809,6 +813,11 @@ async function main() {
       discountValue: 99,
       buyQuantity: 2,
       activeOnDays: [5], // Viernes
+      productNames: [
+        "Latte Vainilla", "Latte Caramel Macciato", "Latte Moka", "Latte Biscoff",
+        "Latte Vainilla Frio", "Latte Caramel Macciato Frio", "Latte Biscoff Frio", "Latte Moka Frio",
+      ],
+      categoryNames: [] as string[],
     },
   ];
 
@@ -826,8 +835,18 @@ async function main() {
       isActive: true,
     };
 
+    // A promotion only applies to the products/categories it is linked to (N-01).
+    const [linkedProducts, linkedCategories] = await Promise.all([
+      prisma.product.findMany({ where: { name: { in: promoDef.productNames } }, select: { id: true } }),
+      prisma.category.findMany({ where: { name: { in: promoDef.categoryNames } }, select: { id: true } }),
+    ]);
+
     await prisma.promotion.create({
-      data: promoData,
+      data: {
+        ...promoData,
+        products: { create: linkedProducts.map(({ id }) => ({ productId: id })) },
+        categories: { create: linkedCategories.map(({ id }) => ({ categoryId: id })) },
+      },
     });
   }
 

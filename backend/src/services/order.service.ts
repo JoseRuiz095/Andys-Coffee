@@ -13,10 +13,10 @@ import { incomeStatementRepository } from '../repositories/income-statement.repo
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { auditLog, logger } from '../utils/logger';
-import { calculateBestPromotion, type PricingPromotion } from './pricing.service';
+import { calculateBestPromotion, promotionScopeSelect, promotionsForProduct, type PricingPromotion, type PromotionScope } from './pricing.service';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
-import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate } from '../utils/businessDate';
+import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate, getCalendarDateAsUtc } from '../utils/businessDate';
 
 // --- Custom Errors for Service Layer ---
 
@@ -63,13 +63,13 @@ export async function getNextCustomerName(tx: Prisma.TransactionClient): Promise
 
 async function applyPromotions(
   orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
-  promotions: PricingPromotion[],
+  promotions: (PricingPromotion & PromotionScope)[],
 ) {
-  // Nota: Relaciones PromotionOnProduct/PromotionOnCategory fueron eliminadas (código muerto)
-  // Ahora se aplican todas las promociones globales a todos los productos
   return orderItems.flatMap((item) => {
     if (item.sourceComboId) return [];
-    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), promotions);
+    // Only the promotions linked to this product (or its category) apply — N-01.
+    const applicable = promotionsForProduct(promotions, item.product);
+    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), applicable);
     return pricing.discount.gt(0) ? [{ orderItemId: item.id, amount: pricing.discount }] : [];
   });
 }
@@ -310,10 +310,10 @@ export const OrderService = {
       return updatedOrder;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    // Completing or cancelling changes which orders count as revenue for the day the
-    // order was created, so a frozen (final) income-statement snapshot of that day is
-    // dropped and recomputed on the next read.
-    if (status === OrderStatus.completed || status === OrderStatus.cancelled) {
+    // Paid sales count as revenue whatever their kitchen status (utils/revenueRecognition.ts),
+    // so only a cancellation changes the income statement of the day the order was created:
+    // drop that day's frozen (final) snapshot so it is recomputed on the next read.
+    if (status === OrderStatus.cancelled) {
       const affectedDates = new Set([getZonedCalendarDate(order.createdAt)]);
       // Assigned inside the transaction callback, which TS flow analysis doesn't track.
       const expenseDate = deletedExpenseDate as Date | null;
@@ -328,9 +328,9 @@ export const OrderService = {
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
     const { items, paymentMethod, cashSessionId, cashReceived, hasDelivery, deliveryAmount, deliveryResponsible, deliveryPaymentMethod, ...restOfOrder } = orderData;
-    const today = getTodayInZone();
-    const todayDate = new Date(today + ' 00:00:00');
-    const currentDay = todayDate.getDay();
+    // L-07: business day as a calendar date, so promotions compare correctly on their last day
+    // whatever the server's timezone.
+    const { date: todayDate, weekday: currentDay } = getCalendarDateAsUtc(getTodayInZone());
 
     const productIds = items.map(item => item.productId).filter(Boolean) as string[];
     const comboIds = items.map(item => item.comboId).filter(Boolean) as string[];
@@ -392,6 +392,7 @@ export const OrderService = {
             discountValue: true,
             buyQuantity: true,
             getQuantity: true,
+            ...promotionScopeSelect,
           },
         }),
       ]);
@@ -480,7 +481,8 @@ export const OrderService = {
                     quantity: extraData.quantity,
                     unitPrice: extra.price,
                     subtotal: extraSubtotal,
-                    costSnapshot: extra.cost,
+                    // L-06: total cost of the extra line (like OrderItem.costSnapshot), not unit cost.
+                    costSnapshot: extra.cost.mul(extraData.quantity),
                   };
                 }),
               },
@@ -501,16 +503,30 @@ export const OrderService = {
           const comboTotalPrice = combo.price.mul(item.quantity);
           subtotal = subtotal.add(comboTotalPrice);
 
-          const comboItemCount = new Prisma.Decimal(combo.items.length || 1);
-          const pricePerItem = comboTotalPrice.div(comboItemCount);
+          // L-05: split the combo price evenly across its products in whole cents; the last
+          // product absorbs the rounding remainder, so the lines always add up to the combo price.
+          const comboItemCount = combo.items.length || 1;
+          const evenShare = comboTotalPrice.div(comboItemCount).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN);
 
-          for (const comboItem of combo.items) {
+          for (const [index, comboItem] of combo.items.entries()) {
             const quantity = comboItem.quantity.mul(item.quantity);
             const itemCost = comboItem.product.cost.mul(quantity);
             totalOrderCost = totalOrderCost.add(itemCost);
+            const isLast = index === combo.items.length - 1;
+            const lineSubtotal = isLast ? comboTotalPrice.sub(evenShare.mul(comboItemCount - 1)) : evenShare;
 
             createdOrderItems.push(await tx.orderItem.create({
-              data: { orderId: order.id, productId: comboItem.productId, productName: `${comboItem.product.name} (Combo: ${combo.name})`, quantity, unitPrice: combo.price.div(comboItemCount), subtotal: pricePerItem, costSnapshot: itemCost, sourceComboId: combo.id, notes: item.note },
+              data: {
+                orderId: order.id,
+                productId: comboItem.productId,
+                productName: `${comboItem.product.name} (Combo: ${combo.name})`,
+                quantity,
+                unitPrice: lineSubtotal.div(quantity).toDecimalPlaces(2),
+                subtotal: lineSubtotal,
+                costSnapshot: itemCost,
+                sourceComboId: combo.id,
+                notes: item.note,
+              },
               include: { product: true },
             }));
           }

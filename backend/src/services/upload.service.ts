@@ -56,7 +56,11 @@ export const UploadService = {
       });
 
     if (uploadError) {
-      throw new Error(`Error al subir el archivo a Supabase: ${uploadError.message}`);
+      // Logged for diagnosis; the client gets a clear, non-technical message (409 via errorHandler).
+      logger.error({ message: uploadError.message }, 'Supabase Storage rejected the product image upload');
+      const error = new Error('No se pudo guardar la imagen. Revisa la configuración de almacenamiento (SUPABASE_SERVICE_ROLE_KEY) o intenta de nuevo.');
+      error.name = 'BusinessRuleError';
+      throw error;
     }
 
     const { data: publicUrlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);

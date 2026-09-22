@@ -178,6 +178,16 @@ export const InventoryCountService = {
       for (const item of count.items) {
         if (item.difference.eq(0)) continue;
 
+        // L-10: stock may have dropped since the count was taken (sales/exits); an adjustment
+        // that would leave it negative is rejected with a clear message instead of a DB error.
+        const resultingStock = item.ingredient.currentStock.add(item.difference);
+        if (resultingStock.lt(0)) {
+          throw new ValidationError(
+            `El ajuste de "${item.ingredient.name}" dejaría el stock en ${resultingStock.toString()}. ` +
+            'El stock cambió desde el conteo: registra un conteo nuevo.',
+          );
+        }
+
         // Update ingredient stock
         await InventoryRepository.updateStock(item.ingredientId, item.difference, tx);
 

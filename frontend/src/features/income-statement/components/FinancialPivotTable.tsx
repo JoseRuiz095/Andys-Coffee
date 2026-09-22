@@ -20,6 +20,12 @@ const ROWS: PivotRow[] = [
   },
   { label: 'Ingresos Totales', kind: 'flow', getValue: (d) => d.movimientos.ingresosTotales, getTotal: (t) => t.ingresosTotales },
   { label: 'Gastos Variables', kind: 'flow', getValue: (d) => d.movimientos.gastos, getTotal: (t) => t.gastos },
+  {
+    label: '· incluye fuera de horario',
+    kind: 'flow',
+    getValue: (d) => d.movimientos.gastosFueraDeHorario,
+    getTotal: (t) => t.gastosFueraDeHorario,
+  },
   { label: 'Ganancia Neta', kind: 'flow', getValue: (d) => d.movimientos.gananciaNeta, getTotal: (t) => t.gananciaNeta },
   { label: 'Efectivo Esperado', kind: 'info', getValue: (d) => d.conciliacion.efectivoEsperado },
   { label: 'Efectivo + Transferencias', kind: 'info', getValue: (d) => d.conciliacion.efectivoYTransferencias },

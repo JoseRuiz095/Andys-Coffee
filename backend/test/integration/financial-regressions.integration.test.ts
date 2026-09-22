@@ -12,6 +12,7 @@ import { incomeStatementService } from "../../src/services/income-statement.serv
 import { InventoryService } from "../../src/services/inventory.service";
 import { OrderService } from "../../src/services/order.service";
 import { UserService } from "../../src/services/user.service";
+import { ProductService } from "../../src/services/product.service";
 import { getZonedCalendarDate, getZonedDayBoundaries } from "../../src/utils/businessDate";
 
 // Regression coverage for the Fase 6 fixes (docs/auditoria-mvp-2026-09-22.md):
@@ -24,6 +25,7 @@ const testId = randomUUID();
 // Past calendar days (always < today) so income-statement snapshots become final.
 const DAY_H04 = "2026-02-10";
 const DAY_C01 = "2026-02-11";
+const DAY_R03 = "2026-02-12";
 
 const PRODUCT_PRICE = 100;
 const PRODUCT_COST = 40;
@@ -64,12 +66,6 @@ async function openSession(openingAmount: number) {
   const session = await CashService.openSession({ openingAmount, cashRegisterId: registerId }, admin.id);
   sessionIds.push(session.id);
   return session;
-}
-
-async function advanceToCompleted(orderId: string) {
-  for (const status of ["preparing", "ready", "completed"] as const) {
-    await OrderService.updateStatus(orderId, { status }, admin);
-  }
 }
 
 before(async () => {
@@ -138,7 +134,7 @@ after(async () => {
   if (!integrationEnabled) return;
 
   await prisma.incomeStatementDailySnapshot.deleteMany({
-    where: { date: { in: [DAY_H04, DAY_C01].map((d) => new Date(`${d}T00:00:00Z`)) } },
+    where: { date: { in: [DAY_H04, DAY_C01, DAY_R03].map((d) => new Date(`${d}T00:00:00Z`)) } },
   });
   await prisma.notification.deleteMany({ where: { referenceId: { in: [...sessionIds, ...orderIds] } } });
   await prisma.auditLog.deleteMany({ where: { userId: { in: createdUserIds } } });
@@ -229,21 +225,27 @@ test("H-03: cancelar un pedido con pago pendiente cancela el pago y ya no se pue
   );
 });
 
-test("H-04: completar un pedido de un día ya finalizado recalcula su estado de resultados", { skip: !integrationEnabled }, async () => {
+test("R-02/H-04: un pedido pagado cuenta como ingreso aunque no esté completado; cancelarlo recalcula su día", { skip: !integrationEnabled }, async () => {
   const order = await createOrder("cash");
   const { start } = getZonedDayBoundaries(DAY_H04);
   await prisma.order.update({ where: { id: order.id }, data: { createdAt: new Date(start.getTime() + 12 * 3600 * 1000) } });
 
-  // First read freezes the (past) day while the order is still pending: no revenue yet.
+  // Still "pending" in the kitchen, but paid: it is revenue (R-02). The past day gets frozen.
   const before = await incomeStatementService.getDayFinancials(DAY_H04);
-  assert.equal(before.movimientos.ingresosTotales, 0);
+  assert.equal(before.movimientos.ingresosTotales, PRODUCT_PRICE);
+  assert.equal(before.movimientos.costoVenta, PRODUCT_COST);
   const frozen = await prisma.incomeStatementDailySnapshot.findUnique({ where: { date: new Date(`${DAY_H04}T00:00:00Z`) } });
   assert.equal(frozen?.isFinal, true);
 
-  await advanceToCompleted(order.id);
+  // Moving it through the kitchen does not change revenue.
+  await OrderService.updateStatus(order.id, { status: "preparing" }, admin);
+  assert.equal((await incomeStatementService.getDayFinancials(DAY_H04)).movimientos.ingresosTotales, PRODUCT_PRICE);
 
+  // Cancelling it drops the frozen snapshot, so the day no longer shows that revenue (H-04).
+  await OrderService.updateStatus(order.id, { status: "cancelled" }, admin);
   const after = await incomeStatementService.getDayFinancials(DAY_H04);
-  assert.equal(after.movimientos.ingresosTotales, PRODUCT_PRICE);
+  assert.equal(after.movimientos.ingresosTotales, 0);
+  assert.equal(after.movimientos.costoVenta, 0);
 });
 
 test("C-01: un gasto con fecha pasada cuenta en el estado de resultados de ese día, también después de editarlo", { skip: !integrationEnabled }, async () => {
@@ -264,6 +266,27 @@ test("C-01: un gasto con fecha pasada cuenta en el estado de resultados de ese d
 
   const afterEdit = await incomeStatementService.getDayFinancials(DAY_C01);
   assert.equal(afterEdit.movimientos.gastos, 35);
+});
+
+test("R-03: un gasto fuera del horario de negocio cuenta en el día y se reporta aparte", { skip: !integrationEnabled }, async () => {
+  const expense = await ExpenseService.create(
+    { category: "otros", description: "Compra nocturna", amount: 42, paymentMethod: "transfer", expenseDate: DAY_R03 },
+    admin.id,
+  );
+  expenseIds.push(expense.id);
+  // 03:00 local: outside any configured business hours.
+  const { start } = getZonedDayBoundaries(DAY_R03);
+  await prisma.expense.update({ where: { id: expense.id }, data: { expenseDate: new Date(start.getTime() + 3 * 3600 * 1000) } });
+
+  const summary = await incomeStatementService.getDayFinancials(DAY_R03);
+  assert.equal(summary.movimientos.gastos, 42);
+  assert.equal(summary.movimientos.gastosFueraDeHorario, 42);
+
+  // The frozen snapshot keeps the breakdown too.
+  const snapshot = await prisma.incomeStatementDailySnapshot.findUniqueOrThrow({ where: { date: new Date(`${DAY_R03}T00:00:00Z`) } });
+  assert.equal(snapshot.expensesOutsideHours.toNumber(), 42);
+  const cached = await incomeStatementService.getDayFinancials(DAY_R03);
+  assert.equal(cached.movimientos.gastosFueraDeHorario, 42);
 });
 
 test("M-02: reabrir una caja deja en la auditoría el conteo que se descarta", { skip: !integrationEnabled }, async () => {
@@ -324,4 +347,15 @@ test("H-05: un usuario con inventory.create_ingredient puede activar y desactiva
   assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).isActive, false);
   await InventoryService.setIngredientActive(ingredientId, true, admin);
   assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).isActive, true);
+});
+
+test("R-04: el detalle del producto sugiere el costo según receta × costo promedio", { skip: !integrationEnabled }, async () => {
+  const detail = await ProductService.findOne(productId);
+  assert.ok(detail);
+  assert.equal(detail!.cost.toNumber(), PRODUCT_COST, "the manual cost is untouched");
+  assert.equal(detail!.suggestedCost?.toNumber(), 5); // 1 unit × averageCost 5
+
+  // Averages move with purchases, and the suggestion follows them.
+  await prisma.ingredient.update({ where: { id: ingredientId }, data: { averageCost: 7.255 } });
+  assert.equal((await ProductService.findOne(productId))!.suggestedCost?.toNumber(), 7.26);
 });

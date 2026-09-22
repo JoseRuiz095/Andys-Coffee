@@ -13,6 +13,11 @@ export interface Product {
   updatedAt: string
 }
 
+/** GET /products/:id: the product plus the cost suggested by its recipe (null = no recipe). */
+export interface ProductDetail extends Product {
+  suggestedCost: number | string | null
+}
+
 export interface CreateProductInput {
   categoryId?: string
   name: string

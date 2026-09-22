@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { recognizedOrderStatus, recognizedSaleOrderWhere } from '../utils/revenueRecognition';
 
 export const DISTRIBUTION_PREFERENCE_KEYS = {
   savingsPercent: 'income_statement.distribution.savings_percent',
@@ -126,7 +127,7 @@ export const incomeStatementRepository = {
       where: {
         status: 'paid',
         order: {
-          status: 'completed',
+          status: recognizedOrderStatus,
           createdAt: { gte: from, lt: to },
           ...(cashRegisterId && { cashSession: { cashRegisterId } }),
         },
@@ -150,7 +151,7 @@ export const incomeStatementRepository = {
     const items = await prisma.orderItem.findMany({
       where: {
         order: {
-          status: 'completed',
+          ...recognizedSaleOrderWhere,
           createdAt: { gte: from, lt: to },
           ...(cashRegisterId && { cashSession: { cashRegisterId } }),
         },
@@ -158,10 +159,19 @@ export const incomeStatementRepository = {
       select: {
         costSnapshot: true,
         order: { select: { createdAt: true } },
+        extras: { select: { costSnapshot: true } },
       },
     });
 
-    return items.map((i) => ({ costSnapshot: i.costSnapshot, orderCreatedAt: i.order.createdAt }));
+    // L-06: the cost of a sold line includes its extras (OrderItemExtra.costSnapshot is the
+    // extra line's total cost).
+    return items.map((i) => ({
+      costSnapshot: i.extras.reduce(
+        (total, extra) => total.add(extra.costSnapshot ?? 0),
+        new Prisma.Decimal(i.costSnapshot ?? 0),
+      ),
+      orderCreatedAt: i.order.createdAt,
+    }));
   },
 
   async findExpensesInRange(from: Date, to: Date, cashRegisterId?: string): Promise<ExpenseRangeRow[]> {

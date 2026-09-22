@@ -129,7 +129,10 @@ test("L-10: un ajuste que dejaría stock negativo se rechaza completo (sin cambi
   await InventoryService.createExit({ ingredientId, quantity: "3", reason: "internal_consumption" }, admin);
   assert.equal(await stockOf(), 2);
 
-  await assert.rejects(InventoryCountService.applyAdjustments(count.id, admin));
+  await assert.rejects(
+    InventoryCountService.applyAdjustments(count.id, admin),
+    (error: Error) => error.name === "ValidationError" && /registra un conteo nuevo/.test(error.message),
+  );
   assert.equal(await stockOf(), 2, "stock unchanged after the failed adjustment");
   const stillCompleted = await prisma.inventoryCount.findUniqueOrThrow({ where: { id: count.id } });
   assert.equal(stillCompleted.status, "completed");

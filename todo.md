@@ -1,10 +1,11 @@
-## TODO List — Andy's Coffee POS (Actualizado Sept 16, 2026)
+## TODO List — Andy's Coffee POS (Actualizado Sept 22, 2026)
 
-Este documento registra el progreso del proyecto a través de 8 fases completadas + próximas prioridades.
+Este documento registra el progreso del proyecto: 11 fases de desarrollo + auditoría integral y testing (Sept 22) + pendientes.
+Detalle completo de la auditoría: [docs/auditoria-mvp-2026-09-22.md](docs/auditoria-mvp-2026-09-22.md).
 
 ---
 
-## ✅ COMPLETADO — Phases 1-8
+## ✅ COMPLETADO — Fases 1-12
 
 ### Phase 1: Base ✅
 - [x] Configuración inicial frontend/backend
@@ -33,7 +34,7 @@ Este documento registra el progreso del proyecto a través de 8 fases completada
 - [x] Apertura de sesión de caja
 - [x] Cierre de sesión de caja
 - [x] Corrección de cierre
-- [x] Auto-cierre a las 14:00 (hora local fin de día)
+- [x] Auto-cierre a la hora de cierre configurada en Preferencias del Sistema (hoy 14:00); queda marcado como "Cierre automático sin conteo"
 - [x] Transacciones atómicas con isolation level Serializable
 - [x] CashService con lógica de negocio
 - [x] Endpoints: `POST /api/cash-register/sessions`, `PATCH /api/cash-register/sessions/:id/close`, etc.
@@ -141,7 +142,7 @@ Este documento registra el progreso del proyecto a través de 8 fases completada
 - [x] Auditoría y remoción de código muerto (fases 1-7)
 - [x] Eliminar repository method: `InventoryRepository.findAll()`
 - [x] Eliminar componentes frontend: `ProductsCatalogPage`, `ProductFormModal`, `ProductsTable`
-- [x] Eliminar modelos Prisma: `Ticket`, `PromotionOnProduct`, `PromotionOnCategory`, `PurchaseInvoiceCounter`
+- [x] Eliminar modelos Prisma: `Ticket`, `PurchaseInvoiceCounter` (⚠️ `PromotionOnProduct`/`PromotionOnCategory` sí se usaban: restaurados el 22/09, ver N-01)
 - [x] Crear migración para eliminar tablas obsoletas
 - [x] Actualizar `menu.service.ts` (promociones globales)
 - [x] Actualizar `order.service.ts` (referencias removidas)
@@ -151,208 +152,150 @@ Este documento registra el progreso del proyecto a través de 8 fases completada
 - [x] Bug fix: Corrección de órdenes existentes con script
 - [x] Bug fix: Validación Zod en `/api/orders/by-date` (z.strictObject → z.object)
 
-## 🔄 EN PROGRESO
+### Fase 12: Auditoría integral, estabilización y testing ✅ (Sept 22, 2026)
+Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-2026-09-22.md](docs/auditoria-mvp-2026-09-22.md)
+
+- [x] Auditoría Fases 0-5: 2 críticos, 6 altos, 11 medios, 11 bajos, código muerto, riesgos
+- [x] Críticos: gastos con fecha que desaparecían del estado de resultados (C-01); cancelar ventas de cajas cerradas alteraba el corte (C-02)
+- [x] Altos: permiso `sales.create` al crear ventas; doble cobro por liquidaciones simultáneas; pagos pendientes de pedidos cancelados; snapshots no invalidados; activar/desactivar ingredientes; rate limit de login evadible
+- [x] Medios: catálogo con costos ya no es público, reapertura de caja auditada, conciliación de caja, escalamiento de privilegios al asignar roles, `helmet`, revocación de sesión (M-06), invalidación de caché en el frontend, seed seguro, pestaña "Cortes de caja"
+- [x] Formato de error unificado `{ message, errors? }` (el frontend ya muestra los mensajes reales)
+- [x] Código muerto confirmado eliminado
+- [x] BD de pruebas aislada en Docker (`npm run test:db:up` / `test:db:prepare`) que nunca toca Supabase
+- [x] Suite: 69 unit + 57 integración + 5 E2E pasando (`npm run test:critical`)
+- [x] Migraciones aplicadas en Supabase: `remove_unused_models`, `add_user_token_version`, `add_snapshot_expenses_outside_hours`, `restore_promotion_links`
+
+**Decisiones de negocio tomadas:**
+- [x] R-02: una venta cuenta como ingreso cuando está pagada, sin importar su estado en cocina (los cancelados nunca)
+- [x] R-03: todos los gastos/compras del día cuentan; los de fuera de horario se muestran aparte
+- [x] R-04: el formulario de producto sugiere el costo según receta × costo promedio (botón "Usar"); el costo sigue siendo manual
+- [x] R-08: cerrar sesión ya no cierra la caja; el auto-cierre queda como "Sin conteo" hasta corregirlo con el conteo real
+- [x] N-01: cada promoción aplica solo a sus productos/categorías (lunes: Latte Andy's; miércoles: Bagels; viernes: 8 lattes de sabor)
+
+---
+
+## 🔴 PENDIENTE — ACCIÓN DEL DESARROLLADOR
+
+- [ ] Agregar `SUPABASE_SERVICE_ROLE_KEY` a `backend/.env` (Supabase → Project Settings → API). Sin ella falla la subida de imágenes de productos. Nunca en el frontend
+- [ ] Commit de los cambios de la auditoría (revisar `backend/.gitignore` y decidir si `backend/prisma/backups/` va al repo)
+- [ ] Levantar un solo backend y un solo frontend (`npm run dev` en cada carpeta); antes había 3 backends duplicados
+- [ ] Apagar la BD de pruebas al terminar: `cd backend && npm run test:db:down`
+
+---
+
+## 🟡 BUGS MENORES
+
+- [ ] Panel del pedido: la imagen de respaldo (logo) no se muestra cuando el producto no tiene imagen
+- [ ] Dashboard: la gráfica de tendencia de ventas agrupa por día UTC, no por día de negocio (ventas después de las 18:00 caen en el día siguiente)
+- [ ] Estado de resultados (tabla por periodo): "Estado de Caja" muestra el código (`SIN_CONTEO`, `CUADRADA`) en vez del texto legible
+
+---
+
+## 📋 PRÓXIMAS FUNCIONALIDADES
 
 ### Reportes
-- [ ] Identificar reportes necesarios
-- [ ] Identificar vistas PostgreSQL relacionadas
-- [ ] Crear endpoints
-- [ ] Filtros por fecha
-- [ ] Filtros por categoría
-- [ ] Reporte de ventas (productos, cantidades, ingresos)
+- [ ] Definir reportes necesarios
+- [ ] Reporte de ventas (productos, cantidades, ingresos) con filtros por fecha y categoría
 - [ ] Reporte de compras (proveedores, costos)
 - [ ] Reporte de gastos
 - [ ] Reporte de inventario (movimientos, niveles)
 - [ ] Margen y utilidad
 - [ ] UI para reportes
 
----
+### Compras
+- [ ] Editar una compra en borrador (`PATCH /api/purchases/:id`; hoy solo se puede crear, recibir y eliminar)
 
-## 📋 PRÓXIMAS PRIORIDADES (Después de Cash Cuts & Expenses)
-
-### Order Management Completo
-- [ ] `GET /api/orders` (listar órdenes)
-- [ ] `GET /api/orders/:id` (detalle)
-- [ ] `PATCH /api/orders/:id` (actualizar)
-- [ ] `DELETE /api/orders/:id` (cancelar con permisos)
-- [ ] Flujo completo de POS
-
-### Purchase Management Completo
-- [ ] `GET /api/purchases/:id` (detalle)
-- [ ] `PATCH /api/purchases/:id` (actualizar)
-
-### Inventory Completo
-- [ ] `GET /api/inventory` (niveles actuales)
-- [ ] `GET /api/inventory/movements` (historial)
-- [ ] Alertas de inventario bajo
+### Inventario
 - [ ] Proyecciones de stock
 
-### Validación Final & Auditoría
+### Promociones
+- [ ] UI para administrar promociones y sus productos/categorías (hoy solo existen por seed/BD)
 
-#### Frontend
-- [ ] Eliminar arrays ficticios de productos
-- [ ] Eliminar arrays ficticios de categorías
-- [ ] Eliminar arrays ficticios de extras/combos
-- [ ] Eliminar órdenes/compras/gastos ficticios
-- [ ] Eliminar datos ficticios del Dashboard
-- [ ] Eliminar datos ficticios de Reportes
-- [ ] Eliminar servicios fake
-- [ ] Auditar frontend nuevamente por mocks
-- [ ] Auditar frontend nuevamente por secretos
+---
 
-#### Backend
-- [ ] Verificar estructura Controller → Service → Repository
-- [ ] Validar respuestas API estandarizadas
-- [ ] Verificar manejo de errores centralizado
-- [ ] Revisar todas las validaciones Zod
-- [ ] Verificar autorización en todos los endpoints
-- [ ] Verificar transacciones donde corresponda
-- [ ] Revisión de queries (evitar N+1, SELECT *)
+## 🧹 DEUDA TÉCNICA
 
-#### Database & Security
-- [ ] `DATABASE_URL` únicamente en backend
-- [ ] Revisar todas las variables `VITE_*`
-- [ ] Buscar secretos en frontend
-- [ ] Verificar no hay hardcoded credentials
-- [ ] SQL parametrizado (Prisma lo maneja)
-- [ ] RLS de Supabase (si aplicable)
-
-#### Performance
-- [ ] Paginación en listados
-- [ ] Filtros optimizados en BD
-- [ ] Búsquedas optimizadas
-- [ ] Índices necesarios
-- [ ] No SELECT * innecesario
-- [ ] Evitar N+1 queries
-- [ ] include/select optimizados en Prisma
-- [ ] React Query correctamente configurado
-- [ ] Caché invalidación correcta
-
-#### Testing
-- [ ] `npx prisma validate`
-- [ ] `npx prisma generate`
-- [ ] `npm run lint` (frontend & backend)
-- [ ] `npm run build` (frontend)
-- [ ] Backend con `npm run dev`
-- [ ] Frontend con `npm run dev`
-- [ ] Probar login y permisos
-- [ ] Probar CRUD de catálogo
-- [ ] Probar órdenes
-- [ ] Probar compras e inventario
-- [ ] Probar gastos y caja
-- [ ] Probar cambio de tema (light/dark)
-- [ ] Verificar consola sin errores
-- [ ] Verificar Network tab sin errores 4xx/5xx
-- [ ] Verificar localStorage temas se persistieron
-
-#### Manual Testing Checklist (Antes de cada feature)
-- [ ] Feature funciona en light mode
-- [ ] Feature funciona en dark mode
-- [ ] Colores renderean correctamente
-- [ ] Sin errores en consola
-- [ ] API calls exitosas (verificar Network tab)
-- [ ] Validación de formularios funciona
-- [ ] Permisos funcionan
-- [ ] Estados (loading, error, empty, success) funcionan
-- [ ] Responsive en desktop (1024px+)
+- [ ] Frontend: 71 errores de lint (60 `any`); backend sin ESLint
+- [ ] Services que usan Prisma directamente (`order.service` 67 usos, `expense.service` 13, `cash`, `auth`, `menu`, job de conciliación) → mover a repositories
+- [ ] Autorización y validación uniformes: `checkPermission` + `validate()` en todas las rutas; quitar los try/catch repetidos de los controllers
+- [ ] Estados como texto libre → enums (`Payment.status`, `CashMovement.type`, `deliveryResponsible`, `Expense.category`); FK para `Expense.sourceOrderId`
+- [ ] Convención de signos uniforme en `CashMovement.amount`
+- [ ] Drift previo de la tabla `ingredients` entre BD y esquema (índice parcial de `sku`, tipo de `deletedAt`)
+- [ ] Code splitting del frontend (bundle único de 1.77 MB)
+- [ ] `package.json` en la raíz y `backend/.env.example`
+- [ ] Cobertura de tests (69% de líneas): subir categorías, dashboard, notificaciones y controllers de inventario
 
 ---
 
 ## 📊 CRITERIO FINAL DE TERMINADO
 
-- [ ] Frontend **NO** contiene datos de negocio ficticios
+- [x] Frontend **NO** contiene datos de negocio ficticios (verificado Sept 22)
 - [x] Todas las pantallas utilizan API real
 - [x] API utiliza BD real (PostgreSQL)
 - [x] PostgreSQL es la fuente de verdad
-- [ ] Funciones PostgreSQL se reutilizan
-- [ ] Vistas PostgreSQL se reutilizan
-- [x] costSnapshot funciona correctamente
-- [x] Permisos funcionan desde backend
-- [ ] Secretos no llegan al navegador
+- [x] costSnapshot funciona correctamente (incluye extras)
+- [x] Permisos funcionan desde backend (incluida la creación de ventas)
+- [x] Secretos no llegan al navegador (único `VITE_*`: URL pública de Supabase)
 - [x] Estados (loading/error/empty/success) funcionales
 - [x] CRUD funcional para entidades principales
 - [x] Inventario funcional (entradas, salidas, conteos)
 - [x] Ventas funcionales (crear, listar, cancelar)
 - [x] Compras funcionales (crear, listar, recibir)
-- [x] Caja funcional (abrir, cerrar, corregir, auto-close)
-- [x] Gastos funcionales (crear, listar, editar, eliminar, con seguridad de sesión cerrada)
+- [x] Caja funcional (abrir, cerrar, corregir, auto-cierre)
+- [x] Gastos funcionales
 - [x] Dashboard utiliza datos reales
-- [ ] Reportes utilizan datos reales
+- [ ] Reportes utilizan datos reales (módulo de reportes pendiente)
 - [x] Sistema de temas (light/dark) funcional
 - [x] Preferencias de usuario persistidas
-- [x] Lint/build/Prisma validan correctamente
-- [ ] Tests críticos pasan
-- [ ] No hay pendientes críticos de seguridad
+- [x] Build/Prisma validan correctamente
+- [ ] Lint limpio (71 errores en frontend)
+- [x] Tests críticos pasan (`npm run test:critical`)
+- [x] No hay pendientes críticos de seguridad
 
 ---
 
 ## 📝 NOTAS TÉCNICAS
 
-### Arquitectura Confirmada
-- **Backend**: Controller → Service → Repository → Prisma ORM
-- **Frontend**: Components (presentacionales) → Hooks (lógica) → Pages (ensamblaje) → API
-- **State**: Event-based singleton store para auth, TanStack Query para server state, Theme Context para tema
-- **Validación**: Zod en backend (fuente de verdad), validación manual en frontend
-- **Database**: PostgreSQL con Prisma ORM, transacciones para operaciones críticas
+### Arquitectura
+- **Backend**: Controller → Service → Repository → Prisma ORM (con las excepciones listadas en Deuda técnica)
+- **Frontend**: Components → Hooks → Pages → API (`app/api.ts` + `features/*/api`); router propio en `app/router.tsx`
+- **State**: store de auth basado en eventos, TanStack Query para datos del servidor, Theme Context para el tema
+- **Validación**: Zod en backend (fuente de verdad)
+- **Reglas financieras**: ingreso = pedido pagado y no cancelado (`backend/src/utils/revenueRecognition.ts`)
 
-### Archivos Críticos
-**Backend:**
-- `backend/prisma/schema.prisma` - Esquema de BD
-- `backend/src/services/` - Toda la lógica de negocio
-- `backend/src/repositories/` - Acceso a datos
-- `backend/src/validators/` - Esquemas Zod
-
-**Frontend:**
-- `frontend/src/shared/assets/theme.ts` - Sistema de temas
-- `frontend/src/index.css` - Variables CSS
-- `frontend/src/shared/api/` - Cliente API
-- `frontend/src/app/providers.tsx` - Providers raíz
-
-### Commands Útiles
+### Comandos útiles
 ```bash
 # Backend
-cd backend && npm run dev              # Dev server con hot reload
-npm run prisma:migrate                 # Crear/aplicar migraciones
-npm run test:critical                  # Todos los tests
+cd backend && npm run dev              # Servidor con hot reload
+npm run prisma:migrate                 # Crear/aplicar migraciones (desarrollo)
+npx prisma migrate deploy              # Aplicar migraciones (Supabase)
+
+# Tests (requiere Docker)
+npm run test:db:up && npm run test:db:prepare
+npm run test:critical                  # unit + integración + E2E
+npm run test:db:down
 
 # Frontend
-cd frontend && npm run dev             # Vite dev server
-npm run build                          # Build para producción
-
-# Both (desde raíz)
-npm run dev:backend && npm run dev:frontend
+cd frontend && npm run dev             # Vite
+npm run build                          # Build de producción
 ```
 
 ---
 
 ## 🎯 RESUMEN DE PROGRESO
 
-**Completado**: 11 fases (Base, Catálogo, Cash, POS, Inventory, Orders, Manual Exits, Refactoring, Expenses, Dashboard, Code Cleanup & Bug Fixes)
-**En Progreso**: Reportes, Order management completo
-**Próxima**: Reportes financieros, validación final, auditoría de seguridad completa
-**Status General**: Proyecto en fase de mantenimiento y extensión (11 phases completadas, código limpio y funcional)
+**Completado**: 11 fases de desarrollo + Fase 12 (auditoría, estabilización y testing)
+**Siguiente**: acciones del desarrollador, bugs menores, módulo de reportes
+**Status general**: MVP auditado; sin pendientes críticos ni altos; 131 tests automatizados pasando
 
-### Ciclo Sept 16, 2026
-- ✅ **Auditoría Dashboard**: Identificadas 0 views existentes, 18 métricas factibles
-- ✅ **Expenses completo**: 5 archivos backend + 6 archivos frontend + bug fixes
-- ✅ **Dashboard completo**: 4 endpoints + 4 componentes UI + hooks TanStack Query
-- ✅ **Build status**: TypeScript valida, frontend bundlea sin errores
+### Ciclo Sept 22, 2026 — Auditoría y testing ✅
+- ✅ Auditoría integral (backend, BD, API/seguridad, frontend, flujos de negocio)
+- ✅ Todos los hallazgos críticos, altos y medios corregidos o aplicados
+- ✅ 4 migraciones aplicadas en Supabase, con respaldo previo de datos
+- ✅ Infraestructura de tests aislada + 131 tests
 
-### Ciclo Sept 21, 2026 — ESTA SESIÓN ✅
-- ✅ **Auditoría de código muerto**: 8 elementos identificados y removidos
-  - Eliminada `InventoryRepository.findAll()` (método duplicado nunca llamado)
-  - Eliminados 3 componentes frontend obsoletos (ProductsCatalogPage, ProductFormModal, ProductsTable)
-  - Eliminados 4 modelos Prisma sin relaciones activas (Ticket, PromotionOnProduct, PromotionOnCategory, PurchaseInvoiceCounter)
-  - Creada migración para limpiar BD
-  - Actualizado menu.service.ts y order.service.ts
-- ✅ **Bug fixes críticos**:
-  - Drawer visual: Portal pattern para escapar stacking contexts (Framer Motion transforms)
-  - Combo prices: Distribución equitativa entre items (ej: $110 combo ÷ 2 items = $55 c/u)
-  - Órdenes históricas: Script para corregir precios retroactivamente
-  - Validación Zod: `/api/orders/by-date` con parámetros adicionales
-- ✅ **Verificaciones**:
-  - TypeScript: backend + frontend compilan sin errores
-  - Prisma: schema válido, migrations aplicadas
-  - Backend: inicializa sin errores
+### Ciclo Sept 21, 2026 ✅
+- ✅ Auditoría de código muerto (8 elementos; los vínculos de promociones se restauraron el 22/09)
+- ✅ Bug fixes: Drawer (Portal), precios de combos, órdenes históricas, validación `/api/orders/by-date`
 
-Última actualización: **Sept 21, 2026 (EOD) — Proyecto en estado LIMPIO y FUNCIONAL**
+Última actualización: **Sept 22, 2026**

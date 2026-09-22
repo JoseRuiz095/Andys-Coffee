@@ -140,6 +140,16 @@ export function getTodayInZone(timeZone: string = CASH_TIMEZONE): string {
   return getZonedCalendarDate(new Date(), timeZone);
 }
 
+/**
+ * A business calendar date as stored in date-only columns (e.g. Promotion.startDate/endDate,
+ * saved as 'YYYY-MM-DD 00:00'): UTC midnight of `dateStr`, plus its weekday (0 = Sunday).
+ * Independent of the server's timezone, unlike `new Date('YYYY-MM-DD 00:00:00')`.
+ */
+export function getCalendarDateAsUtc(dateStr: string): { date: Date; weekday: number } {
+  const date = new Date(`${dateStr}T00:00:00.000Z`);
+  return { date, weekday: date.getUTCDay() };
+}
+
 /** Wall-clock hour/minute that `instant` falls on, in `timeZone` — for comparing against business hours. */
 export function getZonedTimeOfDay(instant: Date, timeZone: string = CASH_TIMEZONE): { hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-US', {

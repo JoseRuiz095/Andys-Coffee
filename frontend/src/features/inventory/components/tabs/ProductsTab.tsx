@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useProducts, useCategories } from '../../../products/hooks/useProducts'
+import { useProducts, useCategories, useProductDetail } from '../../../products/hooks/useProducts'
 import { authStore } from '../../../auth/store/auth.store'
 import { hasPermission } from '../../../auth/utils/permissions'
 import { Card } from '../../../../shared/components/Card'
@@ -39,6 +39,12 @@ export function ProductsTab() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<any>(null)
+  // R-04: recipe-based cost hint, only when editing an existing product.
+  const { data: editingDetail } = useProductDetail(editingProduct?.id)
+  const suggestedCost =
+    editingDetail?.suggestedCost !== null && editingDetail?.suggestedCost !== undefined
+      ? Number(editingDetail.suggestedCost)
+      : null
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
 
@@ -522,6 +528,21 @@ export function ProductsTab() {
                       min="0"
                       step="0.01"
                     />
+                    {suggestedCost !== null && (
+                      <p className="mt-1 flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                        Costo según receta: {formatCurrency(suggestedCost)}
+                        {suggestedCost !== Number(formData.cost) && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, cost: suggestedCost })}
+                            className="font-semibold underline"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            Usar
+                          </button>
+                        )}
+                      </p>
+                    )}
                   </div>
 
                   <div>

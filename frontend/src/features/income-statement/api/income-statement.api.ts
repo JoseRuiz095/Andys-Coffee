@@ -15,6 +15,8 @@ export interface DayFinancialSummary {
     ingresosTotales: number;
     costoVenta: number;
     gastos: number;
+    /** Part of `gastos` registered outside business hours (already included in `gastos`). */
+    gastosFueraDeHorario: number;
     gananciaNeta: number;
   };
   conciliacion: {
@@ -77,6 +79,7 @@ export interface PeriodTotals {
   ingresosTotales: number;
   costoVenta: number;
   gastos: number;
+  gastosFueraDeHorario: number;
   gananciaNeta: number;
   gastosOperativosFijos: number;
   gananciaDistribuible: number;

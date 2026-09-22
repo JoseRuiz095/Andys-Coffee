@@ -22,6 +22,9 @@ export function MovimientosDelDiaSection({ summary }: { summary: DayFinancialSum
         )}
         <StatBlock label="Ingresos Totales" value={summary.movimientos.ingresosTotales} emphasize />
         <StatBlock label="Gastos Variables" value={-summary.movimientos.gastos} />
+        {summary.movimientos.gastosFueraDeHorario !== 0 && (
+          <StatBlock label="· incluye fuera de horario" value={-summary.movimientos.gastosFueraDeHorario} />
+        )}
         <StatBlock
           label="Ganancia Neta"
           value={summary.movimientos.gananciaNeta}

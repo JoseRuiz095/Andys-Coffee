@@ -306,3 +306,34 @@ Decisión del desarrollador: **cerrar sesión no toca la caja.**
 - Tests: `sec-006-auth-session.spec.ts` verifica que la caja sigue abierta después del logout; `cash-session.integration.test.ts` verifica la etiqueta del auto-cierre.
 - En Supabase no había cortes afectados: los 4 cortes cerrados son manuales.
 - **Estado "Sin conteo"** (seguimiento de R-08): un día con un corte automático sin corregir ya no sale "Caja cuadrada" en el estado de resultados. Sale **"Sin conteo"** (`SIN_CONTEO`), sin efectivo real ni diferencia. En "Cortes de caja" la columna Diferencia muestra "Sin conteo". Al corregir el corte con el conteo real, su `closingReason` pasa a ser el motivo de la corrección (el original queda en `AuditLog`) y el día vuelve a Cuadrada/Sobrante/Faltante. Constante compartida: `AUTO_CLOSE_REASON` en `backend/src/config/app.ts`. Sin cambios de esquema.
+
+---
+
+## Decisiones de negocio y bugs menores (2026-09-22, segunda ronda)
+
+| ID | Decisión / estado | Cambio |
+| -- | ----------------- | ------ |
+| R-02 | ✅ **Ingreso = pedido pagado y no cancelado**, sin importar su estado en cocina | Regla única en `utils/revenueRecognition.ts`, usada por el estado de resultados (ingresos y costo de ventas) y el dashboard. Solo cancelar invalida el snapshot del día. En Supabase no cambió ningún día congelado (los 11 pedidos estaban completados y pagados) |
+| R-03 | ✅ **Todos los gastos y compras del día cuentan; los de fuera de horario se muestran aparte** | `movimientos.gastosFueraDeHorario` + columna `income_statement_daily_snapshots.expensesOutsideHours` (migración `20260922210000_add_snapshot_expenses_outside_hours`, aplicada en Supabase; sin gastos ni compras previos que recalcular). UI: línea "· incluye fuera de horario" |
+| R-04 | ✅ **Costo sugerido desde la receta** | `GET /api/products/:id` devuelve `suggestedCost` (Σ cantidad × costo promedio del ingrediente); el formulario de edición muestra "Costo según receta" con botón "Usar". El costo sigue siendo manual |
+| R-05 | ✅ Revisado: **no hay riesgo de subidas anónimas** | RLS activo en `storage.objects`, bucket `Img` solo con políticas de lectura. El efecto contrario era un bug: la app subía con la anon key y RLS lo rechazaría. `config/supabase.ts` usa `SUPABASE_SERVICE_ROLE_KEY` (solo backend) si existe; el error de subida ahora es un mensaje claro. **Falta que el desarrollador agregue la key a `backend/.env`.** `imageUtils.ts` ya acepta URLs completas |
+| L-05 | ✅ | Reparto del combo en centavos exactos (el último producto absorbe el residuo); `unitPrice = subtotal / cantidad` |
+| L-06 | ✅ | `OrderItemExtra.costSnapshot` = costo × cantidad; el costo de ventas incluye extras (no había datos históricos con extras) |
+| L-07 | ✅ | Fecha de negocio como fecha de calendario (`getCalendarDateAsUtc`) en pedidos y menú: la promo aplica su último día sin depender de la zona del servidor |
+| L-10 | ✅ | Mensaje claro: "El ajuste de X dejaría el stock en −N… registra un conteo nuevo" |
+
+Tests nuevos: `pricing-regressions.integration.test.ts` (L-05/06/07), casos R-02/R-03/R-04 en `financial-regressions`, L-10 afinado, unit de R-03 y L-07. Suite: **68 unit + 56 integración + 5 E2E**.
+
+### Hallazgo nuevo N-01 (HIGH): las promociones se aplican a todos los productos
+
+Al eliminar `PromotionOnProduct`/`PromotionOnCategory` (Fase 11, "código muerto"), `pricing.service` quedó aplicando **cada promoción activa del día a todos los productos**:
+
+- Lunes "Latte Andy's 2x1": 2x1 en cualquier producto.
+- Miércoles "Día del Bagel" (precio fijo $75): todo producto de más de $75 se cobra a $75.
+- Viernes "2 cafés de sabor por $99": cualesquiera 2 productos por $99.
+
+Los vínculos originales (11 filas: 2 productos para el lunes, la categoría Bagels para el miércoles, 8 lattes para el viernes) están respaldados en `backend/prisma/backups/2026-09-22-remove_unused_models.json`. La única venta real con descuento (pedido #4, viernes 18/09) era legítima. **Pendiente de decisión del desarrollador.**
+
+**N-01 resuelto (2026-09-22):** se recrearon `PromotionOnProduct`/`PromotionOnCategory` (con `ON DELETE CASCADE`) y se restauraron las 11 filas del respaldo (migración `20260922220000_restore_promotion_links`, aplicada en Supabase). `pricing.service.promotionsForProduct` limita cada promoción a sus productos/categorías, tanto al cobrar (`order.service`) como en el menú (`menu.service`); una promoción sin vínculos no aplica a nada. El seed crea los vínculos por nombre (antes los perdía al recrear las promociones). Verificado en Supabase: lunes → 2 productos, miércoles → 4 bagels, viernes → 8 lattes (de 43 productos). Tests: unit `promotionsForProduct` + integración por producto y por categoría.
+
+**Deuda técnica detectada (TD-12):** la BD tiene *drift* previo en `ingredients` respecto al esquema (índice parcial de `sku`, índice `isActive`, tipo de `deletedAt`). No afecta el funcionamiento; conviene alinear el esquema en una migración dedicada.

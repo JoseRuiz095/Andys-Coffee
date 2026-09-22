@@ -9,6 +9,7 @@ import {
   getZonedInstant,
   getBusinessMidpointInstant,
   getZonedTimeOfDay,
+  getCalendarDateAsUtc,
 } from '../src/utils/businessDate';
 
 const TZ = 'America/Mexico_City'; // UTC-6 (no DST in Mexico as of 2022+)
@@ -76,4 +77,10 @@ test('getBusinessMidpointInstant places the record mid business day, on the same
 
 test('getBusinessMidpointInstant falls back to local noon for an invalid range', () => {
   assert.equal(getBusinessMidpointInstant('2026-09-10', '22:00', '09:00', TZ).toISOString(), '2026-09-10T18:00:00.000Z');
+});
+
+test('L-07: getCalendarDateAsUtc returns the calendar date as stored in date-only columns', () => {
+  const { date, weekday } = getCalendarDateAsUtc('2026-09-23');
+  assert.equal(date.toISOString(), '2026-09-23T00:00:00.000Z');
+  assert.equal(weekday, 3); // Wednesday, regardless of the server timezone
 });

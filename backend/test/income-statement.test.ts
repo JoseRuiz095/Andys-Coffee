@@ -277,7 +277,7 @@ test('sin horario configurado (businessHours=null), todos los gastos cuentan —
   assert.equal(core.totalExpenses.toNumber(), 150);
 });
 
-test('con horario configurado, solo los gastos registrados dentro del horario de servicio cuentan en Gastos Variables', () => {
+test('R-03: con horario configurado, todos los gastos del día cuentan y los de fuera de horario se reportan aparte', () => {
   const rows: DaySubsetRows = {
     sessions: [],
     payments: [payment('cash', 1000)],
@@ -291,6 +291,7 @@ test('con horario configurado, solo los gastos registrados dentro del horario de
 
   const core = computeDayCore(rows, DEFAULT_PERCENTAGES, money(0), BUSINESS_HOURS);
 
-  assert.equal(core.totalExpenses.toNumber(), 100);
-  assert.equal(core.netProfit.toNumber(), 900); // 1000 - 100 (the out-of-hours expense is excluded)
+  assert.equal(core.totalExpenses.toNumber(), 150);
+  assert.equal(core.expensesOutsideHours.toNumber(), 50); // the 23:00 expense, informational
+  assert.equal(core.netProfit.toNumber(), 850); // 1000 - 150: nothing is dropped any more
 });

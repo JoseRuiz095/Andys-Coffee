@@ -8,6 +8,7 @@ import {
   getWeekRange,
 } from '../utils/businessDate';
 import { CASH_TIMEZONE } from '../config/app';
+import { recognizedOrderStatus, recognizedSaleOrderWhere } from '../utils/revenueRecognition';
 
 interface DateRange {
   from: Date;
@@ -63,7 +64,7 @@ export function getPeriodDateRange(
 export const dashboardRepository = {
   async getSummary(from: Date, to: Date, cashRegisterId?: string) {
     const whereOrder: Prisma.OrderWhereInput = {
-      status: 'completed',
+      ...recognizedSaleOrderWhere,
       createdAt: { gte: from, lt: to },
       ...(cashRegisterId && { cashSession: { cashRegisterId } }),
     };
@@ -80,7 +81,7 @@ export const dashboardRepository = {
     const [totalOrders, totalRevenue, totalExpenses, lowStockData, outOfStockCount] = await Promise.all([
       prisma.order.count({ where: whereOrder }),
       prisma.payment.aggregate({
-        where: { status: 'paid', order: { status: 'completed', createdAt: { gte: from, lt: to } } },
+        where: { status: 'paid', order: { status: recognizedOrderStatus, createdAt: { gte: from, lt: to } } },
         _sum: { amount: true },
       }),
       prisma.expense.aggregate({
@@ -118,7 +119,7 @@ export const dashboardRepository = {
   async getSales(from: Date, to: Date, limit: number) {
     const orders = await prisma.order.findMany({
       where: {
-        status: 'completed',
+        ...recognizedSaleOrderWhere,
         createdAt: { gte: from, lt: to },
       },
       select: {
@@ -133,7 +134,7 @@ export const dashboardRepository = {
       by: ['productId'],
       where: {
         order: {
-          status: 'completed',
+          ...recognizedSaleOrderWhere,
           createdAt: { gte: from, lt: to },
         },
       },
@@ -227,7 +228,8 @@ export const dashboardRepository = {
         COALESCE(SUM(p.amount), 0) as revenue
       FROM orders o
       LEFT JOIN payments p ON o.id = p."orderId" AND p.status = 'paid'
-      WHERE o.status = 'completed' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+      WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+        AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
       GROUP BY DATE_TRUNC('day', o."createdAt")
       ORDER BY date ASC
     `;
@@ -244,7 +246,7 @@ export const dashboardRepository = {
       by: ['productId'],
       where: {
         order: {
-          status: 'completed',
+          ...recognizedSaleOrderWhere,
           createdAt: { gte: from, lt: to },
         },
       },
@@ -293,7 +295,8 @@ export const dashboardRepository = {
         COALESCE(SUM(oi.subtotal), 0) as revenue
       FROM order_items oi
       JOIN orders o ON oi."orderId" = o.id
-      WHERE o.status = 'completed' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+      WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+        AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
       GROUP BY DATE_TRUNC('day', o."createdAt")
       ORDER BY date ASC
     `;

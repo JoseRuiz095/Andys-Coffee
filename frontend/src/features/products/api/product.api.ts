@@ -1,5 +1,5 @@
 import { apiClient } from '../../../app/api'
-import type { Product, CreateProductInput, UpdateProductInput, Category } from '../types/product.types'
+import type { Product, CreateProductInput, UpdateProductInput, Category, ProductDetail } from '../types/product.types'
 
 const BASE_URL = '/products'
 
@@ -22,7 +22,7 @@ export const ProductAPI = {
   },
 
   async getById(id: string) {
-    const { data } = await apiClient.get<Product>(`${BASE_URL}/${id}`)
+    const { data } = await apiClient.get<ProductDetail>(`${BASE_URL}/${id}`)
     return data
   },
 

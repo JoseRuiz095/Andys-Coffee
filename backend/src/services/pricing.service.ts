@@ -75,6 +75,29 @@ const calculateDiscount = (
   return roundMoney(unitPrice.mul(freeUnits).mul(promotion.discountValue).div(ONE_HUNDRED));
 };
 
+/** Which products a promotion covers: listed products, or any product of a listed category. */
+export type PromotionScope = {
+  products: { productId: string }[];
+  categories: { categoryId: string }[];
+};
+
+/** Prisma `select` for the scope of a promotion (use with promotion queries). */
+export const promotionScopeSelect = {
+  products: { select: { productId: true } },
+  categories: { select: { categoryId: true } },
+} as const;
+
+/**
+ * Promotions that apply to one product (N-01). A promotion only covers the products and
+ * categories it is linked to; one without links covers nothing.
+ */
+export const promotionsForProduct = <T extends PromotionScope>(
+  promotions: T[],
+  product: { id: string; categoryId: string | null },
+): T[] => promotions.filter((promotion) =>
+  promotion.products.some(({ productId }) => productId === product.id)
+  || (product.categoryId !== null && promotion.categories.some(({ categoryId }) => categoryId === product.categoryId)));
+
 export const calculateBestPromotion = (
   unitPrice: Prisma.Decimal,
   quantity: number,
