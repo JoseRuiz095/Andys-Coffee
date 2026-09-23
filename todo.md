@@ -190,6 +190,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] N-04: la pantalla de Gastos no estaba montada en ninguna parte; vuelve a Configuración → Gastos (`expenses.read`)
 - [x] Filtro de pedidos: agregados "En preparación" y "Lista"
 - [x] Tipos reales que ocultaban los `any` (categorías, entradas de inventario, estado de pedidos)
+- [x] N-06: la lista de categorías de gasto del frontend no tenía `mandadito`: esos gastos no se podían filtrar ni editar
 - [x] N-05: **el filtro "Inactivos" de Ingredientes, Proveedores y Usuarios mostraba los activos** (`z.coerce.boolean()` convierte `"false"` en `true`); ahora `queryBoolean`
 
 ## 🟡 BUGS MENORES (resueltos Sept 22)
@@ -227,9 +228,19 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] Lint limpio: frontend 71 → 0 errores; backend con ESLint configurado (41 → 0). Sin `any` en código de la app
 - [x] Ningún service/controller/job/middleware usa Prisma directo: consultas en repositories (`order`, `cash`, `menu`, `notification`, `audit-log`) y transacciones vía `runInTransaction` (`repositories/transaction.ts`). ESLint lo bloquea (`no-restricted-imports`)
 - [x] Autorización y validación uniformes: `checkPermission` + `validate()` en todas las rutas (las excepciones están listadas y justificadas en `test/route-policy.test.ts`); controllers sin try/catch (el `errorHandler` global mapea todo, incluido `CONFLICT_ERROR`/`DUPLICATE_ERROR`). Los services conservan su verificación como segunda capa
-- [ ] Estados como texto libre → enums (`Payment.status`, `CashMovement.type`, `deliveryResponsible`, `Expense.category`); FK para `Expense.sourceOrderId`
-- [ ] Convención de signos uniforme en `CashMovement.amount`
-- [ ] Drift previo de la tabla `ingredients` entre BD y esquema (índice parcial de `sku`, tipo de `deletedAt`)
+- [x] Enums (`Payment.status`, `CashMovement.type`, `deliveryResponsible`, `Expense.category`) + FK `Expense.sourceOrderId` (SET NULL) — migración `20260923100000`, aplicada en Supabase el 23 sept
+- [x] Convención de signos: `CashMovement.amount` = efecto en caja (migración `20260923110000`, aplicada; en producción no había filas que invertir)
+- [x] Drift de `ingredients` (migración `20260923120000`, aplicada)
+
+### Procedimiento usado para las migraciones 20260923* (referencia para futuras migraciones de tipo)
+> El código nuevo y la migración deben salir juntos: el backend con el cliente Prisma nuevo falló al cerrar caja (500) hasta aplicar la migración.
+1. `cd backend && npx tsx scripts/check-enum-migration.ts` — solo lectura; debe terminar en "OK". Si reporta valores fuera del enum, corregirlos primero
+2. `npx tsx scripts/check-enum-migration.ts --backup` — respaldo en `prisma/backups/2026-09-23-enums-signs.json`
+3. Fuera de horario (07:00–14:00), sin caja abierta: **detener el backend**
+4. `npm run prisma:migrate:deploy` (nunca `migrate dev` ni `migrate reset` contra Supabase)
+5. `npx tsx scripts/check-enum-migration.ts` otra vez — sin sesiones descuadradas
+6. Levantar el backend con el código nuevo
+- Si una migración falla, no queda nada a medias (cada una corre en su propia transacción): corregir el dato y `npx prisma migrate resolve --rolled-back <nombre>` antes de reintentar
 - [x] Code splitting: bundle inicial 1,774 kB → 183 kB de app + vendors cacheables; Órdenes, Inventario, Administración y Configuración se cargan bajo demanda
 - [x] `package.json` en la raíz (`npm run lint`, `typecheck`, `test:critical`, `dev:*`) y `.env.example` en backend y frontend
 - [ ] Cobertura de tests (69% de líneas): subir categorías, dashboard, notificaciones y controllers de inventario

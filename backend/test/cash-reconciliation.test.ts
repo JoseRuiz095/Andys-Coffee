@@ -17,26 +17,25 @@ test('M-03: a normal day reconciles to expectedAmount (CLOSING is ignored)', () 
   const total = reconcile([
     ['OPENING', 500],
     ['sale', 120],
-    ['expense', 30],
+    ['expense', -30],
     ['CLOSING', 590],
   ]);
   assert.equal(total.toString(), '590');
 });
 
-test('M-03: reversals and adjustments use the same sign as the service that wrote them', () => {
-  // order.service: sale +80, cancellation sale_reversal stored -80 (expected -80)
-  // expense.service: expense 50 (expected -50), edited to 40 → expense_adjustment stored +10 (expected +10),
-  //                  deleted → expense_reversal stored -40 (expected +40)
-  // mandadito: delivery_collected +25, delivery_handoff 25 (expected -25)
+test('TD-10: every movement is stored as its signed drawer effect', () => {
+  // order.service: sale +80, cancellation sale_reversal -80
+  // expense.service: expense 50 (-50), edited to 40 → expense_adjustment +10, deleted → expense_reversal +40
+  // mandadito: delivery_collected +25, delivery_handoff -25
   const total = reconcile([
     ['OPENING', 100],
     ['sale', 80],
     ['sale_reversal', -80],
-    ['expense', 50],
+    ['expense', -50],
     ['expense_adjustment', 10],
-    ['expense_reversal', -40],
+    ['expense_reversal', 40],
     ['delivery_collected', 25],
-    ['delivery_handoff', 25],
+    ['delivery_handoff', -25],
   ]);
   // 100 + 80 - 80 - 50 + 10 + 40 + 25 - 25 = 100
   assert.equal(total.toString(), '100');

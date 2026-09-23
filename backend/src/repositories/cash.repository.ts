@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type CashMovementType } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries } from '../utils/businessDate';
@@ -228,18 +228,16 @@ export const CashRepository = {
   },
 
   /**
-   * Records a cash movement and applies its effect to the session's expectedAmount in the
-   * same transaction. `drawerEffect` is how much the drawer changes (+ money in, − money out);
-   * it is explicit because the stored `amount` sign is not uniform across movement types
-   * (see jobs/cashReconciliation.job.ts).
+   * Records a cash movement and applies it to the session's expectedAmount in the same
+   * transaction. `amount` is the signed effect on the drawer (+ money in, − money out) —
+   * the convention for every type except CLOSING (see jobs/cashReconciliation.job.ts).
    */
   async recordMovement(
     tx: Tx,
     data: {
       cashSessionId: string;
-      type: string;
+      type: CashMovementType;
       amount: Prisma.Decimal;
-      drawerEffect: Prisma.Decimal;
       referenceType?: string;
       referenceId?: string;
       description?: string;
@@ -248,23 +246,22 @@ export const CashRepository = {
       createdById: string;
     },
   ) {
-    const { drawerEffect, ...movement } = data;
-    const created = await tx.cashMovement.create({ data: movement });
+    const created = await tx.cashMovement.create({ data });
     await tx.cashSession.update({
       where: { id: data.cashSessionId },
-      data: { expectedAmount: { increment: drawerEffect } },
+      data: { expectedAmount: { increment: data.amount } },
     });
     return created;
   },
 
   async findMovements(
     tx: DbClient,
-    where: { referenceType: string; referenceId: string; type: string; cashSessionId?: string },
+    where: { referenceType: string; referenceId: string; type: CashMovementType; cashSessionId?: string },
   ) {
     return tx.cashMovement.findMany({ where });
   },
 
-  async findFirstMovement(tx: Tx, where: { referenceType: string; referenceId: string; type: string }) {
+  async findFirstMovement(tx: Tx, where: { referenceType: string; referenceId: string; type: CashMovementType }) {
     return tx.cashMovement.findFirst({ where });
   },
 

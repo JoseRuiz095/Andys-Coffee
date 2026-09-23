@@ -17,25 +17,12 @@ interface ReconciliationResult {
 }
 
 /**
- * Effect of a movement on CashSession.expectedAmount. The stored `amount` sign is not
- * uniform across types (e.g. 'expense' is stored positive but lowers the drawer, while
- * 'sale_reversal' is stored negative), so this mirrors how each writer adjusts
- * expectedAmount (order.service.ts, expense.service.ts, cash.repository.ts).
- * CLOSING records the counted cash, not a drawer change, so it contributes nothing.
+ * Effect of a movement on CashSession.expectedAmount. `amount` is stored as the signed drawer
+ * effect for every type (migration 20260923110000_uniform_cash_movement_sign); CLOSING records
+ * the counted cash, not a drawer change, so it contributes nothing.
  */
 export function expectedAmountEffect(type: string, amount: Prisma.Decimal): Prisma.Decimal {
-  switch (type) {
-    case 'CLOSING':
-      return new Prisma.Decimal(0);
-    case 'expense':
-    case 'expense_reversal':
-    case 'delivery_handoff':
-      return amount.negated();
-    default:
-      // OPENING, sale, sale_reversal, delivery_collected, delivery_collected_reversal,
-      // expense_adjustment: stored with the same sign as their effect on the drawer.
-      return amount;
-  }
+  return type === 'CLOSING' ? new Prisma.Decimal(0) : amount;
 }
 
 /**

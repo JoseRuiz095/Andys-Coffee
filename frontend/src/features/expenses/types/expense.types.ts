@@ -1,4 +1,5 @@
-export const EXPENSE_CATEGORIES = ['insumos', 'servicios', 'mantenimiento', 'nomina', 'renta', 'otros'] as const;
+// Same list as backend expenseCategories ('mandadito' is created by sales with an absorbed delivery).
+export const EXPENSE_CATEGORIES = ['insumos', 'servicios', 'mantenimiento', 'nomina', 'renta', 'mandadito', 'otros'] as const;
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
 export const EXPENSE_PAYMENT_METHODS = ['cash', 'transfer', 'card'] as const;

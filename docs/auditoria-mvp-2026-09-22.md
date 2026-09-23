@@ -375,4 +375,25 @@ Suite: **71 unit + 61 integración + 6 E2E** pasando.
 
 Pendiente (requiere migración en Supabase y visto bueno): TD-05 enums/FK, TD-10 signos de `CashMovement.amount`, TD-12 drift de `ingredients`.
 
+## Deuda técnica — tercera ronda: migraciones (2026-09-23)
+
+Riesgos detectados antes de migrar y cómo se evitaron:
+
+| ID | Riesgo | Mitigación |
+| -- | ------ | ---------- |
+| R1 | `prisma migrate dev` convierte `String → enum` con `DROP COLUMN` + `ADD COLUMN` (pérdida de datos) | Migraciones escritas a mano con `ALTER COLUMN … TYPE … USING` |
+| R2 | El Readme indicaba `npx prisma migrate reset` y `npm run prisma:migrate` (`migrate dev`) contra la BD de `.env` (Supabase) | Readme corregido: en Supabase solo `prisma:migrate:deploy` |
+| R3–R5 | El índice parcial `payments_paid_date_idx` (`'paid'::text`), los CHECK de texto y el default `'paid'` hacían fallar el `ALTER TYPE` | Se eliminan antes y se recrean tipados |
+| R6 | `Expense.category`/`deliveryResponsible` no tenían CHECK: un valor fuera de la lista hace fallar el cast | `BEGIN/COMMIT` explícito; ensayado: con una categoría inválida la migración falla sin dejar nada a medias. `scripts/check-enum-migration.ts` lo detecta antes |
+| R7 | Cambio de signos con el backend viejo escribiendo | Procedimiento: backend detenido, sin caja abierta |
+| R8 | FK `sourceOrderId` con RESTRICT rompía limpiezas | `ON DELETE SET NULL`; huérfanos a NULL |
+
+Ensayo en Docker: datos con la convención vieja → migraciones → la suma de movimientos pasa de 820 a 670 = `expectedAmount`; tipos, default, índice parcial y FK correctos; `prisma migrate diff` vacío. Prueba de integración nueva (`cash-sign-convention`) que recorre todos los tipos de movimiento.
+
+| ID | Severidad | Hallazgo | Corrección |
+| -- | --------- | -------- | ---------- |
+| N-06 | LOW | `EXPENSE_CATEGORIES` del frontend sin `mandadito`: esos gastos no se podían filtrar ni editar | Agregada; test `enum-sync` compara validadores y enums de la BD |
+
+Suite: **79 unit + 62 integración + 6 E2E** pasando. `scripts/check-enum-migration.ts` probado en Docker antes (detecta una categoría inválida y la convención vieja) y después de migrar. **Aplicadas en Supabase el 2026-09-23.** Lección: entre el despliegue del código y la migración, el backend nuevo no podía escribir (cerrar caja respondía 500 porque el tipo `CashMovementType` aún no existía); código y migración deben salir juntos, con el backend detenido.
+
 Suite: **77 unit + 61 integración + 6 E2E** pasando; lint y typecheck limpios.

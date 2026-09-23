@@ -86,8 +86,7 @@ export const ExpenseService = {
             await CashRepository.recordMovement(tx, {
               cashSessionId: openSession.id,
               type: 'expense',
-              amount,
-              drawerEffect: amount.negated(),
+              amount: amount.negated(),
               referenceType: 'expense',
               referenceId: expense.id,
               description: input.description,
@@ -154,7 +153,6 @@ export const ExpenseService = {
               cashSessionId: newCashSessionId,
               type: 'expense_adjustment',
               amount: delta.negated(),
-              drawerEffect: delta.negated(),
               referenceType: 'expense',
               referenceId: id,
               description: `Ajuste de gasto: ${input.description ?? existing.description}`,
@@ -168,8 +166,7 @@ export const ExpenseService = {
             await CashRepository.recordMovement(tx, {
               cashSessionId: oldCashSessionId,
               type: 'expense_reversal',
-              amount: oldImpact.negated(),
-              drawerEffect: oldImpact,
+              amount: oldImpact,
               referenceType: 'expense',
               referenceId: id,
               description: `Reversión de gasto: ${existing.description}`,
@@ -180,8 +177,7 @@ export const ExpenseService = {
             await CashRepository.recordMovement(tx, {
               cashSessionId: newCashSessionId,
               type: 'expense',
-              amount: newImpact,
-              drawerEffect: newImpact.negated(),
+              amount: newImpact.negated(),
               referenceType: 'expense',
               referenceId: id,
               description: input.description ?? existing.description,
@@ -233,8 +229,7 @@ export const ExpenseService = {
           await CashRepository.recordMovement(tx, {
             cashSessionId: exp.cashSessionId,
             type: 'expense_reversal',
-            amount: exp.amount.negated(),
-            drawerEffect: exp.amount,
+            amount: exp.amount,
             referenceType: 'expense',
             referenceId: id,
             description: `Reversión de gasto: ${exp.description}`,
