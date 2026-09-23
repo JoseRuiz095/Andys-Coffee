@@ -1,6 +1,7 @@
 import React from 'react';
 import { sileo } from 'sileo';
 import { useDistributionSettings, useUpdateDistributionSettings } from '../hooks/useIncomeStatement';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 export function DistributionSettingsForm() {
   const { data, isLoading } = useDistributionSettings();
@@ -10,12 +11,15 @@ export function DistributionSettingsForm() {
   const [businessFundPercent, setBusinessFundPercent] = React.useState('20');
   const [suppliesPercent, setSuppliesPercent] = React.useState('70');
 
-  React.useEffect(() => {
-    if (!data) return;
+  // Load the saved values into the form whenever fresh data arrives (adjusting state during
+  // render instead of in an effect, as recommended by React).
+  const [loadedData, setLoadedData] = React.useState<typeof data>(undefined);
+  if (data && data !== loadedData) {
+    setLoadedData(data);
     setSavingsPercent(String(data.savingsPercent));
     setBusinessFundPercent(String(data.businessFundPercent));
     setSuppliesPercent(String(data.suppliesPercent));
-  }, [data]);
+  }
 
   const savings = Number(savingsPercent) || 0;
   const business = Number(businessFundPercent) || 0;
@@ -42,10 +46,10 @@ export function DistributionSettingsForm() {
       },
       {
         onSuccess: () => sileo.success({ title: 'Guardado', description: 'Porcentajes de distribución actualizados.' }),
-        onError: (error: any) =>
+        onError: (error: unknown) =>
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message ?? 'No se pudieron guardar los porcentajes.',
+            description: getErrorMessage(error, 'No se pudieron guardar los porcentajes.'),
           }),
       },
     );

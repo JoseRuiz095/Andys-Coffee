@@ -90,7 +90,7 @@ export function OrdersPage() {
 
       <OrdersFilters
         onSearchChange={setSearch}
-        onStatusChange={(status) => setStatus(status as any)}
+        onStatusChange={(status) => setStatus(status ? (status as BackendOrderStatus) : undefined)}
       />
 
       <div className="flex justify-end gap-2">

@@ -49,6 +49,8 @@ export function OrdersFilters({
       >
         <option value="">Todos los estados</option>
         <option value="pending">Pendiente</option>
+        <option value="preparing">En preparación</option>
+        <option value="ready">Lista</option>
         <option value="completed">Completada</option>
         <option value="cancelled">Cancelada</option>
       </select>

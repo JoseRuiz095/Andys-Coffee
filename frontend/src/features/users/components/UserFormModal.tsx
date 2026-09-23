@@ -6,11 +6,13 @@ import { Input } from '../../../shared/components/Input'
 import { Select } from '../../../shared/components/Select'
 import { Button } from '../../../shared/components/Button'
 import { useCreateUser, useUpdateUser, useUserById } from '../hooks/useUsers'
+import { getErrorMessage } from '../../../shared/utils/errors'
+import type { UserData } from '../api/user.api'
 
 interface UserFormModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: (user: any) => void
+  onSuccess?: (user: UserData) => void
   editingUserId?: string | null
   roles?: Array<{ id: string; name: string }>
 }
@@ -100,9 +102,9 @@ export function UserFormModal({
             onSuccess?.(response.user)
             handleClose()
           },
-          onError: (error: any) => {
+          onError: (error: unknown) => {
             const message =
-              error?.response?.data?.message || error?.message || 'Error actualizando usuario'
+              getErrorMessage(error, 'Error actualizando usuario')
             sileo.error({ title: 'Error', description: message })
           },
         }
@@ -116,9 +118,9 @@ export function UserFormModal({
             onSuccess?.(response.user)
             handleClose()
           },
-          onError: (error: any) => {
+          onError: (error: unknown) => {
             const message =
-              error?.response?.data?.message || error?.message || 'Error creando usuario'
+              getErrorMessage(error, 'Error creando usuario')
             sileo.error({ title: 'Error', description: message })
           },
         }

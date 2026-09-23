@@ -3,6 +3,7 @@ import { sileo } from 'sileo';
 import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 import { ExpenseAPI } from '../api/expense.api';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListFilters } from '../types/expense.types';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 export function useExpenses(filters: ExpenseListFilters = {}) {
   const queryClient = useQueryClient();
@@ -18,8 +19,8 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto registrado', description: 'El gasto se registró correctamente.' });
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || 'No se pudo registrar el gasto.';
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error, 'No se pudo registrar el gasto.');
       sileo.error({ title: 'Error', description: message });
     },
   });
@@ -30,8 +31,8 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto actualizado', description: 'El gasto se actualizó correctamente.' });
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || 'No se pudo actualizar el gasto.';
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error, 'No se pudo actualizar el gasto.');
       sileo.error({ title: 'Error', description: message });
     },
   });
@@ -42,8 +43,8 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto eliminado', description: 'El gasto se eliminó correctamente.' });
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || 'No se pudo eliminar el gasto.';
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error, 'No se pudo eliminar el gasto.');
       sileo.error({ title: 'Error', description: message });
     },
   });

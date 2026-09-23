@@ -23,7 +23,7 @@ export const PreferencesAPI = {
     try {
       const { data } = await apiClient.get<{ data: SystemPreference[] }>(BASE_URL)
       return data.data
-    } catch (error) {
+    } catch {
       return []
     }
   },

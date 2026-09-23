@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeliveriesAPI } from '../api/deliveries.api';
 import { sileo } from 'sileo';
 import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 const QUERY_KEY = 'pendingDeliveries';
 
@@ -21,10 +22,10 @@ export function useHandoffDelivery() {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Mandadito entregado', description: 'Se registró la entrega al repartidor.' });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       sileo.error({
         title: 'Error',
-        description: error?.response?.data?.message ?? 'No se pudo registrar la entrega.',
+        description: getErrorMessage(error, 'No se pudo registrar la entrega.'),
       });
     },
   });

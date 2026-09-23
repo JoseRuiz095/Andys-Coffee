@@ -35,6 +35,21 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       allowedHosts: ['localhost', '127.0.0.1'],
     },
+    build: {
+      rolldownOptions: {
+        output: {
+          // Long-lived vendor chunks: they change far less often than app code, so browsers
+          // keep them cached across deploys. Feature views are split with React.lazy.
+          advancedChunks: {
+            groups: [
+              { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+              { name: 'vendor-motion', test: /[\\/]node_modules[\\/](framer-motion|motion-dom|motion-utils)[\\/]/ },
+              { name: 'vendor-data', test: /[\\/]node_modules[\\/](@tanstack|axios)[\\/]/ },
+            ],
+          },
+        },
+      },
+    },
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(publicSupabaseUrl || ''),
     },

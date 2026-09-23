@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { useCreateSupplier, useSearchSuppliers, useUpdateSupplier, useSupplierById } from '../hooks/usePurchases'
+import { getErrorMessage, getErrorStatus } from '../../../shared/utils/errors'
+import type { Supplier } from '../api/purchases.api'
 
 interface SupplierFormModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: (supplier: any) => void
+  onSuccess?: (supplier: Supplier) => void
   initialName?: string
   editingSupplierId?: string | null
   showSimilarMatches?: boolean
@@ -93,9 +95,9 @@ export function SupplierFormModal({
             onSuccess?.(response.supplier)
             handleClose()
           },
-          onError: (error: any) => {
+          onError: (error: unknown) => {
             const message =
-              error?.response?.data?.message || error?.message || 'Error actualizando proveedor'
+              getErrorMessage(error, 'Error actualizando proveedor')
             sileo.error({ title: 'Error', description: message })
           },
         }
@@ -107,9 +109,9 @@ export function SupplierFormModal({
           onSuccess?.(response.supplier)
           handleClose()
         },
-        onError: (error: any) => {
-          const status = error?.response?.status
-          let message = error?.response?.data?.message || error?.message || 'Error creando proveedor'
+        onError: (error: unknown) => {
+          const status = getErrorStatus(error)
+          let message = getErrorMessage(error, 'Error creando proveedor')
 
           if (status === 409) {
             message = 'Este nombre de proveedor ya existe. Usa un nombre diferente.'

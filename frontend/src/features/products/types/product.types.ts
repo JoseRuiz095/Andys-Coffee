@@ -33,6 +33,9 @@ export interface UpdateProductInput extends Partial<CreateProductInput> {
   id: string
 }
 
+/** Fields accepted by POST /categories (backend createCategorySchema); isActive defaults to true. */
+export type CreateCategoryInput = Pick<Category, 'name' | 'description' | 'imageUrl'> & { displayOrder?: number }
+
 export interface Category {
   id: string
   name: string

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useGeneralPreferences, useUpdateGeneralPreferences } from '../hooks/useGeneralPreferences'
 import { sileo } from 'sileo'
 import type { GeneralPreferences } from '../api/preferences.api'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 export function SystemPreferencesForm() {
   const { data: preferences, isLoading } = useGeneralPreferences()
@@ -9,12 +10,13 @@ export function SystemPreferencesForm() {
   const [formData, setFormData] = useState<GeneralPreferences | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (preferences) {
-      setFormData(preferences)
-      setErrors({})
-    }
-  }, [preferences])
+  // Load the saved preferences whenever fresh data arrives (adjusting state during render).
+  const [loadedPreferences, setLoadedPreferences] = useState<GeneralPreferences | undefined>(undefined)
+  if (preferences && preferences !== loadedPreferences) {
+    setLoadedPreferences(preferences)
+    setFormData(preferences)
+    setErrors({})
+  }
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -86,8 +88,8 @@ export function SystemPreferencesForm() {
       onSuccess: () => {
         sileo.success({ title: 'Guardado', description: 'Preferencias actualizadas correctamente' })
       },
-      onError: (error: any) => {
-        const message = error?.response?.data?.message || 'No se pudieron guardar las preferencias'
+      onError: (error: unknown) => {
+        const message = getErrorMessage(error, 'No se pudieron guardar las preferencias')
         sileo.error({ title: 'Error', description: message })
       },
     })

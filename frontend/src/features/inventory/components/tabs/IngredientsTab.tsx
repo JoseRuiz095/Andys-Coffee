@@ -9,6 +9,7 @@ import { PlusIcon } from '../../../../components/ui/PlusIcon'
 import { useInventoryList, useSetIngredientActive, useDeleteIngredient } from '../../hooks/useInventory'
 import { IngredientFormModal } from '../IngredientFormModal'
 import { authStore } from '../../../../features/auth/store/auth.store'
+import { getErrorMessage } from '../../../../shared/utils/errors'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 type StockFilter = 'all' | 'normal' | 'low_stock' | 'out_of_stock'
@@ -50,10 +51,10 @@ export function IngredientsTab() {
             duration: 2000,
           })
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message || 'No se pudo actualizar el ingrediente',
+            description: getErrorMessage(error, 'No se pudo actualizar el ingrediente'),
           })
         },
       }
@@ -76,10 +77,10 @@ export function IngredientsTab() {
             duration: 2000,
           })
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message || 'No se pudo eliminar el ingrediente',
+            description: getErrorMessage(error, 'No se pudo eliminar el ingrediente'),
           })
           setDeletingId(null)
         },

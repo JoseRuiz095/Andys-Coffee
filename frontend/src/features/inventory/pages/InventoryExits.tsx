@@ -7,16 +7,10 @@ import { useInventoryList } from '../hooks/useInventory'
 import { useInventoryMovements } from '../hooks/useInventory'
 import { EXIT_REASON_LABELS, type ExitReason } from '../api/inventory-exits.api'
 import { authStore } from '../../auth/store/auth.store'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20'
-
-function getApiErrorMessage(error: any, fallback: string): string {
-  if (error?.response?.data?.message) return error.response.data.message;
-  if (error?.response?.data?.error) return error.response.data.error;
-  if (error?.message) return error.message;
-  return fallback;
-}
 
 function getMovementTypeColor(type: string): string {
   switch (type) {
@@ -122,10 +116,10 @@ export function InventoryExits() {
           setNotes('')
           setIsConfirming(false)
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error registrando salida',
-            description: getApiErrorMessage(error, 'Intenta de nuevo'),
+            description: getErrorMessage(error, 'Intenta de nuevo'),
           })
         },
       }

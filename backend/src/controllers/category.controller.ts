@@ -2,15 +2,6 @@ import { Request, Response } from 'express';
 import { CategoryService } from '../services/category.service';
 import { createCategorySchema, updateCategorySchema, setActiveSchema } from '../validators/category.validator';
 import { asyncHandler } from '../utils/asyncHandler';
-import { AuthUser } from '../services/auth.service';
-import { AuthorizationError } from '../utils/errors';
-
-const getAuthenticatedUser = (req: Request): AuthUser => {
-  if (!req.user) {
-    throw new AuthorizationError('Autenticación requerida.');
-  }
-  return req.user as AuthUser;
-};
 
 export const CategoryController = {
   getAll: asyncHandler(async (req: Request, res: Response) => {

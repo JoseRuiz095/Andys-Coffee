@@ -80,7 +80,7 @@ export function TopProducts({ period }: TopProductsProps) {
         Productos Más Vendidos
       </h3>
       <div className="space-y-3">
-        {data.topProducts.map((product: any, idx: number) => (
+        {data.topProducts.map((product, idx) => (
           <div key={product.productId} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
               <span style={{ color: 'var(--color-text-primary)' }}>

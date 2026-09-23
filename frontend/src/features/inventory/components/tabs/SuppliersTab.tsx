@@ -8,6 +8,7 @@ import { PlusIcon } from '../../../../components/ui/PlusIcon'
 import { useSuppliersList, useDeleteSupplier, useSetSupplierActive } from '../../hooks/usePurchases'
 import { SupplierFormModal } from '../SupplierFormModal'
 import { authStore } from '../../../../features/auth/store/auth.store'
+import { getErrorMessage } from '../../../../shared/utils/errors'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 
@@ -46,10 +47,10 @@ export function SuppliersTab() {
             duration: 2000,
           })
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message || 'No se pudo actualizar el proveedor',
+            description: getErrorMessage(error, 'No se pudo actualizar el proveedor'),
           })
         },
       }
@@ -72,10 +73,10 @@ export function SuppliersTab() {
             duration: 2000,
           })
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message || 'No se pudo eliminar el proveedor',
+            description: getErrorMessage(error, 'No se pudo eliminar el proveedor'),
           })
           setDeletingId(null)
         },

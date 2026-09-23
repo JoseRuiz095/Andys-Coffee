@@ -66,7 +66,7 @@ export function InventoryStatus({ onlyLow = true }: InventoryStatusProps) {
     );
   }
 
-  const displayItems = onlyLow ? data.items.filter((i: any) => i.isLow || i.isEmpty) : data.items;
+  const displayItems = onlyLow ? data.items.filter((i) => i.isLow || i.isEmpty) : data.items;
 
   return (
     <div
@@ -85,7 +85,7 @@ export function InventoryStatus({ onlyLow = true }: InventoryStatusProps) {
             Todo está en orden
           </p>
         ) : (
-          displayItems.map((item: any) => (
+          displayItems.map((item) => (
             <div
               key={item.id}
               className="flex items-center justify-between rounded-lg p-3"

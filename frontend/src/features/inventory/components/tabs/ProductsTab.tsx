@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProducts, useCategories, useProductDetail } from '../../../products/hooks/useProducts'
 import { authStore } from '../../../auth/store/auth.store'
@@ -9,6 +9,7 @@ import { formatCurrency } from '../../../../shared/utils/formatCurrency'
 import { CategoryManagerModal } from '../CategoryManagerModal'
 import { sileo } from 'sileo'
 import type { CreateProductInput, UpdateProductInput } from '../../../products/types/product.types'
+import type { Product } from '../../../products/types/product.types'
 
 export function ProductsTab() {
   const currentUser = authStore.getState().user
@@ -38,7 +39,7 @@ export function ProductsTab() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<any>(null)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   // R-04: recipe-based cost hint, only when editing an existing product.
   const { data: editingDetail } = useProductDetail(editingProduct?.id)
   const suggestedCost =
@@ -59,7 +60,11 @@ export function ProductsTab() {
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
 
-  useEffect(() => {
+  // Fill (or clear) the form whenever the product being edited changes — adjusted during
+  // render instead of in an effect, as recommended by React.
+  const [formProduct, setFormProduct] = useState<Product | null>(null)
+  if (editingProduct !== formProduct) {
+    setFormProduct(editingProduct)
     if (editingProduct) {
       setFormData({
         name: editingProduct.name,
@@ -81,7 +86,7 @@ export function ProductsTab() {
         displayOrder: 0,
       })
     }
-  }, [editingProduct])
+  }
 
   const canCreate = hasPermission(currentUser, 'products.create')
   const canUpdate = hasPermission(currentUser, 'products.update')

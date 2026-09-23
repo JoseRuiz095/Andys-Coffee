@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { ProductService } from '../services/product.service';
 import { UploadService } from '../services/upload.service';
 import { createProductSchema, filterQuerySchema, updateProductSchema, setActiveSchema } from '../validators/product.validator';

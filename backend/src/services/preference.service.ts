@@ -75,11 +75,12 @@ export const PreferenceService = {
     return PreferenceRepository.delete(key);
   },
 
-  async getGeneralPreferences(user: AuthUser) {
-    if (!user.permissions?.includes('users.read')) {
-      throw new AuthorizationError('No tienes permiso para consultar preferencias generales.');
-    }
-
+  /**
+   * Public business profile (name, hours, currency, phone, address) — shown on the login
+   * screen and to every role, so it needs no session (N-02). Only these whitelisted fields
+   * are returned; changing them still requires users.update.
+   */
+  async getGeneralPreferences() {
     return PreferenceRepository.getGeneralPreferences();
   },
 

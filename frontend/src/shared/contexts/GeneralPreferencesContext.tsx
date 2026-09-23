@@ -1,12 +1,6 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { PreferencesAPI, type GeneralPreferences } from '../../features/preferences/api/preferences.api'
-
-interface GeneralPreferencesContextType {
-  preferences: GeneralPreferences | null
-  isLoading: boolean
-}
-
-const GeneralPreferencesContext = createContext<GeneralPreferencesContextType | undefined>(undefined)
+import { GeneralPreferencesContext } from './generalPreferencesStore'
 
 export function GeneralPreferencesProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<GeneralPreferences | null>(null)
@@ -42,12 +36,4 @@ export function GeneralPreferencesProvider({ children }: { children: ReactNode }
       {children}
     </GeneralPreferencesContext.Provider>
   )
-}
-
-export function useGeneralPreferencesContext() {
-  const context = useContext(GeneralPreferencesContext)
-  if (context === undefined) {
-    throw new Error('useGeneralPreferencesContext must be used within GeneralPreferencesProvider')
-  }
-  return context
 }

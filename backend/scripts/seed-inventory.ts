@@ -1,18 +1,5 @@
 import { prisma } from '../src/config/prisma';
 
-const inventoryCategories = [
-  'Cafeteria',
-  'Congelados',
-  'Desechable',
-  'Lacteos',
-  'Panaderia',
-  'Preparados',
-  'Proteinas',
-  'Sazonadores',
-  'Varios',
-  'Verdura',
-];
-
 const products = [
   { id: 'PROD-001', name: 'Café entero', unit: 'g' },
   { id: 'PROD-002', name: 'Café molido', unit: 'g' },

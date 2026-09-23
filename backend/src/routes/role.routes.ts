@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { RoleController, PermissionController } from '../controllers/role.controller';
+import { RoleController } from '../controllers/role.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 

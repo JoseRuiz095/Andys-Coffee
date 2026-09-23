@@ -162,7 +162,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] Formato de error unificado `{ message, errors? }` (el frontend ya muestra los mensajes reales)
 - [x] Código muerto confirmado eliminado
 - [x] BD de pruebas aislada en Docker (`npm run test:db:up` / `test:db:prepare`) que nunca toca Supabase
-- [x] Suite: 69 unit + 58 integración + 5 E2E pasando (`npm run test:critical`)
+- [x] Suite: 71 unit + 61 integración + 6 E2E pasando (`npm run test:critical`)
 - [x] Migraciones aplicadas en Supabase: `remove_unused_models`, `add_user_token_version`, `add_snapshot_expenses_outside_hours`, `restore_promotion_links`
 
 **Decisiones de negocio tomadas:**
@@ -183,6 +183,14 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 
 ---
 
+## 🟠 BUGS ENCONTRADOS DURANTE LA DEUDA TÉCNICA (resueltos Sept 22)
+
+- [x] N-02: la pantalla de login pedía las preferencias sin sesión → aviso "Sesión expirada" al abrir la app; los cajeros veían nombre/moneda por defecto. `GET /api/preferences/general` ahora es público (solo lectura)
+- [x] N-03: **registrar un gasto por HTTP siempre fallaba (500)** por un `refine` asíncrono en el esquema; `validate()` ahora usa `parseAsync`
+- [x] N-04: la pantalla de Gastos no estaba montada en ninguna parte; vuelve a Configuración → Gastos (`expenses.read`)
+- [x] Filtro de pedidos: agregados "En preparación" y "Lista"
+- [x] Tipos reales que ocultaban los `any` (categorías, entradas de inventario, estado de pedidos)
+
 ## 🟡 BUGS MENORES (resueltos Sept 22)
 
 - [x] Panel del pedido: la imagen de respaldo (logo) no se mostraba cuando el producto no tiene imagen
@@ -193,7 +201,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 
 ## 📋 PRÓXIMAS FUNCIONALIDADES
 
-### Reportes
+### Reportes (fuera del MVP — decisión Sept 22)
 - [ ] Definir reportes necesarios
 - [ ] Reporte de ventas (productos, cantidades, ingresos) con filtros por fecha y categoría
 - [ ] Reporte de compras (proveedores, costos)
@@ -215,14 +223,14 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 
 ## 🧹 DEUDA TÉCNICA
 
-- [ ] Frontend: 71 errores de lint (60 `any`); backend sin ESLint
+- [x] Lint limpio: frontend 71 → 0 errores; backend con ESLint configurado (41 → 0). Sin `any` en código de la app
 - [ ] Services que usan Prisma directamente (`order.service` 67 usos, `expense.service` 13, `cash`, `auth`, `menu`, job de conciliación) → mover a repositories
 - [ ] Autorización y validación uniformes: `checkPermission` + `validate()` en todas las rutas; quitar los try/catch repetidos de los controllers
 - [ ] Estados como texto libre → enums (`Payment.status`, `CashMovement.type`, `deliveryResponsible`, `Expense.category`); FK para `Expense.sourceOrderId`
 - [ ] Convención de signos uniforme en `CashMovement.amount`
 - [ ] Drift previo de la tabla `ingredients` entre BD y esquema (índice parcial de `sku`, tipo de `deletedAt`)
-- [ ] Code splitting del frontend (bundle único de 1.77 MB)
-- [ ] `package.json` en la raíz y `backend/.env.example`
+- [x] Code splitting: bundle inicial 1,774 kB → 183 kB de app + vendors cacheables; Órdenes, Inventario, Administración y Configuración se cargan bajo demanda
+- [x] `package.json` en la raíz (`npm run lint`, `typecheck`, `test:critical`, `dev:*`) y `.env.example` en backend y frontend
 - [ ] Cobertura de tests (69% de líneas): subir categorías, dashboard, notificaciones y controllers de inventario
 
 ---
@@ -244,11 +252,11 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] Caja funcional (abrir, cerrar, corregir, auto-cierre)
 - [x] Gastos funcionales
 - [x] Dashboard utiliza datos reales
-- [ ] Reportes utilizan datos reales (módulo de reportes pendiente)
+- [x] ~~Reportes utilizan datos reales~~ — módulo de reportes fuera del alcance del MVP
 - [x] Sistema de temas (light/dark) funcional
 - [x] Preferencias de usuario persistidas
 - [x] Build/Prisma validan correctamente
-- [ ] Lint limpio (71 errores en frontend)
+- [x] Lint limpio (frontend y backend)
 - [x] Tests críticos pasan (`npm run test:critical`)
 - [x] No hay pendientes críticos de seguridad
 
@@ -285,14 +293,14 @@ npm run build                          # Build de producción
 ## 🎯 RESUMEN DE PROGRESO
 
 **Completado**: 11 fases de desarrollo + Fase 12 (auditoría, estabilización y testing)
-**Siguiente**: acciones del desarrollador, bugs menores, módulo de reportes
-**Status general**: MVP auditado; sin pendientes críticos ni altos; 132 tests automatizados pasando
+**Siguiente**: acciones del desarrollador y deuda técnica (reportes quedan fuera del MVP)
+**Status general**: MVP auditado; sin pendientes críticos ni altos; 138 tests automatizados pasando
 
 ### Ciclo Sept 22, 2026 — Auditoría y testing ✅
 - ✅ Auditoría integral (backend, BD, API/seguridad, frontend, flujos de negocio)
 - ✅ Todos los hallazgos críticos, altos y medios corregidos o aplicados
 - ✅ 4 migraciones aplicadas en Supabase, con respaldo previo de datos
-- ✅ Infraestructura de tests aislada + 132 tests
+- ✅ Infraestructura de tests aislada + 138 tests
 
 ### Ciclo Sept 21, 2026 ✅
 - ✅ Auditoría de código muerto (8 elementos; los vínculos de promociones se restauraron el 22/09)

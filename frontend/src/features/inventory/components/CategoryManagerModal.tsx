@@ -46,7 +46,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
       create({
         name: formData.name,
         description: formData.description,
-        displayOrder: formData.displayOrder,
+        displayOrder: formData.displayOrder ?? 0,
       })
       sileo.success({ title: 'Éxito', description: 'Categoría creada correctamente' })
     }

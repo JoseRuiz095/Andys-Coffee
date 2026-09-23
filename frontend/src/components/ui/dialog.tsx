@@ -29,6 +29,8 @@ const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange:
       onClick={() => onOpenChange(false)}
     >
       <div
+        role="dialog"
+        aria-modal="true"
         className="rounded-lg shadow-lg w-full max-w-md"
         style={{ backgroundColor: 'var(--color-surface)' }}
         onClick={(e) => e.stopPropagation()}

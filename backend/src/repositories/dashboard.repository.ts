@@ -88,7 +88,7 @@ export const dashboardRepository = {
         where: whereExpense,
         _sum: { amount: true },
       }),
-      prisma.$queryRaw<Array<{ count: BigInt }>>`
+      prisma.$queryRaw<Array<{ count: bigint }>>`
         SELECT COUNT(*) as count FROM ingredients
         WHERE "isActive" = true AND "currentStock" <= "minimumStock"
       `,

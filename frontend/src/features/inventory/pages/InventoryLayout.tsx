@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { InventoryCurrent } from './InventoryCurrent'
 import { InventoryAddEntry } from './InventoryAddEntry'
@@ -12,15 +12,13 @@ type InventoryView = 'current' | 'add-entry' | 'entries' | 'movements' | 'physic
 
 export function InventoryLayout() {
   const [activeView, setActiveView] = useState<InventoryView>('current')
-  const prevViewRef = useRef<InventoryView>(activeView)
+  // Slide direction of the view transition, decided when the user switches views.
+  const [direction, setDirection] = useState<1 | -1>(1)
 
   const views: InventoryView[] = ['current', 'management', 'add-entry', 'entries', 'movements', 'physical', 'exits']
-  const currentIndex = views.indexOf(activeView)
-  const prevIndex = views.indexOf(prevViewRef.current)
-  const direction = currentIndex > prevIndex ? 1 : -1
 
   const handleViewChange = (view: InventoryView) => {
-    prevViewRef.current = activeView
+    setDirection(views.indexOf(view) > views.indexOf(activeView) ? 1 : -1)
     setActiveView(view)
   }
 

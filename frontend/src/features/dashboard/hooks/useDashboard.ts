@@ -16,7 +16,7 @@ export function useDashboardSummary(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'summary', filters],
     queryFn: () => DashboardAPI.getSummary({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
       cashRegisterId: filters.cashRegisterId,
@@ -28,7 +28,7 @@ export function useDashboardSales(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'sales', filters],
     queryFn: () => DashboardAPI.getSales({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
       limit: filters.limit || 5,
@@ -49,7 +49,7 @@ export function useDashboardSalesTrend(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'salesTrend', filters],
     queryFn: () => DashboardAPI.getSalesTrend({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
     }),
@@ -60,7 +60,7 @@ export function useDashboardProductCosts(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'productCosts', filters],
     queryFn: () => DashboardAPI.getProductCosts({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
       limit: filters.limit || 10,
@@ -72,7 +72,7 @@ export function useDashboardCostEvolution(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'costEvolution', filters],
     queryFn: () => DashboardAPI.getCostEvolution({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
     }),
@@ -83,7 +83,7 @@ export function useDashboardExpensesByCategory(filters: DashboardFilters = {}) {
   return useQuery({
     queryKey: ['dashboard', 'expensesByCategory', filters],
     queryFn: () => DashboardAPI.getExpensesByCategory({
-      period: filters.period as any,
+      period: filters.period,
       from: filters.from,
       to: filters.to,
     }),

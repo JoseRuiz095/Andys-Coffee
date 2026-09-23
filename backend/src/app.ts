@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { type CookieOptions } from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -27,8 +27,13 @@ import { CORS_ORIGINS, isProduction, TRUST_PROXY } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
 
-// Monkey-patch BigInt to allow JSON serialization
-(BigInt.prototype as any).toJSON = function () {
+// BigInt values (e.g. orderNumber) are serialized as strings in JSON responses.
+declare global {
+  interface BigInt {
+    toJSON(): string;
+  }
+}
+BigInt.prototype.toJSON = function (this: bigint) {
   return this.toString();
 };
 
@@ -72,7 +77,7 @@ app.use(cookieParser(CSRF_SECRET));
 // tiny-csrf validates req.body._csrf and stores the encrypted token in a signed cookie.
 app.use((_req, res, next) => {
   const setCookie = res.cookie.bind(res);
-  res.cookie = ((name: string, value: any, options: any) => {
+  res.cookie = ((name: string, value: unknown, options: CookieOptions = {}) => {
     if (name === "csrfToken") {
       options = {
         ...options,

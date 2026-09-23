@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits, useInventoryById } from '../hooks/useInventory'
+import { getErrorMessage, getErrorStatus } from '../../../shared/utils/errors'
+import type { InventoryIngredient } from '../api/inventory.api'
 
 interface IngredientFormModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: (ingredient: any) => void
+  onSuccess?: (ingredient: InventoryIngredient) => void
   initialName?: string
   editingIngredientId?: string | null
   showSimilarMatches?: boolean
@@ -98,9 +100,9 @@ export function IngredientFormModal({
             onSuccess?.(response.ingredient)
             handleClose()
           },
-          onError: (error: any) => {
+          onError: (error: unknown) => {
             const message =
-              error?.response?.data?.message || error?.message || 'Error actualizando ingrediente'
+              getErrorMessage(error, 'Error actualizando ingrediente')
             sileo.error({ title: 'Error', description: message })
           },
         }
@@ -112,9 +114,9 @@ export function IngredientFormModal({
           onSuccess?.(response.ingredient)
           handleClose()
         },
-        onError: (error: any) => {
-          const status = error?.response?.status
-          let message = error?.response?.data?.message || error?.message || 'Error creando ingrediente'
+        onError: (error: unknown) => {
+          const status = getErrorStatus(error)
+          let message = getErrorMessage(error, 'Error creando ingrediente')
 
           if (status === 409) {
             message = 'Este SKU ya existe. Verifica los ingredientes existentes o usa un SKU diferente.'

@@ -44,10 +44,7 @@ async function makeRequest(path: string, init: RequestInit = {}, user?: AuthUser
 }
 
 before(async () => {
-  if (!integrationEnabled) {
-    console.log('SKIP: RUN_INTEGRATION_TESTS not set');
-    return;
-  }
+  if (!integrationEnabled) return;
 
   server = app.listen(0);
   baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;

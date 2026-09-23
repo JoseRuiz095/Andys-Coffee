@@ -6,15 +6,19 @@ import { logger } from '../utils/logger';
 import { DuplicateError } from '../utils/errors';
 import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
+// Errors reaching Express can be anything; these are the fields this handler inspects.
+type HandledError = Error & { code?: string };
+
 export const errorHandler = (
-  err: any,
+  error: unknown,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   if (res.headersSent) {
-    return next(err);
+    return next(error);
   }
+  const err = (error ?? {}) as HandledError;
 
   logger.error({
     errorName: err?.name ?? 'UnknownError',

@@ -12,11 +12,13 @@ import {
 
 const router = Router();
 
+// Public, read-only business profile (login screen, every role) — see PreferenceService (N-02).
+router.get('/general', getGeneralPreferences);
+
 router.use(requireAuth);
 
 // Specific routes first (avoid /:key matching /general)
 router.get('/', checkPermission('users.read'), listPreferences);
-router.get('/general', checkPermission('users.read'), getGeneralPreferences);
 router.patch('/general', checkPermission('users.update'), upsertGeneralPreferences);
 
 // Generic routes after

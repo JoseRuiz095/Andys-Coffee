@@ -4,11 +4,13 @@ import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { Button } from '../../../shared/components/Button'
 import { useCreateRole, useUpdateRole, useRoleById } from '../hooks/useRoles'
+import { getErrorMessage } from '../../../shared/utils/errors'
+import type { RoleData } from '../api/role.api'
 
 interface RoleFormModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: (role: any) => void
+  onSuccess?: (role: RoleData) => void
   editingRoleId?: string | null
 }
 
@@ -60,9 +62,9 @@ export function RoleFormModal({
             onSuccess?.(response.role)
             handleClose()
           },
-          onError: (error: any) => {
+          onError: (error: unknown) => {
             const message =
-              error?.response?.data?.message || error?.message || 'Error actualizando rol'
+              getErrorMessage(error, 'Error actualizando rol')
             sileo.error({ title: 'Error', description: message })
           },
         }
@@ -74,8 +76,8 @@ export function RoleFormModal({
           onSuccess?.(response.role)
           handleClose()
         },
-        onError: (error: any) => {
-          const message = error?.response?.data?.message || error?.message || 'Error creando rol'
+        onError: (error: unknown) => {
+          const message = getErrorMessage(error, 'Error creando rol')
           sileo.error({ title: 'Error', description: message })
         },
       })

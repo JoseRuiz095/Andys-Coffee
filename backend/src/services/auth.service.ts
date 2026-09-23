@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../config/prisma";
 import { JWT_SECRET } from "../config/security";
-import type { User } from "@prisma/client";
 
 export type AuthUser = {
   id: string;
@@ -12,12 +11,6 @@ export type AuthUser = {
   roleName?: string;
   isActive: boolean;
   permissions?: string[];
-};
-
-type UserWithRole = User & {
-  role?: {
-    name: string | null;
-  } | null;
 };
 
 // bcrypt hash (12 rounds) of a random string; only used to equalize login timing.

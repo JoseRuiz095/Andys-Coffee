@@ -8,15 +8,11 @@ import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
 export const RoleController = {
   async getAll(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
+    const user = req.user as AuthUser;
 
-      const result = await RoleService.findAll(user);
+    const result = await RoleService.findAll(user);
 
-      res.json(result);
-    } catch (error) {
-      throw error;
-    }
+    res.json(result);
   },
 
   async getOne(req: Request, res: Response) {
@@ -203,14 +199,10 @@ export const RoleController = {
 
 export const PermissionController = {
   async list(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
+    const user = req.user as AuthUser;
 
-      const permissions = await RoleService.listPermissions(user);
+    const permissions = await RoleService.listPermissions(user);
 
-      res.json(permissions);
-    } catch (error) {
-      throw error;
-    }
+    res.json(permissions);
   },
 };

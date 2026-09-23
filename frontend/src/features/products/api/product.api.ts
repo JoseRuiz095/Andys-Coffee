@@ -1,5 +1,5 @@
 import { apiClient } from '../../../app/api'
-import type { Product, CreateProductInput, UpdateProductInput, Category, ProductDetail } from '../types/product.types'
+import type { Product, CreateProductInput, UpdateProductInput, Category, ProductDetail, CreateCategoryInput } from '../types/product.types'
 
 const BASE_URL = '/products'
 
@@ -75,12 +75,12 @@ export const CategoryAPI = {
     return data
   },
 
-  async create(input: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) {
+  async create(input: CreateCategoryInput) {
     const { data } = await apiClient.post<Category>('/categories', input)
     return data
   },
 
-  async update(id: string, input: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>>) {
+  async update(id: string, input: Partial<CreateCategoryInput>) {
     const { data } = await apiClient.patch<Category>(`/categories/${id}`, input)
     return data
   },

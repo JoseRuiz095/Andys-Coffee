@@ -1,5 +1,6 @@
 interface ApiErrorLike {
   response?: {
+    status?: number
     data?: {
       message?: string
     }
@@ -14,4 +15,9 @@ interface ApiErrorLike {
 export function getErrorMessage(error: unknown, fallback: string): string {
   const apiError = error as ApiErrorLike
   return apiError?.response?.data?.message ?? fallback
+}
+
+/** HTTP status of an Axios-style error, if the server answered. */
+export function getErrorStatus(error: unknown): number | undefined {
+  return (error as ApiErrorLike)?.response?.status
 }

@@ -337,3 +337,24 @@ Los vínculos originales (11 filas: 2 productos para el lunes, la categoría Bag
 **N-01 resuelto (2026-09-22):** se recrearon `PromotionOnProduct`/`PromotionOnCategory` (con `ON DELETE CASCADE`) y se restauraron las 11 filas del respaldo (migración `20260922220000_restore_promotion_links`, aplicada en Supabase). `pricing.service.promotionsForProduct` limita cada promoción a sus productos/categorías, tanto al cobrar (`order.service`) como en el menú (`menu.service`); una promoción sin vínculos no aplica a nada. El seed crea los vínculos por nombre (antes los perdía al recrear las promociones). Verificado en Supabase: lunes → 2 productos, miércoles → 4 bagels, viernes → 8 lattes (de 43 productos). Tests: unit `promotionsForProduct` + integración por producto y por categoría.
 
 **Deuda técnica detectada (TD-12):** la BD tiene *drift* previo en `ingredients` respecto al esquema (índice parcial de `sku`, índice `isActive`, tipo de `deletedAt`). No afecta el funcionamiento; conviene alinear el esquema en una migración dedicada.
+
+---
+
+## Deuda técnica — primera ronda (2026-09-22)
+
+| Punto | Resultado |
+| ----- | --------- |
+| TD-06 Lint frontend | 71 → **0** errores: `any` reemplazados por tipos reales (helper `getErrorMessage`/`getErrorStatus`), `setState` en efectos → ajuste durante el render, refs en render → estado |
+| TD-09 ESLint backend | Configurado (`backend/eslint.config.js`, `no-console` + TypeScript); 41 → **0** errores. `any` permitido solo en `test/` |
+| TD-07 Code splitting | Bundle inicial 1,774 kB → 183 kB de app + vendors (`vendor-react`, `vendor-motion`, `vendor-data`); Órdenes, Inventario, Administración (recharts) y Configuración con `React.lazy` |
+| TD-11 | `package.json` raíz (delegación) + `backend/.env.example` + `frontend/.env.example` |
+
+### Hallazgos nuevos durante esta ronda
+
+| ID | Severidad | Hallazgo | Corrección |
+| -- | --------- | -------- | ---------- |
+| N-02 | MEDIUM | El proveedor de preferencias (raíz de la app) pedía `/api/preferences/general`, que exigía sesión + `users.read`: aviso "Sesión expirada" al abrir el login; cajeros con nombre/moneda por defecto | Endpoint público de solo lectura (7 campos del perfil del negocio); escribir sigue exigiendo `users.update`. Tests de integración + E2E |
+| N-03 | HIGH | `createExpenseSchema` tenía un `refine` **asíncrono** (siempre `true`); `validate()` usa `parse()` síncrono → Zod lanzaba y **todo `POST /api/expenses` respondía 500**. Los tests de servicio no lo detectaban | Se eliminó el `refine` (y la consulta a BD desde el validador); `validate()` usa `parseAsync`. Tests: unit del middleware + integración HTTP + E2E |
+| N-04 | MEDIUM | `ExpensesPage` no estaba montada en ninguna pantalla: no había forma de registrar gastos desde la app | Pestaña Configuración → Gastos (`expenses.read`); el `Dialog` compartido ahora tiene `role="dialog"`/`aria-modal` |
+
+Suite: **71 unit + 61 integración + 6 E2E** pasando.

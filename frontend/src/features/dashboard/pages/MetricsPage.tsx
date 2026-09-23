@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DashboardSummary } from '../components/DashboardSummary';
 import { TopProducts } from '../components/TopProducts';
@@ -108,12 +108,10 @@ function MetricsOverview() {
 export function MetricsPage() {
   const [activeView, setActiveView] = React.useState<AdminView>('metrics');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user);
-  const prevViewRef = useRef<AdminView>(activeView);
+  // Slide direction of the view transition, decided when the user switches views.
+  const [direction, setDirection] = React.useState<1 | -1>(1);
 
   const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments', 'pending-deliveries', 'daily-orders'];
-  const currentIndex = views.indexOf(activeView);
-  const prevIndex = views.indexOf(prevViewRef.current);
-  const direction = currentIndex > prevIndex ? 1 : -1;
 
   useEffect(() => {
     const handleAuthChanged = () => {
@@ -125,7 +123,7 @@ export function MetricsPage() {
   }, []);
 
   const handleViewChange = (view: AdminView) => {
-    prevViewRef.current = activeView;
+    setDirection(views.indexOf(view) > views.indexOf(activeView) ? 1 : -1);
     setActiveView(view);
   };
 

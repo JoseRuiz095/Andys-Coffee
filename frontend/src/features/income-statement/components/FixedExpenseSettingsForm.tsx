@@ -2,6 +2,7 @@ import React from 'react';
 import { sileo } from 'sileo';
 import { useFixedExpenseSettings, useUpsertFixedExpenseConcept, useDeleteFixedExpenseConcept } from '../hooks/useIncomeStatement';
 import type { FixedExpenseConcept } from '../api/income-statement.api';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 export function FixedExpenseSettingsForm() {
   const { data, isLoading } = useFixedExpenseSettings();
@@ -14,10 +15,12 @@ export function FixedExpenseSettingsForm() {
   const [editLabel, setEditLabel] = React.useState('');
   const [editAmount, setEditAmount] = React.useState('');
 
-  React.useEffect(() => {
-    if (!data) return;
+  // Load the saved concepts whenever fresh data arrives (adjusting state during render).
+  const [loadedData, setLoadedData] = React.useState<typeof data>(undefined);
+  if (data && data !== loadedData) {
+    setLoadedData(data);
     setConcepts(data.concepts);
-  }, [data]);
+  }
 
   const generateSlug = (label: string): string => {
     return label
@@ -39,10 +42,10 @@ export function FixedExpenseSettingsForm() {
           setNewLabel('');
           sileo.success({ title: 'Concepto agregado', description: `Se agregó "${newLabel}" exitosamente.` });
         },
-        onError: (error: any) =>
+        onError: (error: unknown) =>
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message ?? 'No se pudo agregar el concepto.',
+            description: getErrorMessage(error, 'No se pudo agregar el concepto.'),
           }),
       },
     );
@@ -63,10 +66,10 @@ export function FixedExpenseSettingsForm() {
           setEditAmount('');
           sileo.success({ title: 'Guardado', description: 'El concepto se actualizó correctamente.' });
         },
-        onError: (error: any) =>
+        onError: (error: unknown) =>
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message ?? 'No se pudo guardar el concepto.',
+            description: getErrorMessage(error, 'No se pudo guardar el concepto.'),
           }),
       },
     );
@@ -79,10 +82,10 @@ export function FixedExpenseSettingsForm() {
           setConcepts(updated.concepts);
           sileo.success({ title: 'Eliminado', description: 'El concepto se eliminó correctamente.' });
         },
-        onError: (error: any) =>
+        onError: (error: unknown) =>
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message ?? 'No se pudo eliminar el concepto.',
+            description: getErrorMessage(error, 'No se pudo eliminar el concepto.'),
           }),
       });
     }

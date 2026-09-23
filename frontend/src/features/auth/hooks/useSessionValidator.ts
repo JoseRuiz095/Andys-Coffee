@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { getCurrentUser } from '../services/auth.service'
 import { authStore } from '../store/auth.store'
 import { sileo } from 'sileo'
+import { getErrorStatus } from '../../../shared/utils/errors'
 
 const SESSION_CHECK_INTERVAL = 30 * 60 * 1000 // 30 minutos
 
@@ -10,8 +11,8 @@ export function useSessionValidator() {
     const validateSession = async () => {
       try {
         await getCurrentUser()
-      } catch (error: any) {
-        if (error?.response?.status === 401) {
+      } catch (error: unknown) {
+        if (getErrorStatus(error) === 401) {
           authStore.clearSession()
           sileo.error({
             title: 'Sesión expirada',

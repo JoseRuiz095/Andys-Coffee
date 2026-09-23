@@ -69,7 +69,7 @@ export function InventoryEntries() {
     })
   }
 
-  const draftPurchases = purchases?.data || []
+  const draftPurchases = useMemo(() => purchases?.data ?? [], [purchases])
 
   // Filtrar compras por nombre de proveedor
   const filteredPurchases = useMemo(

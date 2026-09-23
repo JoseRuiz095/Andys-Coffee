@@ -2,6 +2,7 @@ import React from 'react';
 import { sileo } from 'sileo';
 import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 interface EditAccumulatedBalancesModalProps {
   isOpen: boolean;
@@ -28,12 +29,16 @@ export function EditAccumulatedBalancesModal({
   const [fondo, setFondo] = React.useState(String(currentValues.fondoNegocioAcumulado));
   const [surtido, setSurtido] = React.useState(String(currentValues.surtidoAcumulado));
 
-  React.useEffect(() => {
-    if (!isOpen) return;
-    setAhorro(String(currentValues.ahorroAcumulado));
-    setFondo(String(currentValues.fondoNegocioAcumulado));
-    setSurtido(String(currentValues.surtidoAcumulado));
-  }, [isOpen, currentValues]);
+  // Reset the fields each time the modal opens (adjusting state during render, not in an effect).
+  const [wasOpen, setWasOpen] = React.useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setAhorro(String(currentValues.ahorroAcumulado));
+      setFondo(String(currentValues.fondoNegocioAcumulado));
+      setSurtido(String(currentValues.surtidoAcumulado));
+    }
+  }
 
   const ahorroNum = Number(ahorro) || 0;
   const fondoNum = Number(fondo) || 0;
@@ -66,10 +71,10 @@ export function EditAccumulatedBalancesModal({
           sileo.success({ title: 'Guardado', description: 'Saldos acumulados actualizados.' });
           onClose();
         },
-        onError: (error: any) =>
+        onError: (error: unknown) =>
           sileo.error({
             title: 'Error',
-            description: error?.response?.data?.message ?? 'No se pudieron guardar los cambios.',
+            description: getErrorMessage(error, 'No se pudieron guardar los cambios.'),
           }),
       },
     );

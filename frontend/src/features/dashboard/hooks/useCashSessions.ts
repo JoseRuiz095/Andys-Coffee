@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../../app/api'
 import { sileo } from 'sileo'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 export interface CashSession {
   id: string
@@ -50,8 +51,8 @@ export function useCorrectCashClosing() {
       queryClient.invalidateQueries({ queryKey: ['cash-sessions-history'] })
       sileo.success({ title: 'Cierre corregido', description: 'El cierre de caja ha sido actualizado' })
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || 'Error al corregir el cierre'
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error, 'Error al corregir el cierre')
       sileo.error({ title: 'Error', description: message })
     },
   })

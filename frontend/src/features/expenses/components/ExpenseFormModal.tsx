@@ -39,10 +39,10 @@ export function ExpenseFormModal({ isOpen, isLoading = false, editingExpense, on
 
     const input: CreateExpenseInput | UpdateExpenseInput = {
       ...(editingExpense && { id: editingExpense.id }),
-      category: category as any,
+      category: category as ExpenseCategory, // validateForm() rejects an empty category
       description: description.trim(),
       amount: parseFloat(amount),
-      paymentMethod: paymentMethod as any,
+      paymentMethod,
       ...(expenseDate && { expenseDate }),
     };
 
@@ -166,7 +166,7 @@ export function ExpenseFormModal({ isOpen, isLoading = false, editingExpense, on
           <Button variant="ghost" onClick={handleClose} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button onClick={(e: any) => handleSubmit(e)} disabled={isLoading}>
+          <Button onClick={(e) => handleSubmit(e)} disabled={isLoading}>
             {isLoading ? 'Guardando...' : editingExpense ? 'Actualizar' : 'Crear'}
           </Button>
         </DialogFooter>

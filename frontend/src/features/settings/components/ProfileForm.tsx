@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { sileo } from 'sileo'
 import { useUpdateProfile } from '../hooks/useProfile'
 import type { AuthUser } from '../../auth/types/auth.types'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 interface ProfileFormProps {
   currentUser: AuthUser | null
@@ -23,8 +24,8 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
       onSuccess: () => {
         sileo.success({ title: 'Perfil actualizado', duration: 2000 })
       },
-      onError: (error: any) => {
-        const message = error?.response?.data?.message || 'Error al actualizar perfil'
+      onError: (error: unknown) => {
+        const message = getErrorMessage(error, 'Error al actualizar perfil')
         sileo.error({ title: 'Error', description: message })
       },
     })

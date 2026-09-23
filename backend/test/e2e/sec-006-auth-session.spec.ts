@@ -4,7 +4,6 @@ import { expect, test } from "@playwright/test";
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { AddressInfo } from "node:net";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { prisma } from "../../src/config/prisma";

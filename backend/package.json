@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "node dev.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p .",
     "prisma:generate": "npx prisma generate",
     "prisma:seed": "npx prisma db seed",
     "prisma:migrate": "npx prisma migrate dev",
@@ -47,6 +49,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
@@ -60,10 +63,13 @@
     "cross-env": "^10.1.0",
     "cross-spawn": "^7.0.6",
     "dotenv": "^17.4.2",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
     "kill-port": "^2.0.1",
     "prisma": "^6.19.3",
     "tsx": "^4.23.11",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,

@@ -66,7 +66,7 @@ test('L-02: validate() responde con el mismo formato que el handler global', asy
   const { z } = await import('zod');
   const { validate } = await import('../src/middleware/validate');
   const recorder = responseRecorder();
-  validate(z.object({ amount: z.number() }))({ body: { amount: 'x' } } as any, recorder.response, next);
+  await validate(z.object({ amount: z.number() }))({ body: { amount: 'x' } } as any, recorder.response, next);
   const { statusCode, body } = recorder.result() as { statusCode: number; body: { message: string; errors: Record<string, string[]> } };
   assert.equal(statusCode, 400);
   assert.equal(body.message, 'Error de validación.');

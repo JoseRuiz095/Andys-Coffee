@@ -1,6 +1,6 @@
 import { AuthLayout } from '../../../shared/layouts/AuthLayout'
 import { LoginForm } from '../components/LoginForm'
-import { useGeneralPreferencesContext } from '../../../shared/contexts/GeneralPreferencesContext'
+import { useGeneralPreferencesContext } from '../../../shared/contexts/generalPreferencesStore'
 
 export function LoginPage() {
   const { preferences } = useGeneralPreferencesContext()

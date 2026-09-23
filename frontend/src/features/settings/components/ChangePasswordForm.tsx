@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { sileo } from 'sileo'
 import { useChangePassword } from '../hooks/useProfile'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
@@ -67,8 +68,8 @@ export function ChangePasswordForm() {
           setNewPassword('')
           setConfirmPassword('')
         },
-        onError: (error: any) => {
-          const message = error?.response?.data?.message || 'Error al cambiar contraseña'
+        onError: (error: unknown) => {
+          const message = getErrorMessage(error, 'Error al cambiar contraseña')
           sileo.error({ title: 'Error', description: message })
         },
       }

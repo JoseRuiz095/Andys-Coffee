@@ -50,16 +50,9 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
   const id = String(req.params.id);
   const statusData = await updateOrderStatusSchema.parseAsync(req.body);
 
-  try {
-    const order = await OrderService.updateStatus(id, statusData, user, req.id);
-    res.status(200).json(order);
-  } catch (error: any) {
-    if (error.name === 'StateTransitionError') {
-      return res.status(409).json({ message: error.message });
-    }
-    // Other errors (like not found) will be handled by the generic error handler
-    throw error;
-  }
+  // StateTransitionError -> 409 and NotFoundError -> 404 are mapped by the global errorHandler.
+  const order = await OrderService.updateStatus(id, statusData, user, req.id);
+  res.status(200).json(order);
 });
 
 export const getPendingPayments = asyncHandler(async (req: Request, res: Response) => {

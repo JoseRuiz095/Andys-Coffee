@@ -13,10 +13,11 @@ import { ChangePasswordForm } from '../components/ChangePasswordForm'
 import { SystemPreferencesForm } from '../../preferences'
 import { DistributionSettingsForm, FixedExpenseSettingsForm } from '../../income-statement'
 import { CashSessionHistory } from '../../dashboard/components/CashSessionHistory'
+import { ExpensesPage } from '../../expenses/pages/ExpensesPage'
 import type { AuthUser } from '../../auth/types/auth.types'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 
-type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'session'
+type SettingsTab = 'profile' | 'preferences' | 'system-preferences' | 'users' | 'roles' | 'cash-history' | 'expenses' | 'session'
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -51,7 +52,8 @@ export function SettingsPage() {
   const canManageUsers = hasPermission(currentUser, 'users.read')
   const canReadCashHistory = hasPermission(currentUser, 'cash.read')
   const canCorrectCash = hasPermission(currentUser, 'cash.correct')
-  const showAdminSection = canManageUsers || canReadCashHistory
+  const canReadExpenses = hasPermission(currentUser, 'expenses.read')
+  const showAdminSection = canManageUsers || canReadCashHistory || canReadExpenses
 
   return (
     <div
@@ -154,6 +156,13 @@ export function SettingsPage() {
                   onClick={() => setActiveTab('cash-history')}
                 />
               )}
+              {canReadExpenses && (
+                <NavTab
+                  label="Gastos"
+                  isActive={activeTab === 'expenses'}
+                  onClick={() => setActiveTab('expenses')}
+                />
+              )}
               <div className="my-2 border-t" style={{ borderColor: 'var(--color-border)' }} />
               <NavTab
                 label="Sesión"
@@ -208,6 +217,9 @@ export function SettingsPage() {
 
             {/* Roles */}
             {activeTab === 'roles' && canManageUsers && <RolesView currentUser={currentUser} />}
+
+            {/* Gastos */}
+            {activeTab === 'expenses' && canReadExpenses && <ExpensesPage />}
 
             {/* Cortes de caja */}
             {activeTab === 'cash-history' && canReadCashHistory && (

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { PurchaseService } from '../services/purchase.service';
@@ -90,8 +91,8 @@ export const PurchaseController = {
       }
 
       // Handle UNIQUE VIOLATION from Prisma
-      if ((error as any).code === 'P2002') {
-        const target = (error as any).meta?.target?.[0];
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.target as string[] | undefined)?.[0];
         if (target === 'name' || target?.includes('name')) {
           res.status(409).json({
             error: 'DUPLICATE_ERROR',

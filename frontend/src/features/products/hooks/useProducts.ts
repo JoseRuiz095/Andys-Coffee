@@ -97,7 +97,7 @@ export function useCategories() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (input: Omit<any, 'id' | 'createdAt' | 'updatedAt'>) => CategoryAPI.create(input),
+    mutationFn: (input: Parameters<typeof CategoryAPI.create>[0]) => CategoryAPI.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
@@ -105,7 +105,7 @@ export function useCategories() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<any> }) => CategoryAPI.update(id, input),
+    mutationFn: ({ id, input }: { id: string; input: Parameters<typeof CategoryAPI.update>[1] }) => CategoryAPI.update(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })

@@ -7,14 +7,6 @@ import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 import { auditLog } from '../utils/logger';
 
-const EXIT_REASON_LABELS: Record<string, string> = {
-  waste: 'Merma / Desperdicio',
-  sample: 'Muestra / Degustación',
-  internal_consumption: 'Consumo interno',
-  donation: 'Donación',
-  other: 'Otro',
-};
-
 export const InventoryService = {
   async search(query: string, user: AuthUser) {
     // Authorization

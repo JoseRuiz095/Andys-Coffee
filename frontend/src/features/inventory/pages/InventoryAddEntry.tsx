@@ -10,16 +10,14 @@ import { IngredientFormModal } from '../components/IngredientFormModal'
 import { SupplierFormModal } from '../components/SupplierFormModal'
 import { authStore } from '../../auth/store/auth.store'
 import { convertQuantity, convertUnitCost, getCompatibleUnits } from '../utils/unitConversion'
+import { getErrorMessage } from '../../../shared/utils/errors'
+import type { InventoryIngredient } from '../api/inventory.api'
+import type { Supplier } from '../api/purchases.api'
 
 const TAILWIND_INPUT_CLASS =
   'w-full rounded-lg border border-[var(--color-border)] px-3 py-2 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20'
 
-function getApiErrorMessage(error: any, fallback: string): string {
-  if (error?.response?.data?.message) return error.response?.data?.message
-  if (error?.response?.data?.error) return error.response?.data?.error
-  if (error?.message) return error.message
-  return fallback
-}
+type SelectedIngredient = Pick<InventoryIngredient, 'id' | 'name'> & { unit: { abbreviation: string } }
 
 interface PurchaseItem {
   ingredientId: string
@@ -42,7 +40,8 @@ export function InventoryAddEntry() {
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<PurchaseItem[]>([])
   const [selectedIngredient, setSelectedIngredient] = useState('')
-  const [selectedIngredientData, setSelectedIngredientData] = useState<any>(null)
+  // Only id, name and unit are needed; rows restored from a draft purchase carry just those.
+  const [selectedIngredientData, setSelectedIngredientData] = useState<SelectedIngredient | null>(null)
   const [captureUnit, setCaptureUnit] = useState('')
   const [itemQuantity, setItemQuantity] = useState('')
   const [itemCost, setItemCost] = useState('')
@@ -56,7 +55,7 @@ export function InventoryAddEntry() {
   const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState('')
   const [showSupplierResults, setShowSupplierResults] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
-  const [selectedSupplierData, setSelectedSupplierData] = useState<any>(null)
+  const [selectedSupplierData, setSelectedSupplierData] = useState<Supplier | null>(null)
 
   // Debounce de las búsquedas para no disparar una petición por cada tecla
   useEffect(() => {
@@ -85,7 +84,7 @@ export function InventoryAddEntry() {
   }, [searchResults, selectedIngredient])
 
   const handleAddItem = () => {
-    if (!selectedIngredient || !itemQuantity || !itemCost) {
+    if (!selectedIngredient || !selectedIngredientData || !itemQuantity || !itemCost) {
       sileo.error({
         title: 'Campos incompletos',
         description: 'Selecciona ingrediente, cantidad y costo unitario.',
@@ -105,16 +104,16 @@ export function InventoryAddEntry() {
     }
 
     // Convert quantity and cost if capture unit differs from base unit
-    const baseUnit = selectedIngredientData?.unit.abbreviation
+    const baseUnit = selectedIngredientData.unit.abbreviation
     let finalQuantity = qty
     let finalUnitCost = qty > 0 ? cost / qty : 0 // Costo unitario = costo total / cantidad
-    let displayCaptureUnit = captureUnit || baseUnit
+    const displayCaptureUnit = captureUnit || baseUnit
 
     if (captureUnit && captureUnit !== baseUnit) {
       try {
         finalQuantity = convertQuantity(qty, captureUnit, baseUnit)
         finalUnitCost = convertUnitCost(finalUnitCost, captureUnit, baseUnit)
-      } catch (err) {
+      } catch {
         sileo.error({
           title: 'Error de conversión',
           description: `No se puede convertir de ${captureUnit} a ${baseUnit}`,
@@ -163,14 +162,14 @@ export function InventoryAddEntry() {
     }
   }
 
-  const handleIngredientCreated = (ingredient: any) => {
+  const handleIngredientCreated = (ingredient: InventoryIngredient) => {
     setIsIngredientModalOpen(false)
     setSelectedIngredient(ingredient.id)
     setIngredientSearch('')
     setShowSearchResults(false)
   }
 
-  const handleSupplierCreated = (supplier: any) => {
+  const handleSupplierCreated = (supplier: Supplier) => {
     setIsSupplierModalOpen(false)
     setSupplier(supplier.id)
     setSupplierSearch('')
@@ -194,7 +193,7 @@ export function InventoryAddEntry() {
         items,
       },
       {
-        onSuccess: (data: any) => {
+        onSuccess: (data) => {
           sileo.success({
             title: 'Compra creada correctamente.',
             description: data?.purchase?.invoiceNumber ? `Factura: ${data.purchase.invoiceNumber}` : undefined,
@@ -207,10 +206,10 @@ export function InventoryAddEntry() {
           setEditingIndex(null)
           refetchPurchases()
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           sileo.error({
             title: 'Error creando compra',
-            description: getApiErrorMessage(error, 'Intenta de nuevo'),
+            description: getErrorMessage(error, 'Intenta de nuevo'),
           })
         },
       }
@@ -542,7 +541,7 @@ export function InventoryAddEntry() {
                       baseUnit: baseUnit,
                       convertedCost: convertedCost,
                     };
-                  } catch (err) {
+                  } catch {
                     // No conversion
                   }
                 }
@@ -630,8 +629,8 @@ export function InventoryAddEntry() {
                               setSelectedIngredient(item.ingredientId)
                               setSelectedIngredientData({
                                 id: item.ingredientId,
-                                name: item.ingredientName,
-                                unit: { abbreviation: item.unitAbbreviation }
+                                name: item.ingredientName ?? '',
+                                unit: { abbreviation: item.unitAbbreviation ?? '' }
                               })
                               setItemQuantity((item.capturedQuantity ?? item.quantity).toString())
                               setItemCost((item.capturedUnitCost ?? item.unitCost).toString())

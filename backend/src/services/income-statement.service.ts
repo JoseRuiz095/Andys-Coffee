@@ -6,7 +6,6 @@ import {
   type CogsRangeRow,
   type ExpenseRangeRow,
   type PurchaseRangeRow,
-  type FixedExpenseSettings,
 } from '../repositories/income-statement.repository';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import {

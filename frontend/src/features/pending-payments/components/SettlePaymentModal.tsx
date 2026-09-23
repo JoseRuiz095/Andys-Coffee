@@ -13,9 +13,12 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   const { mutate: settlePayment, isPending } = useSettlePayment();
   const [method, setMethod] = React.useState<SettleMethod>('cash');
 
-  React.useEffect(() => {
+  // Default to cash each time the modal opens (adjusting state during render, not in an effect).
+  const [wasOpen, setWasOpen] = React.useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setMethod('cash');
-  }, [isOpen]);
+  }
 
   if (!isOpen || !payment) return null;
 

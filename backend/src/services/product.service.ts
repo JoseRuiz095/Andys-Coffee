@@ -83,7 +83,7 @@ export const ProductService = {
       ...productData, categoryId: productData.categoryId ?? undefined, sku: productData.sku ?? undefined,
     });
 
-    const changes: Record<string, { from: any; to: any }> = {};
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
     const fieldsToAudit = ['price', 'cost', 'isActive', 'imageUrl'];
 
     if (originalProduct) {

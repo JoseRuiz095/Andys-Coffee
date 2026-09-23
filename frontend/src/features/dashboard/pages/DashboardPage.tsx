@@ -9,6 +9,12 @@ import { authStore } from '../../auth/store/auth.store'
 import type { AuthUser } from '../../auth/types/auth.types'
 import { hasPermission } from '../../auth/utils/permissions'
 import React from 'react'
+
+// Views outside the POS are loaded on demand so the sales screen starts light
+// (MetricsPage alone pulls in the charting library).
+const OrdersPage = React.lazy(() => import('../../orders/pages/OrdersPage').then((m) => ({ default: m.OrdersPage })))
+const InventoryLayout = React.lazy(() => import('../../inventory/pages/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
+const MetricsPage = React.lazy(() => import('../pages/MetricsPage').then((m) => ({ default: m.MetricsPage })))
 import { CoffeeIcon } from '../../../components/ui/coffee'
 import type { CoffeeIconHandle } from '../../../components/ui/coffee'
 import { SettingsIcon } from '../../../components/ui/settings'
@@ -18,9 +24,7 @@ import type { MenuItem } from '../../menu/types/menu.types'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useNotifications } from '../hooks/useNotifications'
-import { OrdersPage } from '../../orders/pages/OrdersPage'
-import { InventoryLayout } from '../../inventory'
-import { MetricsPage } from '../pages/MetricsPage'
+import { LazyView } from '../../../shared/components/LazyView'
 import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
@@ -545,7 +549,9 @@ export function DashboardPage() {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            <OrdersPage />
+            <LazyView>
+              <OrdersPage />
+            </LazyView>
           </motion.div>
         )}
 
@@ -559,7 +565,9 @@ export function DashboardPage() {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            <InventoryLayout />
+            <LazyView>
+              <InventoryLayout />
+            </LazyView>
           </motion.div>
         )}
 
@@ -573,7 +581,9 @@ export function DashboardPage() {
             exit="exit"
             transition={{ duration: 0.3 }}
           >
-            <MetricsPage />
+            <LazyView>
+              <MetricsPage />
+            </LazyView>
           </motion.div>
         )}
       </AnimatePresence>

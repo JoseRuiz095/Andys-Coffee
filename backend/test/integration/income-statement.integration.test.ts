@@ -28,8 +28,8 @@ let registerAId: string;
 let registerBId: string;
 let sessionAId: string;
 let sessionBId: string;
-let orderIds: string[] = [];
-let expenseIds: string[] = [];
+const orderIds: string[] = [];
+const expenseIds: string[] = [];
 
 const PRODUCT_PRICE = 100;
 const PRODUCT_COST = 40;

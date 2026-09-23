@@ -3,6 +3,7 @@ import { sileo } from 'sileo';
 import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 import { DailyOrdersAPI } from '../api/daily-orders.api';
 import { updateOrderStatus } from '../../orders/services/order.service';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 const QUERY_KEY = 'dailyOrders';
 
@@ -25,10 +26,10 @@ export function useCancelDailyOrder() {
         description: 'La orden fue cancelada correctamente.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       sileo.error({
         title: 'Error',
-        description: error?.response?.data?.message ?? 'No se pudo cancelar la orden.',
+        description: getErrorMessage(error, 'No se pudo cancelar la orden.'),
       });
     },
   });

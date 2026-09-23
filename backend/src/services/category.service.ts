@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { CategoryRepository } from '../repositories/category.repository';
 
 export const CategoryService = {
@@ -20,7 +21,7 @@ export const CategoryService = {
   },
 
   async update(id: string, name?: string, description?: string, imageUrl?: string, displayOrder?: number, isActive?: boolean) {
-    const data: any = {};
+    const data: Prisma.CategoryUpdateInput = {};
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
