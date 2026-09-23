@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { CashRepository } from '../repositories/cash.repository';
+import { runInTransaction } from '../repositories/transaction';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { CashBusinessRuleError } from './cash.service';
 import { NotFoundError } from '../utils/errors';
@@ -59,7 +59,7 @@ export const ExpenseService = {
 
   async create(input: CreateExpenseInput, createdById: string) {
     const expenseDate = input.expenseDate ? await resolveExpenseInstant(input.expenseDate) : undefined;
-    const result = await prisma.$transaction(
+    const result = await runInTransaction(
       async (tx) => {
         const amount = new Prisma.Decimal(input.amount);
         const isCash = input.paymentMethod === 'cash';
@@ -82,23 +82,16 @@ export const ExpenseService = {
           if (openSession) {
             cashSessionId = openSession.id;
 
-            // Create the cash movement with referenceId set directly
-            await tx.cashMovement.create({
-              data: {
-                cashSessionId: openSession.id,
-                type: 'expense',
-                amount,
-                referenceType: 'expense',
-                referenceId: expense.id,
-                description: input.description,
-                createdById,
-              },
-            });
-
-            // Decrement expected amount
-            await tx.cashSession.update({
-              where: { id: openSession.id },
-              data: { expectedAmount: { decrement: amount } },
+            // The expense is paid from the drawer.
+            await CashRepository.recordMovement(tx, {
+              cashSessionId: openSession.id,
+              type: 'expense',
+              amount,
+              drawerEffect: amount.negated(),
+              referenceType: 'expense',
+              referenceId: expense.id,
+              description: input.description,
+              createdById,
             });
 
             // Update the expense with the cash session id
@@ -113,7 +106,7 @@ export const ExpenseService = {
           cashSession: cashSessionId ? { id: cashSessionId, status: 'open' } : null,
         };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      { serializable: true }
     );
 
     // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
@@ -126,7 +119,7 @@ export const ExpenseService = {
   },
 
   async update(id: string, input: UpdateExpenseInput, updatedById: string) {
-    const result = await prisma.$transaction(
+    const result = await runInTransaction(
       async (tx) => {
         const existing = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!existing) throw new NotFoundError('Gasto no encontrado.');
@@ -156,57 +149,43 @@ export const ExpenseService = {
           // Same session before/after (both unlinked, or still linked to the same open session).
           const delta = newImpact.sub(oldImpact);
           if (newCashSessionId && !delta.isZero()) {
-            await tx.cashMovement.create({
-              data: {
-                cashSessionId: newCashSessionId,
-                type: 'expense_adjustment',
-                amount: delta.negated(),
-                referenceType: 'expense',
-                referenceId: id,
-                description: `Ajuste de gasto: ${input.description ?? existing.description}`,
-                createdById: updatedById,
-              },
-            });
-
-            await tx.cashSession.update({
-              where: { id: newCashSessionId },
-              data: { expectedAmount: { decrement: delta } },
+            // A larger expense takes more cash out of the drawer (and vice versa).
+            await CashRepository.recordMovement(tx, {
+              cashSessionId: newCashSessionId,
+              type: 'expense_adjustment',
+              amount: delta.negated(),
+              drawerEffect: delta.negated(),
+              referenceType: 'expense',
+              referenceId: id,
+              description: `Ajuste de gasto: ${input.description ?? existing.description}`,
+              createdById: updatedById,
             });
           }
         } else {
           // Cash-linkage itself is changing (cash<->non-cash, or newly linked to a session).
           if (oldCashSessionId) {
-            await tx.cashMovement.create({
-              data: {
-                cashSessionId: oldCashSessionId,
-                type: 'expense_reversal',
-                amount: oldImpact.negated(),
-                referenceType: 'expense',
-                referenceId: id,
-                description: `Reversión de gasto: ${existing.description}`,
-                createdById: updatedById,
-              },
-            });
-            await tx.cashSession.update({
-              where: { id: oldCashSessionId },
-              data: { expectedAmount: { increment: oldImpact } },
+            // The previous cash payment goes back into the drawer.
+            await CashRepository.recordMovement(tx, {
+              cashSessionId: oldCashSessionId,
+              type: 'expense_reversal',
+              amount: oldImpact.negated(),
+              drawerEffect: oldImpact,
+              referenceType: 'expense',
+              referenceId: id,
+              description: `Reversión de gasto: ${existing.description}`,
+              createdById: updatedById,
             });
           }
           if (newCashSessionId) {
-            await tx.cashMovement.create({
-              data: {
-                cashSessionId: newCashSessionId,
-                type: 'expense',
-                amount: newImpact,
-                referenceType: 'expense',
-                referenceId: id,
-                description: input.description ?? existing.description,
-                createdById: updatedById,
-              },
-            });
-            await tx.cashSession.update({
-              where: { id: newCashSessionId },
-              data: { expectedAmount: { decrement: newImpact } },
+            await CashRepository.recordMovement(tx, {
+              cashSessionId: newCashSessionId,
+              type: 'expense',
+              amount: newImpact,
+              drawerEffect: newImpact.negated(),
+              referenceType: 'expense',
+              referenceId: id,
+              description: input.description ?? existing.description,
+              createdById: updatedById,
             });
           }
         }
@@ -226,7 +205,7 @@ export const ExpenseService = {
         });
         return { updated, previousDateStr };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      { serializable: true }
     );
 
     // Invalidate snapshots for both the old and the new expense dates
@@ -239,7 +218,7 @@ export const ExpenseService = {
   },
 
   async remove(id: string, deletedById: string) {
-    const existing = await prisma.$transaction(
+    const existing = await runInTransaction(
       async (tx) => {
         const exp = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!exp) throw new NotFoundError('Gasto no encontrado.');
@@ -249,23 +228,17 @@ export const ExpenseService = {
           throw new CashBusinessRuleError('No se puede eliminar un gasto asociado a una sesión de caja ya cerrada.');
         }
 
-        // If cash-linked, create a reversal movement
+        // If cash-linked, the money goes back into the drawer (reversal movement).
         if (exp.cashSessionId) {
-          await tx.cashMovement.create({
-            data: {
-              cashSessionId: exp.cashSessionId,
-              type: 'expense_reversal',
-              amount: exp.amount.negated(),
-              referenceType: 'expense',
-              referenceId: id,
-              description: `Reversión de gasto: ${exp.description}`,
-              createdById: deletedById,
-            },
-          });
-
-          await tx.cashSession.update({
-            where: { id: exp.cashSessionId },
-            data: { expectedAmount: { increment: exp.amount } },
+          await CashRepository.recordMovement(tx, {
+            cashSessionId: exp.cashSessionId,
+            type: 'expense_reversal',
+            amount: exp.amount.negated(),
+            drawerEffect: exp.amount,
+            referenceType: 'expense',
+            referenceId: id,
+            description: `Reversión de gasto: ${exp.description}`,
+            createdById: deletedById,
           });
         }
 
@@ -275,7 +248,7 @@ export const ExpenseService = {
         // Return the expense so we can invalidate its snapshot
         return exp;
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      { serializable: true }
     );
 
     // Invalidate snapshot for the deleted expense date (if it has a final snapshot, it will be recalculated)

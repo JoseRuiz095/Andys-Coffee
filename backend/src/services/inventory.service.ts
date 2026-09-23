@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
+import { runInTransaction } from '../repositories/transaction';
 import { InventoryRepository } from '../repositories/inventory.repository';
 import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ingredientCreateSchema, ingredientUpdateSchema } from '../validators/inventory.validator';
 import { AuthUser } from './auth.service';
@@ -146,7 +146,7 @@ export const InventoryService = {
       throw new AuthorizationError('No tienes permiso para registrar salidas de inventario.');
     }
 
-    return prisma.$transaction(async (tx) => {
+    return runInTransaction(async (tx) => {
       const ingredient = await InventoryRepository.findIngredientById(data.ingredientId, tx);
       if (!ingredient) throw new NotFoundError('Ingrediente no encontrado.');
       if (!ingredient.isActive) throw new ValidationError('El ingrediente está inactivo.');
@@ -176,7 +176,7 @@ export const InventoryService = {
       );
 
       return { ingredient: updatedIngredient, movement };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { serializable: true });
   },
 
   async createIngredient(data: z.infer<typeof ingredientCreateSchema>, user: AuthUser) {

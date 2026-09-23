@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from './common.validator';
 
 const periodSchema = z.enum(['today', 'yesterday', 'week', 'month', 'customRange']);
 
@@ -51,7 +52,7 @@ export const dashboardSalesQuerySchema = z.object({
 );
 
 export const dashboardInventoryQuerySchema = z.object({
-  onlyLow: z.coerce.boolean().default(false),
+  onlyLow: queryBoolean.default(false),
 }).optional();
 
 export const dashboardSalesTrendQuerySchema = z.object({

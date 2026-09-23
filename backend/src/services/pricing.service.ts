@@ -81,12 +81,6 @@ export type PromotionScope = {
   categories: { categoryId: string }[];
 };
 
-/** Prisma `select` for the scope of a promotion (use with promotion queries). */
-export const promotionScopeSelect = {
-  products: { select: { productId: true } },
-  categories: { select: { categoryId: true } },
-} as const;
-
 /**
  * Promotions that apply to one product (N-01). A promotion only covers the products and
  * categories it is linked to; one without links covers nothing.

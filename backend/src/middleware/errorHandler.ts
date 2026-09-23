@@ -54,7 +54,11 @@ export const errorHandler = (
     return res.status(404).json({ message: err.message });
   }
 
-  if (err.name === 'StateTransitionError' || err.name === 'BusinessRuleError' || err.name === 'ConflictError') {
+  if (err.name === 'ConflictError') {
+    return res.status(409).json({ error: 'CONFLICT_ERROR', message: err.message });
+  }
+
+  if (err.name === 'StateTransitionError' || err.name === 'BusinessRuleError') {
     return res.status(409).json({ message: err.message });
   }
 
@@ -72,7 +76,13 @@ export const errorHandler = (
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
-      return res.status(409).json({ message: 'El recurso ya existe.' });
+      // Unique-index race (the services check duplicates first and throw DuplicateError).
+      const target = err.meta?.target;
+      return res.status(409).json({
+        error: 'DUPLICATE_ERROR',
+        message: 'Ya existe un registro con esos datos.',
+        details: { field: Array.isArray(target) ? target.join(', ') : target },
+      });
     }
     if (err.code === 'P2025') {
       return res.status(404).json({ message: 'Recurso no encontrado.' });

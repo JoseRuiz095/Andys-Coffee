@@ -44,7 +44,8 @@ test('L-03: ConflictError y DuplicateError se mapean a 409 sin try/catch en el c
 
   const conflict = responseRecorder();
   errorHandler(new ConflictError('No se puede eliminar.'), request, conflict.response, next);
-  assert.deepEqual(conflict.result(), { statusCode: 409, body: { message: 'No se puede eliminar.' } });
+  // Same shape the inventory/supplier/user/role controllers returned before their try/catch was removed.
+  assert.deepEqual(conflict.result(), { statusCode: 409, body: { error: 'CONFLICT_ERROR', message: 'No se puede eliminar.' } });
 
   const duplicate = responseRecorder();
   errorHandler(new DuplicateError('SUPPLIER', 'Ya existe.', 'abc-123'), request, duplicate.response, next);

@@ -2,236 +2,50 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { SupplierService } from '../services/supplier.service';
 import { supplierListSchema, supplierCreateSchema, supplierUpdateSchema } from '../validators/supplier.validator';
+import { searchQuerySchema } from '../validators/common.validator';
 import { AuthUser } from '../services/auth.service';
-import { DuplicateError } from '../utils/errors';
-import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
+// Bodies arrive already validated by validate() in supplier.routes.ts; domain errors
+// are mapped by the global errorHandler.
 export const SupplierController = {
   async getAll(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const query = supplierListSchema.parse(req.query);
-
-      const result = await SupplierService.findAll(
-        user,
-        query.page,
-        query.limit,
-        query.isActive,
-        query.search,
-      );
-
-      res.json(result);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          message: 'Datos inválidos',
-          errors: error.flatten().fieldErrors,
-        });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const query = supplierListSchema.parse(req.query);
+    res.json(await SupplierService.findAll(req.user as AuthUser, query.page, query.limit, query.isActive, query.search));
   },
 
   async getOne(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      const supplier = await SupplierService.findById(id, user);
-
-      res.json(supplier);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    res.json(await SupplierService.findById(req.params.id as string, req.user as AuthUser));
   },
 
   async search(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { q } = req.query as { q?: string };
-
-      if (!q) {
-        res.status(400).json({ message: 'Parámetro de búsqueda requerido: q' });
-        return;
-      }
-
-      const results = await SupplierService.search(q, user);
-
-      res.json(results);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const { q } = searchQuerySchema.parse(req.query);
+    res.json(await SupplierService.search(q, req.user as AuthUser));
   },
 
   async create(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const data = supplierCreateSchema.parse(req.body);
-
-      const supplier = await SupplierService.create(data, user);
-
-      res.status(201).json({
-        success: true,
-        message: 'Proveedor creado correctamente.',
-        supplier,
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          message: 'Datos inválidos',
-          errors: error.flatten().fieldErrors,
-        });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof DuplicateError) {
-        sendDuplicateErrorResponse(res, error);
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const data = req.body as z.infer<typeof supplierCreateSchema>;
+    const supplier = await SupplierService.create(data, req.user as AuthUser);
+    res.status(201).json({ success: true, message: 'Proveedor creado correctamente.', supplier });
   },
 
   async update(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-      const data = supplierUpdateSchema.parse(req.body);
-
-      const supplier = await SupplierService.update(id, data, user);
-
-      res.json({
-        success: true,
-        message: 'Proveedor actualizado correctamente.',
-        supplier,
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          message: 'Datos inválidos',
-          errors: error.flatten().fieldErrors,
-        });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof DuplicateError) {
-        sendDuplicateErrorResponse(res, error);
-        return;
-      }
-
-      throw error;
-    }
+    const data = req.body as z.infer<typeof supplierUpdateSchema>;
+    const supplier = await SupplierService.update(req.params.id as string, data, req.user as AuthUser);
+    res.json({ success: true, message: 'Proveedor actualizado correctamente.', supplier });
   },
 
   async setActive(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-      const { isActive } = req.body as { isActive: boolean };
-
-      if (typeof isActive !== 'boolean') {
-        res.status(400).json({ message: 'El campo isActive debe ser un booleano.' });
-        return;
-      }
-
-      const supplier = await SupplierService.setActive(id, isActive, user);
-
-      res.json({
-        success: true,
-        message: `Proveedor ${isActive ? 'activado' : 'desactivado'} correctamente.`,
-        supplier,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const { isActive } = req.body as { isActive: boolean };
+    const supplier = await SupplierService.setActive(req.params.id as string, isActive, req.user as AuthUser);
+    res.json({
+      success: true,
+      message: `Proveedor ${isActive ? 'activado' : 'desactivado'} correctamente.`,
+      supplier,
+    });
   },
 
   async delete(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      await SupplierService.deleteSupplier(id, user);
-
-      res.json({
-        success: true,
-        message: 'Proveedor eliminado correctamente.',
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ConflictError') {
-        res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    await SupplierService.deleteSupplier(req.params.id as string, req.user as AuthUser);
+    res.json({ success: true, message: 'Proveedor eliminado correctamente.' });
   },
 };

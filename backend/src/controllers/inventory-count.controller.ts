@@ -1,235 +1,57 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { InventoryCountService } from '../services/inventory-count.service';
-import { inventoryCountValidator } from '../validators/inventory-count.validator';
+import { inventoryCountListSchema, inventoryCountValidator } from '../validators/inventory-count.validator';
 import { AuthUser } from '../services/auth.service';
 
+// Bodies arrive already validated by validate() in inventory-count.routes.ts; domain errors
+// are mapped by the global errorHandler.
 export const InventoryCountController = {
   async getAll(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { page = '1', limit = '20', status, date } = req.query as {
-        page?: string;
-        limit?: string;
-        status?: string;
-        date?: string;
-      };
-
-      const result = await InventoryCountService.findAll(
-        user,
-        parseInt(page, 10),
-        parseInt(limit, 10),
-        status,
-        date,
-      );
-
-      res.json(result);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const { page, limit, status, date } = inventoryCountListSchema.parse(req.query);
+    res.json(await InventoryCountService.findAll(req.user as AuthUser, page, limit, status, date));
   },
 
   async createCount(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const count = await InventoryCountService.createCount(user);
-
-      res.status(201).json({
-        success: true,
-        data: count,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const count = await InventoryCountService.createCount(req.user as AuthUser);
+    res.status(201).json({ success: true, data: count });
   },
 
   async findById(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      const count = await InventoryCountService.findById(id, user);
-
-      res.json({
-        success: true,
-        data: count,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const count = await InventoryCountService.findById(req.params.id as string, req.user as AuthUser);
+    res.json({ success: true, data: count });
   },
 
   async addItem(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { countId } = req.params as { countId: string };
-      const { ingredientId, countedQuantity, notes } = req.body;
-
-      const validation = inventoryCountValidator.addItem.safeParse({
-        ingredientId,
-        countedQuantity,
-        notes,
-      });
-
-      if (!validation.success) {
-        const errors = validation.error.flatten();
-        return res.status(400).json({ message: 'Validación fallida', errors });
-      }
-
-      const item = await InventoryCountService.addItem(
-        countId,
-        validation.data.ingredientId,
-        validation.data.countedQuantity,
-        validation.data.notes || null,
-        user,
-      );
-
-      res.json({
-        success: true,
-        data: item,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const { ingredientId, countedQuantity, notes } = req.body as z.infer<typeof inventoryCountValidator.addItem>;
+    const item = await InventoryCountService.addItem(
+      req.params.countId as string,
+      ingredientId,
+      countedQuantity,
+      notes || null,
+      req.user as AuthUser,
+    );
+    res.json({ success: true, data: item });
   },
 
   async removeItem(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { countId, ingredientId } = req.params as { countId: string; ingredientId: string };
-
-      await InventoryCountService.removeItem(countId, ingredientId, user);
-
-      res.json({
-        success: true,
-        message: 'Item eliminado del conteo.',
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const { countId, ingredientId } = req.params as { countId: string; ingredientId: string };
+    await InventoryCountService.removeItem(countId, ingredientId, req.user as AuthUser);
+    res.json({ success: true, message: 'Item eliminado del conteo.' });
   },
 
   async delete(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      await InventoryCountService.deleteCount(id, user);
-
-      res.json({
-        success: true,
-        message: 'Conteo eliminado correctamente.',
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'ConflictError') {
-        return res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
-      }
-
-      throw error;
-    }
+    await InventoryCountService.deleteCount(req.params.id as string, req.user as AuthUser);
+    res.json({ success: true, message: 'Conteo eliminado correctamente.' });
   },
 
   async completeCount(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { countId } = req.params as { countId: string };
-
-      const count = await InventoryCountService.completeCount(countId, user);
-
-      res.json({
-        success: true,
-        data: count,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const count = await InventoryCountService.completeCount(req.params.countId as string, req.user as AuthUser);
+    res.json({ success: true, data: count });
   },
 
   async applyAdjustments(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { countId } = req.params as { countId: string };
-
-      const count = await InventoryCountService.applyAdjustments(countId, user);
-
-      res.json({
-        success: true,
-        data: count,
-        message: 'Ajustes aplicados correctamente',
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        return res.status(403).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        return res.status(404).json({ message: error.message });
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        return res.status(400).json({ message: error.message });
-      }
-
-      throw error;
-    }
+    const count = await InventoryCountService.applyAdjustments(req.params.countId as string, req.user as AuthUser);
+    res.json({ success: true, data: count, message: 'Ajustes aplicados correctamente' });
   },
 };

@@ -546,6 +546,23 @@ export const InventoryRepository = {
     });
   },
 
+  /** Sale movements recorded for an order (to reverse them on cancellation). */
+  async findSaleMovementsForOrder(tx: Prisma.TransactionClient, orderId: string) {
+    return tx.inventoryMovement.findMany({ where: { referenceType: 'order', referenceId: orderId, type: 'sale' } });
+  },
+
+  /**
+   * Takes `quantity` out of an active ingredient only if there is enough stock (single
+   * conditional UPDATE, safe under concurrency). Returns false when it could not.
+   */
+  async decrementStockIfAvailable(tx: Prisma.TransactionClient, ingredientId: string, quantity: Prisma.Decimal): Promise<boolean> {
+    const updated = await tx.ingredient.updateMany({
+      where: { id: ingredientId, isActive: true, currentStock: { gte: quantity } },
+      data: { currentStock: { decrement: quantity } },
+    });
+    return updated.count === 1;
+  },
+
   async createMovements(
     data: Prisma.InventoryMovementCreateManyInput[],
     client: PrismaClient = prisma,

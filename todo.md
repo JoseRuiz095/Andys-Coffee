@@ -190,6 +190,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] N-04: la pantalla de Gastos no estaba montada en ninguna parte; vuelve a Configuración → Gastos (`expenses.read`)
 - [x] Filtro de pedidos: agregados "En preparación" y "Lista"
 - [x] Tipos reales que ocultaban los `any` (categorías, entradas de inventario, estado de pedidos)
+- [x] N-05: **el filtro "Inactivos" de Ingredientes, Proveedores y Usuarios mostraba los activos** (`z.coerce.boolean()` convierte `"false"` en `true`); ahora `queryBoolean`
 
 ## 🟡 BUGS MENORES (resueltos Sept 22)
 
@@ -224,8 +225,8 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 ## 🧹 DEUDA TÉCNICA
 
 - [x] Lint limpio: frontend 71 → 0 errores; backend con ESLint configurado (41 → 0). Sin `any` en código de la app
-- [ ] Services que usan Prisma directamente (`order.service` 67 usos, `expense.service` 13, `cash`, `auth`, `menu`, job de conciliación) → mover a repositories
-- [ ] Autorización y validación uniformes: `checkPermission` + `validate()` en todas las rutas; quitar los try/catch repetidos de los controllers
+- [x] Ningún service/controller/job/middleware usa Prisma directo: consultas en repositories (`order`, `cash`, `menu`, `notification`, `audit-log`) y transacciones vía `runInTransaction` (`repositories/transaction.ts`). ESLint lo bloquea (`no-restricted-imports`)
+- [x] Autorización y validación uniformes: `checkPermission` + `validate()` en todas las rutas (las excepciones están listadas y justificadas en `test/route-policy.test.ts`); controllers sin try/catch (el `errorHandler` global mapea todo, incluido `CONFLICT_ERROR`/`DUPLICATE_ERROR`). Los services conservan su verificación como segunda capa
 - [ ] Estados como texto libre → enums (`Payment.status`, `CashMovement.type`, `deliveryResponsible`, `Expense.category`); FK para `Expense.sourceOrderId`
 - [ ] Convención de signos uniforme en `CashMovement.amount`
 - [ ] Drift previo de la tabla `ingredients` entre BD y esquema (índice parcial de `sku`, tipo de `deletedAt`)
@@ -265,7 +266,7 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 ## 📝 NOTAS TÉCNICAS
 
 ### Arquitectura
-- **Backend**: Controller → Service → Repository → Prisma ORM (con las excepciones listadas en Deuda técnica)
+- **Backend**: Controller → Service → Repository → Prisma ORM (sin excepciones; ESLint lo verifica). Rutas: `requireAuth → checkPermission → validate → controller` (verificado por `test/route-policy.test.ts`)
 - **Frontend**: Components → Hooks → Pages → API (`app/api.ts` + `features/*/api`); router propio en `app/router.tsx`
 - **State**: store de auth basado en eventos, TanStack Query para datos del servidor, Theme Context para el tema
 - **Validación**: Zod en backend (fuente de verdad)
@@ -294,7 +295,7 @@ npm run build                          # Build de producción
 
 **Completado**: 11 fases de desarrollo + Fase 12 (auditoría, estabilización y testing)
 **Siguiente**: acciones del desarrollador y deuda técnica (reportes quedan fuera del MVP)
-**Status general**: MVP auditado; sin pendientes críticos ni altos; 138 tests automatizados pasando
+**Status general**: MVP auditado; sin pendientes críticos ni altos; 144 tests automatizados pasando
 
 ### Ciclo Sept 22, 2026 — Auditoría y testing ✅
 - ✅ Auditoría integral (backend, BD, API/seguridad, frontend, flujos de negocio)

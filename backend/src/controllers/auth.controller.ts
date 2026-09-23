@@ -2,10 +2,10 @@ import type { Request, Response } from "express";
 import { authenticateUser, createJwtToken, verifyJwtToken, type AuthUser } from "../services/auth.service";
 import { getRequestToken } from "../middleware/auth.middleware";
 import { UserRepository } from "../repositories/user.repository";
-import { loginSchema } from "../validators/password.validator";
+import type { z } from "zod";
+import type { changePasswordSchema, loginSchema, updateProfileSchema } from "../validators/password.validator";
 import { auditLog } from "../utils/logger";
 import { isProduction } from "../config/app";
-import { ZodError } from "zod";
 
 const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -21,37 +21,27 @@ function setSessionCookie(res: Response, user: AuthUser, tokenVersion: number) {
 }
 
 export async function login(req: Request, res: Response) {
-  try {
-    const { email, password } = loginSchema.parse(req.body);
+  const { email, password } = req.body as z.infer<typeof loginSchema>;
 
-    const authenticated = await authenticateUser(email, password);
+  const authenticated = await authenticateUser(email, password);
 
-    if (!authenticated) {
-      auditLog({ requestId: req.id, action: "LOGIN_FAILED", entity: "auth" }, "Authentication failed");
-      return res.status(401).json({ message: "Correo o contraseña incorrectos." });
-    }
-
-    const { tokenVersion, ...user } = authenticated;
-    setSessionCookie(res, user, tokenVersion);
-
-    auditLog({
-      requestId: req.id,
-      actor: { id: user.id, name: user.name, role: user.roleName },
-      action: "LOGIN_SUCCEEDED",
-      entity: "auth",
-      entityId: user.id,
-    }, "Authentication succeeded");
-
-    return res.json({ user });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        message: "Error de validación.",
-        errors: error.flatten().fieldErrors,
-      });
-    }
-    throw error;
+  if (!authenticated) {
+    auditLog({ requestId: req.id, action: "LOGIN_FAILED", entity: "auth" }, "Authentication failed");
+    return res.status(401).json({ message: "Correo o contraseña incorrectos." });
   }
+
+  const { tokenVersion, ...user } = authenticated;
+  setSessionCookie(res, user, tokenVersion);
+
+  auditLog({
+    requestId: req.id,
+    actor: { id: user.id, name: user.name, role: user.roleName },
+    action: "LOGIN_SUCCEEDED",
+    entity: "auth",
+    entityId: user.id,
+  }, "Authentication succeeded");
+
+  return res.json({ user });
 }
 
 export async function logout(req: Request, res: Response) {
@@ -89,59 +79,33 @@ export function getCsrfToken(req: Request, res: Response) {
 }
 
 export async function changePassword(req: Request, res: Response) {
-  try {
-    const { UserService } = await import('../services/user.service');
-    const { changePasswordSchema } = await import('../validators/password.validator');
+  const { UserService } = await import('../services/user.service');
 
-    const user = req.user as AuthUser;
-    const data = changePasswordSchema.parse(req.body);
+  const user = req.user as AuthUser;
+  const data = req.body as z.infer<typeof changePasswordSchema>;
 
-    const updated = await UserService.changeOwnPassword(user.id, data.currentPassword, data.newPassword);
-    // Changing the password revoked every session; keep this device signed in with a
-    // token for the new version.
-    setSessionCookie(res, user, updated.tokenVersion);
+  const updated = await UserService.changeOwnPassword(user.id, data.currentPassword, data.newPassword);
+  // Changing the password revoked every session; keep this device signed in with a
+  // token for the new version.
+  setSessionCookie(res, user, updated.tokenVersion);
 
-    return res.json({
-      success: true,
-      message: 'Contraseña actualizada correctamente.',
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') {
-      res.status(400).json({
-        message: 'Error de validación.',
-        errors: (error as ZodError).flatten().fieldErrors,
-      });
-      return;
-    }
-
-    throw error;
-  }
+  return res.json({
+    success: true,
+    message: 'Contraseña actualizada correctamente.',
+  });
 }
 
 export async function updateProfile(req: Request, res: Response) {
-  try {
-    const { UserService } = await import('../services/user.service');
-    const { updateProfileSchema } = await import('../validators/password.validator');
+  const { UserService } = await import('../services/user.service');
 
-    const user = req.user as AuthUser;
-    const data = updateProfileSchema.parse(req.body);
+  const user = req.user as AuthUser;
+  const data = req.body as z.infer<typeof updateProfileSchema>;
 
-    const updatedUser = await UserService.updateOwnProfile(user.id, data);
+  const updatedUser = await UserService.updateOwnProfile(user.id, data);
 
-    return res.json({
-      success: true,
-      message: 'Perfil actualizado correctamente.',
-      user: updatedUser,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') {
-      res.status(400).json({
-        message: 'Error de validación.',
-        errors: (error as ZodError).flatten().fieldErrors,
-      });
-      return;
-    }
-
-    throw error;
-  }
+  return res.json({
+    success: true,
+    message: 'Perfil actualizado correctamente.',
+    user: updatedUser,
+  });
 }

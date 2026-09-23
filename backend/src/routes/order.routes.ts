@@ -24,73 +24,23 @@ import { checkPermission } from '../middleware/authorization';
 
 const router = Router();
 
-// Routes are protected by authentication and specific permissions
+router.use(requireAuth);
 
 // Specific routes first (avoid /:id matching /payments/pending, /deliveries/pending or /by-date)
-router.get(
-    '/payments/pending',
-    requireAuth,
-    getPendingPayments
-);
+router.get('/payments/pending', checkPermission('sales.read'), getPendingPayments);
+router.patch('/payments/:paymentId/settle', checkPermission('sales.create'), validate(settlePaymentSchema), settleOrderPayment);
+router.get('/deliveries/pending', checkPermission('sales.read'), getPendingDeliveries);
+router.get('/by-date', checkPermission('sales.read'), getOrdersByDate);
 
-router.patch(
-    '/payments/:paymentId/settle',
-    requireAuth,
-    validate(settlePaymentSchema),
-    settleOrderPayment
-);
+// No route-level permission: the service scopes by ownership (users without sales.read
+// only see / touch their own orders) and, for status changes, the permission depends on
+// the target status (sales.create to advance, sales.cancel to cancel).
+router.get('/', getAllOrders);
+router.get('/:id', getOrderById);
+router.patch('/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
 
-router.get(
-    '/deliveries/pending',
-    requireAuth,
-    getPendingDeliveries
-);
-
-router.get(
-    '/by-date',
-    requireAuth,
-    getOrdersByDate
-);
-
-router.get(
-    '/',
-    requireAuth,
-    getAllOrders
-);
-
-router.get(
-    '/:id',
-    requireAuth,
-    getOrderById
-);
-
-router.post(
-    '/',
-    requireAuth,
-    checkPermission('sales.create'),
-    validate(createOrderSchema),
-    createOrder
-);
-
-router.patch(
-    '/:id/status',
-    requireAuth,
-    validate(updateOrderStatusSchema),
-    updateOrderStatus
-);
-
-router.patch(
-    '/:id/delivery/handoff',
-    requireAuth,
-    validate(deliveryHandoffSchema),
-    handoffOrderDelivery
-);
-
-router.patch(
-    '/:id',
-    requireAuth,
-    validate(updateOrderSchema),
-    updateOrder
-);
+router.post('/', checkPermission('sales.create'), validate(createOrderSchema), createOrder);
+router.patch('/:id/delivery/handoff', checkPermission('sales.create'), validate(deliveryHandoffSchema), handoffOrderDelivery);
+router.patch('/:id', checkPermission('sales.update'), validate(updateOrderSchema), updateOrder);
 
 export default router;

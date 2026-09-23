@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { z } from 'zod';
 import { PreferenceService } from '../services/preference.service';
 import { updatePreferenceSchema, generalPreferencesSchema } from '../validators/preference.validator';
 import type { AuthUser } from '../services/auth.service';
@@ -49,7 +50,7 @@ export async function getGeneralPreferences(_req: Request, res: Response) {
 
 export async function upsertGeneralPreferences(req: Request, res: Response) {
   const user = req.user as AuthUser;
-  const data = generalPreferencesSchema.parse(req.body);
+  const data = req.body as z.infer<typeof generalPreferencesSchema>;
 
   const preferences = await PreferenceService.upsertGeneralPreferences(data, user);
   return res.json({ data: preferences });

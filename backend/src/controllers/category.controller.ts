@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { CategoryService } from '../services/category.service';
-import { createCategorySchema, updateCategorySchema, setActiveSchema } from '../validators/category.validator';
+import { createCategorySchema, updateCategorySchema } from '../validators/category.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 
 export const CategoryController = {
@@ -18,7 +19,7 @@ export const CategoryController = {
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {
-    const data = createCategorySchema.parse(req.body);
+    const data = req.body as z.infer<typeof createCategorySchema>;
     const category = await CategoryService.create(
       data.name,
       data.description || undefined,
@@ -29,7 +30,7 @@ export const CategoryController = {
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
-    const data = updateCategorySchema.parse(req.body);
+    const data = req.body as z.infer<typeof updateCategorySchema>;
     const category = await CategoryService.update(
       req.params.id as string,
       data.name,
@@ -41,7 +42,7 @@ export const CategoryController = {
   }),
 
   setActive: asyncHandler(async (req: Request, res: Response) => {
-    const { isActive } = setActiveSchema.parse(req.body);
+    const { isActive } = req.body as { isActive: boolean };
     const updated = await CategoryService.setActive(req.params.id as string, isActive);
     res.status(200).json(updated);
   }),

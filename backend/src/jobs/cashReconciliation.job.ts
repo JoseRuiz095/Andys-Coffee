@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
+import { CashRepository } from '../repositories/cash.repository';
 import { CASH_TIMEZONE } from '../config/app';
 import { logger } from '../utils/logger';
 import { NotificationService } from '../services/notification.service';
@@ -97,21 +97,13 @@ export function scheduleCashReconciliation() {
 async function reconcileAllSessions(dateStr: string): Promise<ReconciliationResult[]> {
   const { start, end } = getZonedDayBoundaries(dateStr);
 
-  // Find all closed sessions for the day
-  const sessions = await prisma.cashSession.findMany({
-    where: {
-      openedAt: { gte: start, lt: end },
-      status: 'closed',
-    },
-    include: { cashRegister: true },
-  });
+  // Closed sessions of the day with their movements (one query, no N+1).
+  const sessions = await CashRepository.findClosedSessionsWithMovements(start, end);
 
   const results: ReconciliationResult[] = [];
 
   for (const session of sessions) {
-    const movements = await prisma.cashMovement.findMany({
-      where: { cashSessionId: session.id },
-    });
+    const movements = session.movements;
 
     const actualSum = movements.reduce((sum, m) => sum.plus(expectedAmountEffect(m.type, m.amount)), new Prisma.Decimal(0));
     const discrepancy = actualSum.minus(session.expectedAmount);

@@ -1,7 +1,8 @@
 import { NotificationType, Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
 import { AUTO_CLOSE_REASON, CASH_TIMEZONE } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
+import { AuditLogRepository } from '../repositories/audit-log.repository';
+import { runInTransaction, type Tx } from '../repositories/transaction';
 import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { UserRepository } from '../repositories/user.repository';
@@ -158,10 +159,7 @@ export const CashService = {
 
   async reopenSession(sessionId: string, reopenedById: string, reason: string): Promise<CashSessionWithDetails> {
     const reopenedSession = await prismaTransaction(async (tx) => {
-      const session = await tx.cashSession.findUnique({
-        where: { id: sessionId },
-        include: { cashRegister: true, closedBy: true, openedBy: true },
-      });
+      const session = await CashRepository.findSessionForReopen(tx, sessionId);
 
       if (!session) {
         throw new CashBusinessRuleError('Sesión de caja no encontrada.');
@@ -172,34 +170,21 @@ export const CashService = {
       }
 
       // The closing fields are wiped below, so keep the discarded cash count in the audit trail.
-      await tx.auditLog.create({
-        data: {
-          userId: reopenedById,
-          action: 'CASH_SESSION_REOPENED',
-          cashSessionId: session.id,
-          metadata: {
-            previousClosingAmount: session.closingAmount?.toString() ?? null,
-            previousExpectedAmount: session.expectedAmount.toString(),
-            previousDifference: session.difference?.toString() ?? null,
-            previousClosedAt: session.closedAt?.toISOString() ?? null,
-            previousClosedById: session.closedById,
-            reason,
-          },
+      await AuditLogRepository.create({
+        userId: reopenedById,
+        action: 'CASH_SESSION_REOPENED',
+        cashSessionId: session.id,
+        metadata: {
+          previousClosingAmount: session.closingAmount?.toString() ?? null,
+          previousExpectedAmount: session.expectedAmount.toString(),
+          previousDifference: session.difference?.toString() ?? null,
+          previousClosedAt: session.closedAt?.toISOString() ?? null,
+          previousClosedById: session.closedById,
+          reason,
         },
-      });
+      }, tx);
 
-      // Reopen the session
-      return tx.cashSession.update({
-        where: { id: sessionId },
-        data: {
-          status: 'open',
-          closedAt: null,
-          closedById: null,
-          closingAmount: null,
-          difference: null,
-        },
-        include: { cashRegister: true, closedBy: true, openedBy: true },
-      }) as Promise<CashSessionWithDetails>;
+      return CashRepository.reopenSession(tx, sessionId);
     });
 
     // Invalidate the income statement snapshot for the day this session was in
@@ -217,10 +202,9 @@ export const CashService = {
   },
 };
 
-async function prismaTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>) {
-  return prisma.$transaction(callback, {
-    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-  });
+// Cash open/close/correct/reopen race with each other and with sales: always Serializable.
+function prismaTransaction<T>(callback: (tx: Tx) => Promise<T>) {
+  return runInTransaction(callback, { serializable: true });
 }
 
 async function createCashNotification(

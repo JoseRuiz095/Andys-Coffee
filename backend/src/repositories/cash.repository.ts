@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries } from '../utils/businessDate';
 import { AUTO_CLOSE_REASON } from '../config/app';
+import type { DbClient, Tx } from './transaction';
 
 const sessionInclude = {
   cashRegister: true,
@@ -199,5 +200,87 @@ export const CashRepository = {
     ]);
 
     return { sessions, total };
+  },
+
+  async findSessionForReopen(tx: Tx, sessionId: string) {
+    return tx.cashSession.findUnique({ where: { id: sessionId } });
+  },
+
+  /** Puts a closed session back to open, clearing its closing count. */
+  async reopenSession(tx: Tx, sessionId: string): Promise<CashSessionWithDetails> {
+    return tx.cashSession.update({
+      where: { id: sessionId },
+      data: { status: 'open', closedAt: null, closedById: null, closingAmount: null, difference: null },
+      include: sessionInclude,
+    });
+  },
+
+  /** Latest open session (optionally a specific one), inside a transaction. */
+  async findOpenSession(tx: Tx, sessionId?: string) {
+    return tx.cashSession.findFirst({
+      where: { status: 'open', ...(sessionId ? { id: sessionId } : {}) },
+      orderBy: { openedAt: 'desc' },
+    });
+  },
+
+  async findSessionStatus(tx: Tx, sessionId: string) {
+    return tx.cashSession.findUnique({ where: { id: sessionId }, select: { status: true } });
+  },
+
+  /**
+   * Records a cash movement and applies its effect to the session's expectedAmount in the
+   * same transaction. `drawerEffect` is how much the drawer changes (+ money in, − money out);
+   * it is explicit because the stored `amount` sign is not uniform across movement types
+   * (see jobs/cashReconciliation.job.ts).
+   */
+  async recordMovement(
+    tx: Tx,
+    data: {
+      cashSessionId: string;
+      type: string;
+      amount: Prisma.Decimal;
+      drawerEffect: Prisma.Decimal;
+      referenceType?: string;
+      referenceId?: string;
+      description?: string;
+      receivedAmount?: Prisma.Decimal | null;
+      changeAmount?: Prisma.Decimal | null;
+      createdById: string;
+    },
+  ) {
+    const { drawerEffect, ...movement } = data;
+    const created = await tx.cashMovement.create({ data: movement });
+    await tx.cashSession.update({
+      where: { id: data.cashSessionId },
+      data: { expectedAmount: { increment: drawerEffect } },
+    });
+    return created;
+  },
+
+  async findMovements(
+    tx: DbClient,
+    where: { referenceType: string; referenceId: string; type: string; cashSessionId?: string },
+  ) {
+    return tx.cashMovement.findMany({ where });
+  },
+
+  async findFirstMovement(tx: Tx, where: { referenceType: string; referenceId: string; type: string }) {
+    return tx.cashMovement.findFirst({ where });
+  },
+
+  /** Received/change amounts of the cash sale of each order (for the daily orders view). */
+  async findSaleTenderByOrderIds(orderIds: string[]) {
+    return prisma.cashMovement.findMany({
+      where: { referenceType: 'order', referenceId: { in: orderIds }, type: 'sale' },
+      select: { referenceId: true, receivedAmount: true, changeAmount: true },
+    });
+  },
+
+  /** Closed sessions opened in [from, to) with their movements, for the reconciliation job. */
+  async findClosedSessionsWithMovements(from: Date, to: Date) {
+    return prisma.cashSession.findMany({
+      where: { openedAt: { gte: from, lt: to }, status: 'closed' },
+      include: { cashRegister: true, movements: { select: { type: true, amount: true } } },
+    });
   },
 };

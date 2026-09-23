@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler';
 import { OrderService } from '../services/order.service';
 import {
@@ -30,7 +31,7 @@ export const getOrderById = asyncHandler(async (req: Request, res: Response) => 
   const id = String(req.params.id);
   const order = await OrderService.findOne(id, user);
   if (!order) {
-    return res.status(404).json({ message: 'Order not found' });
+    return res.status(404).json({ message: 'Pedido no encontrado.' });
   }
   res.status(200).json(order);
 });
@@ -48,7 +49,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const id = String(req.params.id);
-  const statusData = await updateOrderStatusSchema.parseAsync(req.body);
+  const statusData = req.body as z.infer<typeof updateOrderStatusSchema>;
 
   // StateTransitionError -> 409 and NotFoundError -> 404 are mapped by the global errorHandler.
   const order = await OrderService.updateStatus(id, statusData, user, req.id);
@@ -64,7 +65,7 @@ export const getPendingPayments = asyncHandler(async (req: Request, res: Respons
 export const settleOrderPayment = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const paymentId = String(req.params.paymentId);
-  const { method } = await settlePaymentSchema.parseAsync(req.body);
+  const { method } = req.body as z.infer<typeof settlePaymentSchema>;
   const payment = await OrderService.settlePayment(paymentId, method, user);
   res.status(200).json(payment);
 });
@@ -85,7 +86,7 @@ export const handoffOrderDelivery = asyncHandler(async (req: Request, res: Respo
 export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const id = String(req.params.id);
-  const data = await updateOrderSchema.parseAsync(req.body);
+  const data = req.body as z.infer<typeof updateOrderSchema>;
   const order = await OrderService.updateOrder(id, data, user);
   res.status(200).json(order);
 });

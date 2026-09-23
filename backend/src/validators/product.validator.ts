@@ -16,9 +16,7 @@ export const updateProductSchema = createProductSchema.partial().extend({
     isActive: z.boolean().optional(),
 });
 
-export const setActiveSchema = z.object({
-  isActive: z.boolean(),
-});
+export { setActiveSchema } from './common.validator';
 
 export const filterQuerySchema = z.strictObject({
   ...paginationFields,

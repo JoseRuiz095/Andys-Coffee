@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { ProductService } from '../services/product.service';
 import { UploadService } from '../services/upload.service';
-import { createProductSchema, filterQuerySchema, updateProductSchema, setActiveSchema } from '../validators/product.validator';
+import { z } from 'zod';
+import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthUser } from '../services/auth.service';
 import { AuthorizationError } from '../utils/errors';
@@ -28,7 +29,7 @@ export const ProductController = {
 
   create: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
-    const productData = createProductSchema.parse(req.body);
+    const productData = req.body as z.infer<typeof createProductSchema>;
     let uploadedImageUrl: string | undefined;
 
     try {
@@ -48,7 +49,7 @@ export const ProductController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productId = req.params.id as string;
-    const productData = updateProductSchema.parse(req.body);
+    const productData = req.body as z.infer<typeof updateProductSchema>;
     let uploadedImageUrl: string | undefined;
     let previousImageUrl: string | null | undefined;
 
@@ -80,7 +81,7 @@ export const ProductController = {
 
   setActive: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
-    const { isActive } = setActiveSchema.parse(req.body);
+    const { isActive } = req.body as { isActive: boolean };
     const updated = await ProductService.update(req.params.id as string, { isActive }, user, req.id);
     res.status(200).json(updated);
   }),

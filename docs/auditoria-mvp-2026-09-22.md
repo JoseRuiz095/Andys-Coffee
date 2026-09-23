@@ -358,3 +358,21 @@ Los vínculos originales (11 filas: 2 productos para el lunes, la categoría Bag
 | N-04 | MEDIUM | `ExpensesPage` no estaba montada en ninguna pantalla: no había forma de registrar gastos desde la app | Pestaña Configuración → Gastos (`expenses.read`); el `Dialog` compartido ahora tiene `role="dialog"`/`aria-modal` |
 
 Suite: **71 unit + 61 integración + 6 E2E** pasando.
+
+## Deuda técnica — segunda ronda (2026-09-22)
+
+| Punto | Resultado |
+| ----- | --------- |
+| TD-01 Prisma en services | Resuelto. Repositorios nuevos: `menu`, `notification`, `audit-log`, `transaction` (`runInTransaction`, tipos `Tx`/`DbClient`); `order`, `cash`, `inventory`, `expense` y `user` ampliados. `order.service` (67 usos) y `expense.service` (13) sin Prisma; el job de conciliación usa una sola consulta (sin N+1). Regla ESLint `no-restricted-imports` impide importar `config/prisma` desde services, controllers, routes, middleware y jobs |
+| TD-02 / TD-04 Permisos y validación | Todas las rutas declaran `checkPermission` y validan el body con `validate()`. Excepciones explícitas y justificadas en `backend/test/route-policy.test.ts` (rutas públicas; pedidos, notificaciones y cuenta propia, acotados por el service; acciones sin body). Los services mantienen su verificación como defensa en profundidad (hay tests que la exigen fuera de HTTP) |
+| TD-03 try/catch en controllers | Eliminados (inventory, inventory-count, purchase, supplier, user, role, auth). El `errorHandler` global responde `{ error: 'CONFLICT_ERROR', message }` para `ConflictError` y `{ error: 'DUPLICATE_ERROR', … }` para `DuplicateError`/P2002, igual que antes |
+
+### Hallazgo nuevo
+
+| ID | Severidad | Hallazgo | Corrección |
+| -- | --------- | -------- | ---------- |
+| N-05 | MEDIUM | `z.coerce.boolean()` en los query schemas convierte `"false"` en `true`: el filtro "Inactivos" de Ingredientes, Proveedores y Usuarios devolvía los activos (también `onlyLow` del dashboard) | `queryBoolean` (`validators/common.validator.ts`) + test de regresión |
+
+Pendiente (requiere migración en Supabase y visto bueno): TD-05 enums/FK, TD-10 signos de `CashMovement.amount`, TD-12 drift de `ingredients`.
+
+Suite: **77 unit + 61 integración + 6 E2E** pasando; lint y typecheck limpios.

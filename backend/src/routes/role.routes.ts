@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { RoleController } from '../controllers/role.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
+import { validate } from '../middleware/validate';
+import { roleCreateSchema, roleUpdateSchema, assignPermissionsSchema } from '../validators/role.validator';
 
 const router = Router();
 
@@ -15,13 +17,13 @@ router.get('/', checkPermission('users.read'), RoleController.getAll);
 router.get('/:id', checkPermission('users.read'), RoleController.getOne);
 
 // Create new role
-router.post('/', checkPermission('users.create'), RoleController.create);
+router.post('/', checkPermission('users.create'), validate(roleCreateSchema), RoleController.create);
 
 // Update role
-router.patch('/:id', checkPermission('users.update'), RoleController.update);
+router.patch('/:id', checkPermission('users.update'), validate(roleUpdateSchema), RoleController.update);
 
-// Assign permissions to role
-router.patch('/:id/permissions', checkPermission('users.update'), RoleController.assignPermissions);
+// Assign permissions to role (the service also guards system roles and privilege escalation)
+router.patch('/:id/permissions', checkPermission('users.update'), validate(assignPermissionsSchema), RoleController.assignPermissions);
 
 // Delete role
 router.delete('/:id', checkPermission('users.delete'), RoleController.delete);

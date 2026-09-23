@@ -6,7 +6,8 @@ import { z, ZodError } from 'zod';
  * async refinements also work (a sync parse() throws "Encountered Promise during synchronous
  * parse" for those — that made every POST /api/expenses fail with 500, see N-03).
  */
-export const validate = <T>(schema: z.ZodSchema<T>) => async (req: Request, res: Response, next: NextFunction) => {
+// The returned middleware is named so the route-policy test can recognise it.
+export const validate = <T>(schema: z.ZodSchema<T>) => async function validateBody(req: Request, res: Response, next: NextFunction) {
   try {
     req.body = await schema.parseAsync(req.body);
     next();

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
+import { runInTransaction } from '../repositories/transaction';
 import { PurchaseRepository } from '../repositories/purchase.repository';
 import { SupplierRepository } from '../repositories/supplier.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
@@ -113,7 +113,7 @@ export const PurchaseService = {
       throw new AuthorizationError('No tienes permiso para recibir compras.');
     }
 
-    return prisma.$transaction(async (tx) => {
+    return runInTransaction(async (tx) => {
       // Fetch purchase
       const purchase = await PurchaseRepository.findByIdWithItems(purchaseId, tx);
 
@@ -186,7 +186,7 @@ export const PurchaseService = {
       const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx);
 
       return updatedPurchase;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async (updatedPurchase) => {
+    }, { serializable: true }).then(async (updatedPurchase) => {
       // A newly-received purchase may now count as a variable expense (if made during business
       // hours) — invalidate any frozen snapshot for that day so it gets recalculated.
       const dateStr = getZonedCalendarDate(updatedPurchase.purchasedAt);

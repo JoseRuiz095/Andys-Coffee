@@ -1,172 +1,34 @@
-import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { PurchaseService } from '../services/purchase.service';
-import { createPurchaseSchema } from '../validators/purchase.validator';
+import { createPurchaseSchema, purchaseListSchema } from '../validators/purchase.validator';
 import { AuthUser } from '../services/auth.service';
-import { DuplicateError } from '../utils/errors';
-import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
 
+// Bodies arrive already validated by validate() in purchase.routes.ts; domain errors
+// (including the DUPLICATE_ERROR shape the frontend reads) are mapped by the global errorHandler.
 export const PurchaseController = {
   async getAll(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { status, page = '1', limit = '20' } = req.query;
-
-      const result = await PurchaseService.findAll(
-        user,
-        status as string | undefined,
-        parseInt(page as string),
-        parseInt(limit as string),
-      );
-
-      res.json(result);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const { status, page, limit } = purchaseListSchema.parse(req.query);
+    res.json(await PurchaseService.findAll(req.user as AuthUser, status, page, limit));
   },
 
   async getOne(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      const purchase = await PurchaseService.findOne(id, user);
-
-      res.json(purchase);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    res.json(await PurchaseService.findOne(req.params.id as string, req.user as AuthUser));
   },
 
   async create(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const data = createPurchaseSchema.parse(req.body);
-
-      const purchase = await PurchaseService.create(data, user);
-
-      res.status(201).json({
-        success: true,
-        message: 'Compra creada correctamente.',
-        purchase,
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          message: 'Datos inválidos',
-          errors: error.flatten().fieldErrors,
-        });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof DuplicateError) {
-        sendDuplicateErrorResponse(res, error);
-        return;
-      }
-
-      // Handle UNIQUE VIOLATION from Prisma
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const target = (error.meta?.target as string[] | undefined)?.[0];
-        if (target === 'name' || target?.includes('name')) {
-          res.status(409).json({
-            error: 'DUPLICATE_ERROR',
-            message: 'Ya existe un registro con este nombre.',
-            details: { field: target },
-          });
-          return;
-        }
-      }
-
-      throw error;
-    }
+    const data = req.body as z.infer<typeof createPurchaseSchema>;
+    const purchase = await PurchaseService.create(data, req.user as AuthUser);
+    res.status(201).json({ success: true, message: 'Compra creada correctamente.', purchase });
   },
 
   async receivePurchase(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      const purchase = await PurchaseService.receivePurchase(id, user);
-
-      res.json({
-        success: true,
-        message: 'Compra recibida correctamente.',
-        purchase,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ValidationError') {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    const purchase = await PurchaseService.receivePurchase(req.params.id as string, req.user as AuthUser);
+    res.json({ success: true, message: 'Compra recibida correctamente.', purchase });
   },
 
   async delete(req: Request, res: Response) {
-    try {
-      const user = req.user as AuthUser;
-      const { id } = req.params as { id: string };
-
-      await PurchaseService.deletePurchase(id, user);
-
-      res.json({
-        success: true,
-        message: 'Compra eliminada correctamente.',
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'NotFoundError') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'AuthorizationError') {
-        res.status(403).json({ message: error.message });
-        return;
-      }
-
-      if (error instanceof Error && error.name === 'ConflictError') {
-        res.status(409).json({ error: 'CONFLICT_ERROR', message: error.message });
-        return;
-      }
-
-      throw error;
-    }
+    await PurchaseService.deletePurchase(req.params.id as string, req.user as AuthUser);
+    res.json({ success: true, message: 'Compra eliminada correctamente.' });
   },
 };

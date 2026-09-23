@@ -9,6 +9,4 @@ export const createCategorySchema = z.object({
 
 export const updateCategorySchema = createCategorySchema.partial();
 
-export const setActiveSchema = z.object({
-  isActive: z.boolean(),
-});
+export { setActiveSchema } from './common.validator';

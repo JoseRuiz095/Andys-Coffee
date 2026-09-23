@@ -20,6 +20,16 @@ export const UserRepository = {
     });
   },
 
+  /** User by email with what login needs: password hash, role name, permissions, session version. */
+  async findForLogin(email: string) {
+    return prisma.user.findUnique({
+      where: { email },
+      include: {
+        role: { select: { name: true, permissions: { select: { permission: { select: { name: true } } } } } },
+      },
+    });
+  },
+
   async findByIdWithPasswordHash(id: string) {
     return prisma.user.findUnique({
       where: { id },

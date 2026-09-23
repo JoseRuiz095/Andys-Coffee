@@ -26,3 +26,15 @@ test('rechaza paginación inválida, filtros desconocidos y búsquedas excesivas
     assert.equal(orderFilterQuerySchema.safeParse(input).success, false);
   }
 });
+test("?isActive=false filtra inactivos (z.coerce.boolean lo convertía en true)", async () => {
+  const { supplierListSchema } = await import("../src/validators/supplier.validator");
+  const { userListSchema } = await import("../src/validators/user.validator");
+  const { inventoryListSchema } = await import("../src/validators/inventory.validator");
+
+  assert.equal(supplierListSchema.parse({ isActive: "false" }).isActive, false);
+  assert.equal(userListSchema.parse({ isActive: "true" }).isActive, true);
+  assert.equal(userListSchema.parse({}).isActive, undefined);
+  assert.equal(inventoryListSchema.parse({ isActive: "false" }).isActive, false);
+  assert.equal(inventoryListSchema.parse({}).isActive, true);
+  assert.throws(() => supplierListSchema.parse({ isActive: "si" }));
+});

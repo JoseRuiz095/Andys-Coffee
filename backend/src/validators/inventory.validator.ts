@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from './common.validator';
 
 export const inventoryListSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -7,7 +8,7 @@ export const inventoryListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).default(20),
   search: z.string().optional(),
   status: z.enum(['all', 'normal', 'low_stock', 'out_of_stock']).default('all'),
-  isActive: z.coerce.boolean().optional().default(true),
+  isActive: queryBoolean.default(true),
 });
 
 export const inventoryMovementsSchema = z.object({

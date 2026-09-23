@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { prisma } from "../config/prisma";
+import { UserRepository } from "../repositories/user.repository";
 import { JWT_SECRET } from "../config/security";
 
 export type AuthUser = {
@@ -23,10 +23,7 @@ export async function authenticateUser(
   email: string,
   password: string
 ): Promise<AuthenticatedUser | null> {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: { role: { select: { name: true } } },
-  });
+  const user = await UserRepository.findForLogin(email);
 
   // Always run bcrypt, even for unknown/inactive users, so response time doesn't
   // reveal which emails exist.
@@ -40,12 +37,6 @@ export async function authenticateUser(
     return null;
   }
 
-  // Fetch permissions associated with the user's role to include in the response
-  const rolePermissions = await prisma.rolePermission.findMany({
-    where: { roleId: user.roleId },
-    select: { permission: { select: { name: true } } },
-  });
-
   return {
     id: user.id,
     name: user.name,
@@ -53,7 +44,7 @@ export async function authenticateUser(
     roleId: user.roleId,
     roleName: user.role?.name ?? undefined,
     isActive: user.isActive,
-    permissions: rolePermissions.map((rp) => rp.permission.name),
+    permissions: user.role?.permissions.map(({ permission }) => permission.name) ?? [],
     tokenVersion: user.tokenVersion,
   };
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationFields } from './pagination.validator';
 
 const positiveDecimal = z
   .string()
@@ -15,6 +16,11 @@ const nonNegativeDecimal = z
     message: 'Debe ser un número mayor o igual a 0.',
   })
   .transform((v) => String(v));
+
+export const purchaseListSchema = z.object({
+  ...paginationFields,
+  status: z.enum(['draft', 'received']).optional(),
+});
 
 export const createPurchaseSchema = z.object({
   supplierId: z.string().uuid().optional(),

@@ -3,6 +3,8 @@ import { ProductController } from '../controllers/product.controller';
 import multer from 'multer';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
+import { validate } from '../middleware/validate';
+import { createProductSchema, updateProductSchema, setActiveSchema } from '../validators/product.validator';
 
 const router = Router();
 
@@ -35,12 +37,14 @@ const upload = multer({
 router.get('/', requireAuth, checkPermission('products.read'), ProductController.findAll);
 router.get('/:id', requireAuth, checkPermission('products.read'), ProductController.findOne);
 
-// Protected routes for administrators with product permissions
+// Protected routes for administrators with product permissions.
+// validate() runs after multer, which is what fills req.body from the multipart form.
 router.post(
   '/',
   requireAuth,
   checkPermission('products.create'),
   upload.single('image'),
+  validate(createProductSchema),
   ProductController.create
 );
 
@@ -49,6 +53,7 @@ router.patch(
   requireAuth,
   checkPermission('products.update'),
   upload.single('image'),
+  validate(updateProductSchema),
   ProductController.update
 );
 
@@ -56,6 +61,7 @@ router.patch(
   '/:id/active',
   requireAuth,
   checkPermission('products.update'),
+  validate(setActiveSchema),
   ProductController.setActive
 );
 

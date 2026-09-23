@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
+import { runInTransaction } from '../repositories/transaction';
 import { InventoryCountRepository } from '../repositories/inventory-count.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
 import { AuthUser } from './auth.service';
@@ -163,7 +163,7 @@ export const InventoryCountService = {
       throw new AuthorizationError('No tienes permiso para aplicar ajustes.');
     }
 
-    return prisma.$transaction(async (tx) => {
+    return runInTransaction(async (tx) => {
       const count = await InventoryCountRepository.findByIdWithItems(countId, tx);
 
       if (!count) {
@@ -209,6 +209,6 @@ export const InventoryCountService = {
 
       // Update count status
       return InventoryCountRepository.updateStatus(countId, 'applied', undefined, tx);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { serializable: true });
   },
 };

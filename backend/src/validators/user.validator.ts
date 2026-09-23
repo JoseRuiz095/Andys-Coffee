@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { passwordSchema } from './password.validator';
+import { queryBoolean } from './common.validator';
 
 export const userListSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
-  isActive: z.coerce.boolean().optional(),
+  isActive: queryBoolean.optional(),
   roleId: z.string().uuid().optional(),
 });
 
@@ -22,6 +23,4 @@ export const userUpdateSchema = z.object({
   roleId: z.string().uuid().optional(),
 });
 
-export const setActiveSchema = z.object({
-  isActive: z.boolean(),
-});
+export { setActiveSchema } from './common.validator';

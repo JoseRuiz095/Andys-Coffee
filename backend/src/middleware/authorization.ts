@@ -5,7 +5,8 @@ import { Request, Response, NextFunction } from 'express';
  * @param requiredPermission El permiso necesario para acceder a la ruta.
  */
 export const checkPermission = (requiredPermission: string) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  // Named so the route-policy test can recognise it in the router stack.
+  return async function checkPermissionMiddleware(req: Request, res: Response, next: NextFunction) {
     const user = req.user;
 
     if (!user?.permissions) {

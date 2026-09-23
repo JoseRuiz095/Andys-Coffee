@@ -1,8 +1,5 @@
-import { Prisma } from '@prisma/client';
-import { prisma } from '../config/prisma';
-import { NotificationType } from '@prisma/client';
-
-type TransactionClient = Prisma.TransactionClient;
+import type { NotificationType } from '@prisma/client';
+import { NotificationRepository } from '../repositories/notification.repository';
 
 type NotificationData = {
   title: string;
@@ -13,121 +10,34 @@ type NotificationData = {
 
 export const NotificationService = {
   /**
-   * Creates a notification and links it to specified recipients.
-   * @param data - The notification content.
-   * @param recipientIds - An array of user IDs to receive the notification.
-   * @param tx - Optional Prisma transaction client.
+   * Creates a notification for the given users. Callers dispatch it after their own
+   * transaction commits, so it never takes part in (or conflicts with) that transaction.
    */
-  async createNotification(
-    data: NotificationData,
-    recipientIds: string[],
-    tx?: TransactionClient
-  ) {
+  async createNotification(data: NotificationData, recipientIds: string[]) {
     if (recipientIds.length === 0) {
       return;
     }
-    const db = tx || prisma;
-
-    const notification = await db.notification.create({
-      data: {
-        title: data.title,
-        message: data.message,
-        type: data.type,
-        referenceId: data.referenceId,
-      },
-    });
-
-    const recipientData = recipientIds.map((userId) => ({
-      notificationId: notification.id,
-      userId: userId,
-    }));
-
-    await db.notificationRecipient.createMany({
-      data: recipientData,
-    });
-
-    return notification;
+    return NotificationRepository.createForRecipients(data, recipientIds);
   },
 
-  /**
-   * Retrieves all notifications for a specific user, ordered by creation date.
-   * @param userId - The ID of the user.
-   * @param tx - Optional Prisma transaction client.
-   */
-  async getNotificationsForUser(userId: string, tx?: TransactionClient) {
-    const db = tx || prisma;
-    return db.notificationRecipient.findMany({
-      where: { userId },
-      include: {
-        notification: true,
-      },
-      orderBy: {
-        notification: {
-          createdAt: 'desc',
-        },
-      },
-      // Bounded to the most recent notifications; this list otherwise grows
-      // unbounded for the lifetime of the account.
-      take: 200,
-    });
+  /** Notifications of a user, newest first. Every operation is scoped to the user's own rows. */
+  async getNotificationsForUser(userId: string) {
+    return NotificationRepository.findForUser(userId);
   },
 
-  /**
-   * Marks a specific notification as read for a specific user.
-   * @param notificationId - The ID of the notification.
-   * @param userId - The ID of the user.
-   * @param tx - Optional Prisma transaction client.
-   */
-  async markAsRead(notificationId: string, userId: string, tx?: TransactionClient) {
-    const db = tx || prisma;
-    return db.notificationRecipient.update({
-      where: {
-        notificationId_userId: {
-          notificationId,
-          userId,
-        },
-      },
-      data: {
-        readAt: new Date(),
-      },
-    });
+  async markAsRead(notificationId: string, userId: string) {
+    return NotificationRepository.markAsRead(notificationId, userId);
   },
 
-  /**
-   * Marks all unread notifications as read for a specific user.
-   * @param userId - The ID of the user.
-   * @param tx - Optional Prisma transaction client.
-   */
-  async markAllAsRead(userId: string, tx?: TransactionClient) {
-    const db = tx || prisma;
-    return db.notificationRecipient.updateMany({
-      where: {
-        userId,
-        readAt: null,
-      },
-      data: {
-        readAt: new Date(),
-      },
-    });
+  async markAllAsRead(userId: string) {
+    return NotificationRepository.markAllAsRead(userId);
   },
 
-  async deleteForUser(notificationId: string, userId: string, tx?: TransactionClient) {
-    const db = tx || prisma;
-    return db.notificationRecipient.delete({
-      where: {
-        notificationId_userId: {
-          notificationId,
-          userId,
-        },
-      },
-    });
+  async deleteForUser(notificationId: string, userId: string) {
+    return NotificationRepository.deleteForUser(notificationId, userId);
   },
 
-  async deleteAllForUser(userId: string, tx?: TransactionClient) {
-    const db = tx || prisma;
-    return db.notificationRecipient.deleteMany({
-      where: { userId },
-    });
+  async deleteAllForUser(userId: string) {
+    return NotificationRepository.deleteAllForUser(userId);
   },
 };
-

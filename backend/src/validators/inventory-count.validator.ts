@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { calendarDateSchema } from './common.validator';
+import { paginationFields } from './pagination.validator';
 
 export const inventoryCountValidator = {
   addItem: z.object({
@@ -9,3 +11,9 @@ export const inventoryCountValidator = {
     notes: z.string().max(500).optional().nullable(),
   }),
 };
+
+export const inventoryCountListSchema = z.object({
+  ...paginationFields,
+  status: z.enum(['draft', 'completed', 'applied']).optional(),
+  date: calendarDateSchema.optional(),
+});
