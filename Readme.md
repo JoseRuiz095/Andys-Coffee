@@ -1,361 +1,158 @@
 # Andy's Coffee POS ☕
 
-Guía práctica para desarrollar y mantener el sistema de Punto de Venta de Andy's Coffee.
+Punto de venta de Andy's Coffee: ventas, pedidos, caja, inventario, compras, gastos y estado de resultados. Es una aplicación web pensada para usarse desde el mostrador.
 
-## Propósito
+El repositorio contiene dos aplicaciones independientes que se comunican por una API REST:
 
-Este README es una guía de referencia para el equipo. Debe responder a:
-- ¿Qué contiene cada carpeta?
-- ¿Cómo debe fluir la lógica entre capas?
-- ¿Qué se debe implementar primero?
-- ¿Cómo trabajar con Git?
-
-Usa este documento como mapa antes de empezar cada nueva característica.
-
----
-
-## Tecnologías principales
-
-### Frontend
-
-- React
-- Vite
-- TypeScript
-- Tailwind CSS
-- React Router
-- TanStack Query
-- Zustand
-- React Hook Form
-- Axios
-
-### Backend
-
-- Node.js
-- Express
-- TypeScript
-- Prisma ORM
-- PostgreSQL
-- JWT
-- Bcrypt
-- zod → validación de entradas.
-- helmet → headers de seguridad.
-- cors → configuración de acceso frontend/backend.
-- dotenv → variables de entorno, si tu configuración actual no lo resuelve.
-- Logger estructurado, por ejemplo pino.
+| Carpeta | Qué es | Guía |
+| ------- | ------ | ---- |
+| [`backend/`](backend/Readme.md) | API en Node.js + Express + Prisma sobre PostgreSQL (Supabase) | [backend/Readme.md](backend/Readme.md) |
+| [`frontend/`](frontend/README.md) | SPA en React + Vite + TanStack Query | [frontend/README.md](frontend/README.md) |
+| [`docs/`](docs/) | Auditorías, planes de prueba y decisiones | — |
+| [`todo.md`](todo.md) | Seguimiento del trabajo y pendientes | — |
 
 ---
 
-## Requisitos de desarrollo
+## Qué hace el sistema
 
-- Node.js 18+ o superior
-- npm o yarn
-- PostgreSQL 14+ o compatible
-- Git
-- Editor con TypeScript
-
----
-
-## Inicio rápido
-
-1. Clona el repositorio.
-2. Instala dependencias.
-3. Configura variables de entorno.
-4. Ejecuta migraciones.
-5. Levanta backend y frontend por separado desde la raíz.
-
-Ejemplo:
-
-- `npm run dev:backend`
-- `npm run dev:frontend`
-
-Si prefieres trabajar por carpetas:
-
-- `cd backend && npm run dev`
-- `cd frontend && npm run dev`
+- **Venta (POS):** pedidos con extras, combos y promociones; pago en efectivo, transferencia o tarjeta; pagos pendientes y "mandaditos" (entregas).
+- **Pedidos del día:** estados `pendiente → en preparación → lista → completada`, cancelación con reversa de caja e inventario.
+- **Caja:** apertura, cierre con conteo, corrección de cortes, reapertura auditada y cierre automático al terminar el día de negocio.
+- **Inventario:** ingredientes, recetas por producto y extra, compras a proveedores, salidas manuales (merma, muestras, consumo), conteos físicos y costo promedio.
+- **Finanzas:** gastos, gastos fijos diarios y estado de resultados por día, semana, mes o rango.
+- **Administración:** usuarios, roles y permisos granulares; preferencias del negocio (nombre, moneda, horario); tema claro/oscuro.
 
 ---
 
-# Guia de commits:
-| Tipo       | Uso                                        |
-| ---------- | ------------------------------------------ |
-| `feat`     | Nueva funcionalidad                        |
-| `fix`      | Corrección de un error                     |
-| `refactor` | Cambio interno sin modificar funcionalidad |
-| `docs`     | Documentación                              |
-| `style`    | Formato, espacios, lint, etc.              |
-| `test`     | Pruebas                                    |
-| `chore`    | Configuración, dependencias, mantenimiento |
-| `perf`     | Mejora de rendimiento                      |
+## Stack
 
+| Capa | Tecnologías |
+| ---- | ----------- |
+| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4, TanStack Query 5, Axios, framer-motion, recharts, sileo (toasts) |
+| Backend | Node.js, Express 5, TypeScript, Prisma 6 (`@prisma/adapter-pg`), Zod 4, Pino, JWT en cookie HttpOnly, CSRF (`tiny-csrf`), Helmet, rate limiting |
+| Datos | PostgreSQL en Supabase (TLS verificado); Supabase Storage para imágenes de productos |
+| Pruebas | `node:test` + `tsx` (unitarias e integración), Playwright (E2E), PostgreSQL en Docker |
 
+---
 
-# Estructura del proyecto
+## Requisitos
 
-```
-Andys-Coffee
-│
-├── frontend
-├── backend
-├── docs
-├── README.md
-└── .gitignore
+- **Node.js 22 LTS o superior** (el proyecto se desarrolla con Node 24; Vite 8 requiere ≥ 20.19).
+- **npm** (cada app tiene su propio `package-lock.json`).
+- **Docker Desktop**, solo para las pruebas de integración y E2E.
+- Acceso al proyecto de **Supabase** (cadena de conexión, certificado CA y llaves), que te comparte el responsable del proyecto.
+
+---
+
+## Puesta en marcha
+
+```bash
+# 1. Dependencias de ambas apps
+npm run install:all
+
+# 2. Variables de entorno
+cp backend/.env.example backend/.env        # y completar los valores
+cp frontend/.env.example frontend/.env      # opcional
+
+# 3. Certificado CA de Supabase (Project Settings → Database → SSL)
+#    guardarlo en backend/certs/prod-ca-2021.crt (la carpeta está en .gitignore)
+
+# 4. Cliente de Prisma
+cd backend && npm run prisma:generate && cd ..
+
+# 5. Levantar cada app en su propia terminal
+npm run dev:backend      # API en http://127.0.0.1:4000
+npm run dev:frontend     # App en http://127.0.0.1:5173 (redirige /api al backend)
 ```
 
-El proyecto está dividido en dos aplicaciones independientes:
-- `frontend`: interfaz de usuario.
-- `backend`: API y lógica de negocio.
+Abre `http://127.0.0.1:5173` e inicia sesión. En una base de datos recién creada, el seed crea `admin@andyscoffee.local` con la contraseña de `ADMIN_SEED_PASSWORD`.
+
+> ⚠️ **`backend/.env` apunta a la base de datos real.** Contra ella solo se aplican migraciones con `npm run prisma:migrate:deploy`. Nunca ejecutes `prisma migrate dev` ni `prisma migrate reset` sin haber leído la sección de base de datos de [backend/Readme.md](backend/Readme.md#base-de-datos-y-migraciones).
 
 ---
 
-# Roadmap por fases
+## Scripts de la raíz
 
-## Fase 1: Base
+El `package.json` de la raíz solo delega en cada app:
 
-- [x] Configuración inicial frontend/backend.
-- [x] Autenticación y login.
-- [x] Gestión de usuarios.
-- [x] Roles y permisos.
-
-## Fase 2: Catálogo
-
-- [x] Categorías.
-- [x] Productos.
-- [x] Extras.
-- [x] Combos.
-
-## Fase 3: Caja y finanzas 
-
-- [x] Apertura y cierre de caja.
-- [x] Corte de caja.
-- [x] Gastos.
-- [x] Compras.
-
-## Fase 4: Punto de venta
-
-- [x] Interfaz de caja.
-- [x] Pedidos.
-- [ ] Métodos de pago.
-- [ ] Ticket de venta.
-
-## Fase 5: Inventario y recetas
-
-- [x] Inventario.
-- [ ] Recetas.
-- [ ] Descuento automático de ingredientes.
-
-## Fase 6: Datos y reportes
-
-- [x] Dashboard.
-- [ ] Reportes.
-- [ ] Estadísticas.
-- [ ] Exportaciones.
+| Script | Qué hace |
+| ------ | -------- |
+| `npm run install:all` | Instala dependencias de backend y frontend |
+| `npm run dev:backend` / `npm run dev:frontend` | Servidores de desarrollo (cada uno en su terminal) |
+| `npm run lint` | ESLint en frontend y backend |
+| `npm run typecheck` | TypeScript en backend y frontend |
+| `npm run build` | Build de producción del frontend |
+| `npm test` | Pruebas unitarias del backend |
+| `npm run test:db:up` / `test:db:prepare` / `test:db:down` | BD de pruebas en Docker |
+| `npm run test:critical` | Unitarias + integración + E2E (requiere la BD de pruebas) |
 
 ---
 
-# Frontend
+## Arquitectura en una página
 
 ```
-frontend
-│
-├── public
-├── src
-│   ├── assets
-│   ├── components
-│   ├── layouts
-│   ├── pages
-│   ├── routes
-│   ├── hooks
-│   ├── services
-│   ├── store
-│   ├── types
-│   ├── utils
-│   ├── styles
-│   ├── App.tsx
-│   └── main.tsx
+Navegador (React)
+   │  Axios + cookie de sesión + token CSRF
+   ▼
+Express ──► requireAuth → checkPermission → validate(Zod) → Controller
+                                                              │
+                                                              ▼
+                                            Service (reglas de negocio)
+                                                              │
+                                                              ▼
+                                            Repository (Prisma) ──► PostgreSQL (Supabase)
 ```
 
-## Descripción de carpetas
+- **Backend:** Controller → Service → Repository → Prisma. Los services nunca usan Prisma directamente (ESLint lo impide) y las operaciones de varios pasos corren en transacciones.
+- **Frontend:** Pages → Hooks (TanStack Query) → `features/*/api` → `apiClient`. Los componentes son presentacionales.
+- **Permisos:** el backend es quien decide; el frontend solo oculta lo que el usuario no puede usar.
 
-- `assets`: imágenes, íconos y fuentes.
-- `components`: componentes reutilizables y aislados.
-- `layouts`: plantillas de página con estructura compartida.
-- `pages`: pantallas completas.
-- `routes`: rutas de React Router.
-- `hooks`: hooks personalizados.
-- `services`: llamadas al backend y funciones de integración.
-- `store`: estado global con Zustand.
-- `types`: tipos e interfaces TypeScript.
-- `utils`: funciones auxiliares.
-- `styles`: configuración global y estilos.
+### Reglas de negocio que conviene conocer
 
-## Reglas del frontend
-
-- `components` no debe contener lógica de negocio.
-- `pages` ensamblan componentes y manejan el flujo de pantalla.
-- `services` contienen llamadas a la API.
-- `store` maneja estado global que comparten varias páginas.
-- `hooks` abstraen lógica reutilizable.
-
-## Componentes comunes
-
-- `Button`, `Input`, `Modal`, `Card`, `Navbar`, `Sidebar`, `Table`, `Loader`.
-- `DashboardLayout`, `AuthLayout`.
-- `Login`, `Dashboard`, `Productos`, `Pedidos`, `Caja`, `Inventario`, `Reportes`.
-- `useAuth`, `useProducts`, `useOrders`, `useCaja`.
-- `auth.service.ts`, `product.service.ts`, `order.service.ts`, `inventory.service.ts`.
-- `auth.store.ts`, `cart.store.ts`, `user.store.ts`.
-- `formatCurrency`, `formatDate`, `calculateTotal`.
+- **Día de negocio** en la zona `CASH_TIMEZONE` (por defecto `America/Mexico_City`); el horario (apertura/cierre) se configura en Preferencias del Sistema.
+- **Ingreso reconocido** = pedido pagado y no cancelado (`backend/src/utils/revenueRecognition.ts`).
+- **Movimientos de caja:** `amount` es el efecto en el cajón con signo (+ entra, − sale); los movimientos de una sesión (sin `CLOSING`) suman su `expectedAmount`.
+- **Costos históricos:** cada venta guarda el costo del momento (`costSnapshot`); los días cerrados del estado de resultados quedan congelados.
 
 ---
 
-# Backend
+## Pruebas
 
-```
-backend
-│
-├── prisma
-│
-├── src
-│   ├── config
-│   ├── controllers
-│   ├── middleware
-│   ├── routes
-│   ├── services
-│   ├── repositories
-│   ├── validators
-│   ├── types
-│   ├── utils
-│   ├── app.ts
-│   └── server.ts
-│
-├── package.json
-└── tsconfig.json
+```bash
+npm run test:db:up        # PostgreSQL con TLS en Docker (puerto 55432)
+npm run test:db:prepare   # migraciones + seed
+npm run test:critical     # unitarias + integración + E2E
+npm run test:db:down
 ```
 
-## Descripción de carpetas
-
-- `prisma`: esquema de base de datos y migraciones.
-- `config`: configuración de la aplicación.
-- `controllers`: reciben peticiones y responden.
-- `middleware`: autenticación, validación y errores.
-- `routes`: definición de endpoints.
-- `services`: lógica de negocio.
-- `repositories`: acceso a datos.
-- `validators`: validaciones con Zod.
-- `types`: interfaces y DTOs.
-- `utils`: utilidades generales.
-
-## Reglas del backend
-
-- `controllers` deben ser delgados: reciben datos, validan y llaman a `services`.
-- `services` implementan la lógica del negocio.
-- `repositories` realizan consultas a la base de datos.
-- `services` no deben usar Prisma directamente.
-- `validators` validan datos antes de ejecutar servicios.
-
-## Ejemplos de responsabilidades
-
-- `ProductController`, `OrderController`, `AuthController`.
-- `OrderService` crea pedidos y actualiza inventario.
-- `CajaService` maneja apertura, cierre y cortes.
-- `ProductRepository` y `OrderRepository` acceden a la base de datos.
-- Middleware de `auth`, `logger`, `errorHandler`, `roles`.
-- Rutas como `GET /products`, `POST /orders`, `PUT /inventory`.
-- Validadores como `CreateProductSchema`, `LoginSchema`.
-- Utilidades como `generateTicket`, `generateUUID`, `formatMoney`.
+Las pruebas de integración y E2E se niegan a correr contra cualquier host que no sea `localhost`. Detalles en [backend/Readme.md](backend/Readme.md#pruebas).
 
 ---
 
-# Flujo recomendado del backend
+## Flujo de trabajo con Git
 
-1. El cliente hace la petición.
-2. `routes` define la ruta.
-3. `controller` recibe la petición.
-4. `validator` comprueba los datos.
-5. `service` aplica la lógica de negocio.
-6. `service` usa `repository` para acceder a datos.
-7. `repository` usa Prisma.
-8. La respuesta regresa al cliente.
+- La rama principal es `master`; no se trabaja directo sobre ella. Crea una rama por tarea (`feature/…`, `fix/…`, `test/…`).
+- Antes de abrir un PR: `npm run lint`, `npm run typecheck` y, si tocaste backend, `npm run test:critical`.
+- Commits pequeños con [Conventional Commits](https://www.conventionalcommits.org/es/):
 
-No romper este flujo.
+| Tipo | Uso |
+| ---- | --- |
+| `feat` | Nueva funcionalidad |
+| `fix` | Corrección de un error |
+| `refactor` | Cambio interno sin modificar el comportamiento |
+| `docs` | Documentación |
+| `style` | Formato, lint, espacios |
+| `test` | Pruebas |
+| `chore` | Configuración, dependencias, mantenimiento |
+| `perf` | Rendimiento |
 
----
-
-# Convenciones de desarrollo
-
-## Controllers
-
-- Solo reciben y responden.
-- No contienen lógica de negocio.
-- No realizan consultas directas complicadas.
-
-## Services
-
-- Contienen la lógica del negocio.
-- Orquestan reglas y llamadas a repositorios.
-
-## Repositories
-
-- Encapsulan acceso a datos.
-- No aplican reglas de negocio.
-
-## Componentes React
-
-- Pequeños y reutilizables.
-- Evitar lógica compleja dentro del componente.
-- Usar hooks para estado y efectos.
-
-## Pages
-
-- Ensamblan componentes.
-- Muestran estados de carga y errores.
-- No deben contener lógica de negocio compleja.
+Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 
 ---
 
-# Git
+## Documentación adicional
 
-- No trabajar directamente sobre `main`.
-- Crear ramas por función o módulo.
-- Mantener commits pequeños y descriptivos.
-- Revisar PRs antes de mergear.
-
-Ejemplos de ramas:
-
-- `feature/login`
-- `feature/products`
-- `feature/orders`
-- `feature/inventory`
-- `feature/dashboard`
-
----
-
-# Buenas prácticas
-
-- Código legible y consistente.
-- Usar TypeScript para tipos estrictos.
-- Validar datos en backend.
-- Manejar errores centralizadamente.
-- Mantener la app responsive.
-- Priorizar funcionalidades completas.
-- Documentar decisiones importantes.
-
----
-
-# Objetivo final
-
-Construir un sistema capaz de administrar:
-- Ventas
-- Pedidos
-- Caja
-- Inventario
-- Recetas
-- Compras
-- Gastos
-- Clientes
-- Reportes
-- Estadísticas
-- Utilidad
-- Flujo de efectivo
-
-Todo desde una aplicación web optimizada para iPhone.
+- [`CLAUDE.md`](CLAUDE.md): convenciones detalladas de arquitectura, temas y seguridad.
+- [`docs/auditoria-mvp-2026-09-22.md`](docs/auditoria-mvp-2026-09-22.md): auditoría del MVP, hallazgos y correcciones.
+- [`docs/plan-test.md`](docs/plan-test.md): plan de estabilización y pruebas.
+- [`todo.md`](todo.md): estado del proyecto y pendientes.

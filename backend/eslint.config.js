@@ -34,7 +34,7 @@ export default defineConfig([
   },
   {
     // Seed and one-off scripts print progress to the terminal on purpose.
-    files: ['prisma/seed.ts', 'scripts/**/*.ts', 'dev.js'],
+    files: ['prisma/seed.ts', 'prisma/seed-catalog.ts', 'scripts/**/*.ts', 'dev.js'],
     rules: { 'no-console': 'off' },
   },
 ])

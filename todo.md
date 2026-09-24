@@ -232,6 +232,11 @@ Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-202
 - [x] Convención de signos: `CashMovement.amount` = efecto en caja (migración `20260923110000`, aplicada; en producción no había filas que invertir)
 - [x] Drift de `ingredients` (migración `20260923120000`, aplicada)
 
+### Catálogo para recargar la BD (Sept 23)
+- [x] `scripts/export-catalog.ts` (solo lectura) → `prisma/seed-data/catalog.json`: categorías, productos, recetas, extras, combos, promociones, ingredientes (stock/costo/mínimo), proveedores y preferencias
+- [x] El seed carga ese archivo (idempotente; stock como movimiento "saldo inicial") y ya **no borra ingredientes ni movimientos** en cada ejecución
+- [ ] Exportar desde Supabase, revisar el JSON y hacer la limpieza (pasos en `backend/Readme.md`)
+
 ### Procedimiento usado para las migraciones 20260923* (referencia para futuras migraciones de tipo)
 > El código nuevo y la migración deben salir juntos: el backend con el cliente Prisma nuevo falló al cerrar caja (500) hasta aplicar la migración.
 1. `cd backend && npx tsx scripts/check-enum-migration.ts` — solo lectura; debe terminar en "OK". Si reporta valores fuera del enum, corregirlos primero

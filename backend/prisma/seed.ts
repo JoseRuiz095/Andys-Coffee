@@ -1,6 +1,7 @@
 import { prisma } from "../src/config/prisma";
 import { PromotionType } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { readCatalogExport, seedCatalogFromExport } from "./seed-catalog";
 import dotenv from 'dotenv';
 
 // Cargar variables de entorno desde el archivo .env
@@ -652,7 +653,7 @@ async function main() {
   const adminPassword = process.env.ADMIN_SEED_PASSWORD || "CambiarEstaPassword123!";
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   // The password is only set when the admin is first created; re-seeding never resets it.
-  await prisma.user.upsert({
+  const adminUser = await prisma.user.upsert({
     where: { email: "admin@andyscoffee.local" },
     update: { roleId: adminRoleId },
     create: {
@@ -663,6 +664,87 @@ async function main() {
     },
   });
 
+  // ==========================================================
+  // CATÁLOGO
+  // ==========================================================
+  // prisma/seed-data/catalog.json (scripts/export-catalog.ts) holds the real catalog;
+  // without it (e.g. the Docker test database) the built-in sample catalog is loaded.
+  const catalog = readCatalogExport();
+  if (catalog) {
+    await seedCatalogFromExport(catalog, adminUser.id);
+  } else {
+    await seedSampleCatalog();
+  }
+
+  // ==========================================================
+  // PREFERENCIAS: DISTRIBUCIÓN DEL ESTADO DE RESULTADOS
+  // ==========================================================
+  // Idempotente (update: {}) para no pisar valores ya configurados por un admin.
+
+  const distributionPreferences = [
+    {
+      key: "income_statement.distribution.savings_percent",
+      value: "10",
+      type: "number",
+      label: "Ahorro (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado a Ahorro.",
+    },
+    {
+      key: "income_statement.distribution.business_fund_percent",
+      value: "20",
+      type: "number",
+      label: "Fondo del Negocio (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado al Fondo del Negocio.",
+    },
+    {
+      key: "income_statement.distribution.supplies_percent",
+      value: "70",
+      type: "number",
+      label: "Surtido (%)",
+      description: "Porcentaje de la ganancia neta diaria destinado a Surtido.",
+    },
+  ];
+
+  for (const pref of distributionPreferences) {
+    await prisma.systemPreference.upsert({
+      where: { key: pref.key },
+      update: {},
+      create: pref,
+    });
+  }
+
+  // ==========================================================
+  // RESUMEN
+  // ==========================================================
+
+  const counts = await prisma.$transaction([
+    prisma.category.count(),
+    prisma.product.count(),
+    prisma.combo.count(),
+    prisma.promotion.count(),
+    prisma.role.count(),
+    prisma.permission.count(),
+    prisma.inventoryUnit.count(),
+  ]);
+
+  console.log("\n========================================");
+  console.log("       SEED EJECUTADO CORRECTAMENTE");
+  console.log("========================================");
+  console.log(`Categorías:      ${counts[0]}`);
+  console.log(`Productos:       ${counts[1]}`);
+  console.log(`Combos:          ${counts[2]}`);
+  console.log(`Promociones:     ${counts[3]}`);
+  console.log(`Roles:           ${counts[4]}`);
+  console.log(`Permisos:        ${counts[5]}`);
+  console.log(`Unidades:        ${counts[6]}`);
+  console.log("========================================");
+}
+
+// ============================================================
+// CATÁLOGO DE EJEMPLO (sin prisma/seed-data/catalog.json)
+// ============================================================
+
+async function seedSampleCatalog() {
   // ==========================================================
   // CATEGORÍAS
   // ==========================================================
@@ -862,78 +944,10 @@ async function main() {
     { name: "Kilogramo", abbreviation: "kg" },
   ];
 
-  // Clear existing units (delete in dependency order)
-  await prisma.inventoryMovement.deleteMany({});
-  await prisma.ingredient.deleteMany({});
-  await prisma.inventoryUnit.deleteMany({});
-
-  // Create new units
-  await prisma.inventoryUnit.createMany({
-    data: units,
-  });
-
-  // ==========================================================
-  // PREFERENCIAS: DISTRIBUCIÓN DEL ESTADO DE RESULTADOS
-  // ==========================================================
-  // Idempotente (update: {}) para no pisar valores ya configurados por un admin.
-
-  const distributionPreferences = [
-    {
-      key: "income_statement.distribution.savings_percent",
-      value: "10",
-      type: "number",
-      label: "Ahorro (%)",
-      description: "Porcentaje de la ganancia neta diaria destinado a Ahorro.",
-    },
-    {
-      key: "income_statement.distribution.business_fund_percent",
-      value: "20",
-      type: "number",
-      label: "Fondo del Negocio (%)",
-      description: "Porcentaje de la ganancia neta diaria destinado al Fondo del Negocio.",
-    },
-    {
-      key: "income_statement.distribution.supplies_percent",
-      value: "70",
-      type: "number",
-      label: "Surtido (%)",
-      description: "Porcentaje de la ganancia neta diaria destinado a Surtido.",
-    },
-  ];
-
-  for (const pref of distributionPreferences) {
-    await prisma.systemPreference.upsert({
-      where: { key: pref.key },
-      update: {},
-      create: pref,
-    });
+  // Never delete here: this used to wipe every ingredient and inventory movement on each run.
+  if ((await prisma.inventoryUnit.count()) === 0) {
+    await prisma.inventoryUnit.createMany({ data: units });
   }
-
-  // ==========================================================
-  // RESUMEN
-  // ==========================================================
-
-  const counts = await prisma.$transaction([
-    prisma.category.count(),
-    prisma.product.count(),
-    prisma.combo.count(),
-    prisma.promotion.count(),
-    prisma.role.count(),
-    prisma.permission.count(),
-    prisma.inventoryUnit.count(),
-  ]);
-
-  console.log("\n========================================");
-  console.log("       SEED EJECUTADO CORRECTAMENTE");
-  console.log("========================================");
-  console.log(`Categorías:      ${counts[0]}`);
-  console.log(`Productos:       ${counts[1]}`);
-  console.log(`Combos:          ${counts[2]}`);
-  console.log(`Promociones:     ${counts[3]}`);
-  console.log(`Roles:           ${counts[4]}`);
-  console.log(`Permisos:        ${counts[5]}`);
-  console.log(`Unidades:        ${counts[6]}`);
-  console.log("========================================");
 }
 
 main()
