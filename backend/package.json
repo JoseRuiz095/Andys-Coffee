@@ -22,7 +22,7 @@
     "db:reset-operations": "tsx scripts/reset-operational-data.ts",
     "db:reset-operations:prod": "cross-env NODE_ENV=production tsx scripts/reset-operational-data.ts",
     "test": "npm run test:unit",
-    "test:unit": "tsx --test test/*.test.ts",
+    "test:unit": "tsx --import ./test/setup/unit-env.ts --test test/*.test.ts",
     "test:db:up": "sh test/db/generate-certs.sh && docker compose -f test/db/docker-compose.yml up -d --wait",
     "test:db:prepare": "tsx test/db/prepare.ts",
     "test:db:down": "docker compose -f test/db/docker-compose.yml down -v",
