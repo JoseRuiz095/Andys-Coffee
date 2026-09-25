@@ -8,7 +8,7 @@ API REST del punto de venta: Node.js + Express 5 + TypeScript, Prisma 6 sobre Po
 
 ```bash
 npm install
-# Certificado CA de Supabase en certs/prod-ca-2021.crt
+# Certificado CA de Supabase de cada proyecto: certs/dev/ y certs/prod/
 npm run prisma:generate
 npm run dev                     # Modo development
 npm run start                   # Modo produccion
@@ -92,7 +92,7 @@ Para refrescar desarrollo con datos nuevos de producción, repite los pasos 5 y 
 | -------- | ----------- | ----------- |
 | `DATABASE_URL` | Sí | Conexión de la app (pooler de Supabase) con `sslmode=require` o `verify-full` |
 | `DIRECT_URL` | Recomendada | Conexión directa usada por Prisma Migrate |
-| `DATABASE_SSL_CA_PATH` | Sí | Ruta al certificado CA de Supabase (`certs/prod-ca-2021.crt`) |
+| `DATABASE_SSL_CA_PATH` | Sí (o `DATABASE_SSL_CA`) | Ruta al certificado CA del proyecto de Supabase: `certs/dev/prod-ca-2021.crt` en desarrollo, `certs/prod/prod-ca-2021.crt` en producción local. En Render: Secret File o `DATABASE_SSL_CA` con el contenido |
 | `JWT_SECRET` | Sí | ≥ 32 caracteres y ≥ 16 distintos (`openssl rand -base64 48`) |
 | `CSRF_SECRET` | Sí | Exactamente 32 caracteres |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Sí | Proyecto de Supabase |
@@ -258,6 +258,10 @@ Borra ventas, cajas, gastos, compras, movimientos, conteos, notificaciones y usu
 | `cashReconciliation` | Diario, 23:30 | Comprueba que los movimientos de cada sesión cerrada sumen su `expectedAmount` y notifica a los administradores si hay diferencias |
 
 ---
+
+## Producción (Docker)
+
+`npm run build` genera `dist/server.js` (esbuild) y la imagen de `Dockerfile` lo ejecuta con `node dist/server.js`: multi-stage, solo dependencias de producción, usuario no root, `HEALTHCHECK` en `/health`, sin `.env` ni datos. Despliegue en Render, variables y migraciones: [docs/deployment.md](../docs/deployment.md).
 
 ## Pruebas
 

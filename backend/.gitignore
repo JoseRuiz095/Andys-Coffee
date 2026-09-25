@@ -102,5 +102,7 @@ docker-data/
 /test-results/
 /playwright-report/
 
-# Copias de datos de la BD (contienen datos personales)
+# Copias de datos de la BD (contienen datos personales y de negocio)
 backups/
+prisma/backups/
+prisma/seed-data/

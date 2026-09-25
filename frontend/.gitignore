@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files (only VITE_* public values, but never committed)
+.env
+.env.*
+!.env.example

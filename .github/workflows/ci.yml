@@ -1,0 +1,157 @@
+# Continuous integration: validation only. Deployment is done by the native integrations
+# (Render "Auto-Deploy: After CI Checks Pass" and Vercel Git Integration), not by this workflow.
+# No real secrets are used: tests run against a throwaway PostgreSQL in Docker.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  frontend:
+    name: Frontend (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  backend:
+    name: Backend (lint, typecheck, prisma, unit tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # prisma.config.ts needs a URL to load; validate/generate never connect to it.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?sslmode=require
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci?sslmode=require
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx prisma validate
+      - run: npx prisma generate
+      - run: npm run test:unit
+      - run: npm run build
+
+  backend-db:
+    name: Backend (integration + E2E on test PostgreSQL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+      - name: Install frontend dependencies (E2E starts Vite)
+        run: npm ci
+        working-directory: frontend
+      - name: Start test PostgreSQL (TLS, Docker)
+        run: npm run test:db:up
+        working-directory: backend
+      - name: Apply migrations and seed to the test database
+        run: npm run test:db:prepare
+        working-directory: backend
+      - name: Integration tests
+        run: npm run test:integration
+        working-directory: backend
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: backend
+      - name: E2E tests
+        run: npm run test:e2e
+        working-directory: backend
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            backend/playwright-report
+            backend/test-results
+          retention-days: 7
+      - name: Stop test PostgreSQL
+        if: always()
+        run: npm run test:db:down
+        working-directory: backend
+
+  docker:
+    name: Docker image (build, run, health check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t andys-coffee-backend:ci backend
+      - name: Image must not contain dev tools, env files or data
+        run: |
+          docker run --rm --entrypoint sh andys-coffee-backend:ci -c '
+            set -e
+            test "$(id -u)" != "0" || { echo "runs as root"; exit 1; }
+            for tool in tsx tsc eslint playwright prisma; do
+              if [ -e "node_modules/.bin/$tool" ]; then echo "dev tool in image: $tool"; exit 1; fi
+            done
+            # Search the app directory (third-party packages in node_modules are skipped).
+            found=$(find /app -path /app/node_modules -prune -o \( -name ".env*" -o -name "*.crt" -o -name "*.pem" -o -name "*.key" -o -name "*.sql" -o -path /app/certs -o -path /app/backups -o -path /app/prisma/backups -o -path /app/prisma/seed-data -o -path /app/test -o -path /app/scripts -o -path /app/src \) -print)
+            if [ -n "$found" ]; then echo "unexpected files:"; echo "$found"; exit 1; fi
+            echo "image content OK"'
+      - name: Run container with test configuration
+        run: |
+          docker run -d --name api -p 8080:8080 \
+            -e PORT=8080 \
+            -e DATABASE_URL="postgresql://ci:ci@localhost:5432/ci?sslmode=require" \
+            -e DATABASE_SSL_CA="test-ca" \
+            -e JWT_SECRET="ci-jwt-secret-0123456789-abcdefghijklmnopXYZ" \
+            -e CSRF_SECRET="ci-csrf-secret-0123456789abcdefg" \
+            -e SUPABASE_URL="http://localhost:54321" \
+            -e SUPABASE_ANON_KEY="ci-anon-key" \
+            -e CORS_ORIGINS="https://example.vercel.app" \
+            -e ENABLE_CASH_AUTO_CLOSE=false \
+            -e ENABLE_CASH_RECONCILIATION=false \
+            andys-coffee-backend:ci
+      - name: Wait for the container health check
+        run: |
+          for _ in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' api)
+            echo "health: $status"
+            if [ "$status" = "healthy" ]; then break; fi
+            sleep 3
+          done
+          test "$status" = "healthy"
+          curl -fsS http://127.0.0.1:8080/health
+      - name: Container logs
+        if: always()
+        run: docker logs api || true

@@ -130,6 +130,10 @@ Las vistas pesadas (Órdenes, Inventario, Administración, Configuración) se ca
 
 ---
 
+## Producción (Vercel)
+
+Se despliega en Vercel (Root Directory `frontend`). `vercel.json` redirige `/api/*` al backend de Render (proxy same-origin para que las cookies de sesión sigan siendo first-party) y hace el fallback SPA a `index.html`. Detalles: [docs/deployment.md](../docs/deployment.md).
+
 ## Pruebas
 
 Las pruebas E2E del flujo completo (Playwright) están en el backend (`backend/test/e2e`) y levantan este Vite en el puerto 5173. Ver [backend/Readme.md](../backend/Readme.md#pruebas).

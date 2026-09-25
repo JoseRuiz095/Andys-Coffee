@@ -1,0 +1,38 @@
+# Only package*.json, prisma/, prisma.config.ts, tsconfig.json and src/ are needed to build.
+
+# Dependencies and build output (rebuilt inside the image)
+node_modules
+dist
+
+# Secrets and environment files (production values come from the host)
+.env
+.env.*
+!.env.example
+certs
+
+# Real data: backups, exported catalog, dumps
+backups
+prisma/backups
+prisma/seed-data
+*.sql
+*.dump
+
+# Tests and reports
+test
+test-results
+playwright-report
+playwright.config.*
+
+# Maintenance scripts (run locally, never in the container)
+scripts
+
+# Tooling and misc
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.log
+dev.js
+eslint.config.js
+Readme.md
+skills-lock.json

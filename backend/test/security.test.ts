@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import jwt from "jsonwebtoken";
 
@@ -63,7 +64,14 @@ test("rotar JWT_SECRET invalida tokens firmados con la clave anterior", async ()
 test("la configuración de Prisma rechaza sslmode inseguro y exige CA", () => {
   assert.throws(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=disable" }), /Database connection must use SSL/);
   assert.throws(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=require", DATABASE_SSL_CA: undefined, DATABASE_SSL_CA_PATH: "missing-ca.crt" }), /ENOENT/);
-  const caPath = resolve(backendRoot, "certs", "prod-ca-2021.crt");
-  assert.ok(readFileSync(caPath, "utf8").length > 0);
-  assert.doesNotThrow(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=verify-full", DATABASE_SSL_CA_PATH: "certs/prod-ca-2021.crt" }));
+  // The real Supabase CA lives outside git (certs/dev, certs/prod) and does not exist in CI:
+  // this only checks that a CA file given by path is read, so a throwaway PEM is enough.
+  const caDir = mkdtempSync(join(tmpdir(), "andys-ca-"));
+  try {
+    const caPath = join(caDir, "ca.crt");
+    writeFileSync(caPath, "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n");
+    assert.doesNotThrow(() => runTsx("import './src/config/prisma.ts'", { DATABASE_URL: "postgresql://user:password@localhost:5432/coffee?sslmode=verify-full", DATABASE_SSL_CA: undefined, DATABASE_SSL_CA_PATH: caPath }));
+  } finally {
+    rmSync(caDir, { recursive: true, force: true });
+  }
 });
