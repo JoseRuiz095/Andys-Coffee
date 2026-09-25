@@ -101,3 +101,6 @@ docker-data/
 # ===========================
 /test-results/
 /playwright-report/
+
+# Copias de datos de la BD (contienen datos personales)
+backups/

@@ -8,10 +8,10 @@ API REST del punto de venta: Node.js + Express 5 + TypeScript, Prisma 6 sobre Po
 
 ```bash
 npm install
-cp .env.example .env            # completar (ver "Variables de entorno")
 # Certificado CA de Supabase en certs/prod-ca-2021.crt
 npm run prisma:generate
-npm run dev                     # http://127.0.0.1:4000  (GET /health para comprobar)
+npm run dev                     # Modo development
+npm run start                   # Modo produccion
 ```
 
 `npm run dev` libera el puerto 4000 si está ocupado y arranca `tsx watch src/server.ts` (recarga al guardar).
@@ -22,23 +22,29 @@ npm run dev                     # http://127.0.0.1:4000  (GET /health para compr
 
 | Script | Qué hace |
 | ------ | -------- |
-| `npm run dev` | Servidor de desarrollo con recarga |
+| `npm run dev` | Servidor de desarrollo con recarga (`.env.development`) |
+| `npm run start` | Servidor en modo producción (`NODE_ENV=production`, `.env.production`) |
 | `npm run lint` | ESLint (incluye la regla que impide usar Prisma fuera de los repositorios) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run prisma:generate` | Regenera el cliente de Prisma (después de cambiar `schema.prisma`) |
-| `npm run prisma:migrate:deploy` | Aplica migraciones pendientes. **Único comando de migración para Supabase** |
+| `npm run prisma:migrate:deploy` / `prisma:migrate:deploy:prod` | Aplica migraciones pendientes a la BD de `.env.development` / `.env.production`. **Únicos comandos de migración para Supabase** |
 | `npm run prisma:migrate` | `prisma migrate dev`. **Solo contra la BD de Docker** (ver abajo) |
 | `npm run seed` | Genera el cliente y ejecuta `prisma/seed.ts` |
+| `npm run catalog:export` / `catalog:export:prod` | Exporta el catálogo de la BD de desarrollo / producción (solo lectura) |
+| `npm run db:replicate-prod-to-dev -- --yes` | Reemplaza **todos** los datos de desarrollo por una copia de producción (solo lee producción; guarda la copia en `backups/`, ignorada por git) |
+| `npm run db:reset-operations:prod -- --yes` | Limpia la operación de producción (ventas, cajas, gastos, compras, movimientos, conteos, notificaciones, auditoría); conserva catálogo, ingredientes con su stock como saldo inicial, proveedores, preferencias y usuarios. Sin `:prod`, lo hace en desarrollo |
+| `npm run storage:copy-to-dev` | Copia las imágenes del bucket de producción al proyecto de desarrollo (`--dry-run` para solo listar) |
 | `npm run test:unit` | Pruebas unitarias (sin BD) |
 | `npm run test:db:up` / `test:db:prepare` / `test:db:down` | BD de pruebas en Docker |
 | `npm run test:integration` | Pruebas de integración (BD de Docker) |
 | `npm run test:e2e` / `test:e2e:report` | Pruebas E2E con Playwright / reporte HTML |
 | `npm run test:critical` | Unitarias + integración + E2E |
 
-Scripts de mantenimiento en `scripts/` (se ejecutan con `npx tsx scripts/<archivo>`):
+Scripts de mantenimiento en `scripts/`. Se ejecutan con `npx tsx scripts/<archivo>` contra la BD de `.env.development`, o con `npx cross-env NODE_ENV=production tsx scripts/<archivo>` contra la de `.env.production`:
 
 | Script | Qué hace |
 | ------ | -------- |
+| `copy-storage-to-dev.ts` | Lee el bucket `Img` de producción y copia al de desarrollo lo que falte (ignora `NODE_ENV`; usa los dos archivos) |
 | `export-catalog.ts` | **Solo lectura.** Exporta el catálogo de la BD a `prisma/seed-data/catalog.json` (ver [Seed](#seed-y-catálogo)) |
 | `check-enum-migration.ts` | **Solo lectura.** Verificación antes/después de las migraciones `20260923*`; `--backup` escribe un respaldo JSON en `prisma/backups/` |
 | `seed-inventory.ts`, `seed-suppliers.ts` | Cargas iniciales antiguas de ingredientes y proveedores (sustituidas por `export-catalog` + seed) |
@@ -48,7 +54,39 @@ Scripts de mantenimiento en `scripts/` (se ejecutan con `npx tsx scripts/<archiv
 
 ## Variables de entorno
 
-Plantilla completa en [`.env.example`](.env.example). `backend/.env` nunca se sube al repositorio.
+Cada entorno tiene su archivo, creado a partir de la plantilla [`.env.example`](.env.example):
+
+| Archivo | Se usa con |
+| ------- | ---------- |
+| `.env.development` | `npm run dev`, `npm run prisma:migrate:deploy`, `npx tsx scripts/…`, el seed y cualquier comando sin `NODE_ENV` |
+| `.env.production` | `npm run start`, `npm run prisma:migrate:deploy:prod`, `npm run catalog:export:prod` y todo lo que se ejecute con `NODE_ENV=production` |
+
+- El archivo se elige por la variable **`NODE_ENV` del proceso** (`src/config/env.ts`): el `NODE_ENV` escrito dentro del archivo no sirve para elegirlo. En PowerShell se fija con `$env:NODE_ENV="production"` o, en cualquier terminal, con `npx cross-env NODE_ENV=production <comando>`.
+- Las variables que ya existen en el entorno **tienen prioridad** sobre el archivo (así las inyectan las pruebas y las plataformas de hosting). Si `DATABASE_URL` aparece definida en tu terminal (`echo $env:DATABASE_URL`), el archivo no la cambiará.
+- Las pruebas fijan `NODE_ENV=test` y sus propias variables, así que nunca leen estos archivos.
+- Los archivos `.env.*` nunca se suben al repositorio (solo `.env.example`). El antiguo `backend/.env` ya no se lee.
+- **Protección:** si `.env.development` apunta a la misma base de datos que `.env.production`, el backend lo avisa al arrancar (error en el log), el seed también, y `prisma migrate dev`, `prisma migrate reset` y `prisma db push` se niegan a ejecutarse. `prisma migrate dev` y `db push` tampoco se ejecutan nunca con `NODE_ENV=production`.
+
+### Base de datos de desarrollo
+
+Desarrollo debe tener su propia base de datos (un proyecto de Supabase aparte), para probar y usar `prisma migrate dev` sin riesgo para los datos reales.
+
+1. **Crear el proyecto** de Supabase de desarrollo.
+2. **Completar `.env.development`** con los datos del proyecto nuevo:
+   - `DATABASE_URL` y `DIRECT_URL`: Project Settings → Database → Connection string. Deben incluir `sslmode=require`.
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`: Project Settings → API.
+   - `JWT_SECRET` y `CSRF_SECRET` **distintos** a los de producción, para que una sesión de un entorno no sirva en el otro.
+   - `ADMIN_SEED_PASSWORD`: contraseña del admin de desarrollo.
+   - `DATABASE_SSL_CA_PATH`: el certificado CA de Supabase. Suele ser el mismo para todos los proyectos; descárgalo del proyecto nuevo (Database → SSL) si la conexión lo rechaza.
+3. **Comprobar:** `npm run dev`. El log debe decir `Modo DEVELOPMENT` con el host o usuario del proyecto nuevo, **sin** el error "apunta a la base de datos de PRODUCCIÓN".
+4. **Crear las tablas:** `npm run prisma:migrate:deploy`.
+5. **Copiar los datos de producción**, a elegir:
+   - **Todo** (ventas, cajas, gastos, usuarios…), para tener una réplica exacta: `npm run db:replicate-prod-to-dev -- --yes`. Usa `pg_dump`/`psql` de la imagen `postgres:17-alpine`, así que necesita Docker. Exige las mismas migraciones en ambas BD y reemplaza desarrollo en una sola transacción.
+   - **Solo el catálogo:** `npm run catalog:export:prod` y después `npm run seed`.
+6. **Copiar las imágenes:** `npm run storage:copy-to-dev -- --dry-run` para revisar la lista, y luego `npm run storage:copy-to-dev`. Crea el bucket `Img` público si no existe. Las imágenes subidas desde la app guardan su URL completa de producción y se siguen viendo desde ahí.
+7. El frontend no necesita cambios: con `npm run dev` toma `SUPABASE_URL` de `.env.development`.
+
+Para refrescar desarrollo con datos nuevos de producción, repite los pasos 5 y 6. Si quieres empezar de cero, antes ejecuta `npx prisma migrate reset`, que ahora sí se permite porque desarrollo ya no apunta a producción.
 
 | Variable | Obligatoria | Descripción |
 | -------- | ----------- | ----------- |
@@ -172,7 +210,7 @@ Además, `GET /health` (fuera de `/api`) responde el estado del servidor.
 - `prisma/schema.prisma` es la fuente de verdad. Después de modificarlo: `npx prisma validate` y `npm run prisma:generate`.
 - Algunos índices viven solo en SQL porque Prisma no puede declararlos (índices parciales o de expresión); están documentados como comentarios en el esquema.
 
-> ⚠️ **`backend/.env` apunta a la base de datos real (Supabase).**
+> ⚠️ **`.env.development` y `.env.production` apuntan a bases de datos reales (Supabase).**
 > - Contra Supabase solo se usa `npm run prisma:migrate:deploy`.
 > - `prisma migrate dev` detecta cualquier drift y propone un reset; además, al cambiar el tipo de una columna genera `DROP COLUMN` + `ADD COLUMN` y **pierde los datos**.
 > - `prisma migrate reset` **borra toda la base de datos**. Úsalo solo en el procedimiento de limpieza descrito abajo.
@@ -182,10 +220,10 @@ Además, `GET /health` (fuera de `/api`) responde el estado del servidor.
 1. Modifica `schema.prisma`.
 2. Genera o escribe el SQL en una carpeta nueva de `prisma/migrations/` (`AAAAMMDDhhmmss_descripcion/migration.sql`).
    - Cambios de tipo o de datos: **escríbelos a mano** con `ALTER COLUMN … TYPE … USING …` y envuélvelos en `BEGIN; … COMMIT;`, porque Prisma no ejecuta el script dentro de una transacción.
-   - Si necesitas `migrate dev`, ejecútalo **solo contra Docker**: con la BD de pruebas levantada, fuerza `DATABASE_URL` y `DIRECT_URL` a `localhost:55432`. No confíes en `--config`, que puede ignorarse y caer en `.env`.
+   - Si necesitas `migrate dev`, ejecútalo **solo contra Docker**: con la BD de pruebas levantada, fuerza `DATABASE_URL` y `DIRECT_URL` a `localhost:55432`. No confíes en `--config`, que puede ignorarse y caer en `.env.development`.
 3. Ensaya en Docker: `npm run test:db:down && npm run test:db:up && npm run test:db:prepare` y comprueba que `npx prisma migrate diff --from-url <url de docker> --to-schema-datamodel prisma/schema.prisma` quede vacío.
 4. `npm run test:critical`.
-5. En producción: **despliega el código y la migración juntos, con el backend detenido.** Un backend con el cliente de Prisma nuevo contra una BD sin migrar falla en cada escritura.
+5. Aplica primero en desarrollo (`npm run prisma:migrate:deploy`) y después en producción (`npm run prisma:migrate:deploy:prod`). En producción, **despliega el código y la migración juntos, con el backend detenido.** Un backend con el cliente de Prisma nuevo contra una BD sin migrar falla en cada escritura.
 
 ---
 
@@ -205,9 +243,9 @@ Además, `GET /health` (fuera de `/api`) responde el estado del servidor.
 Borra ventas, cajas, gastos, compras, movimientos, conteos, notificaciones y usuarios. Conserva el catálogo, los ingredientes con su stock, los proveedores y las preferencias.
 
 1. Detener el backend; no debe haber caja abierta.
-2. `npx tsx scripts/export-catalog.ts` y revisar `prisma/seed-data/catalog.json`.
+2. `npm run catalog:export:prod` y revisar `prisma/seed-data/catalog.json`.
 3. Respaldo completo desde Supabase (Dashboard → Database → Backups).
-4. `npx prisma migrate reset`: borra el esquema, aplica todas las migraciones y ejecuta el seed con el catálogo exportado.
+4. `npx cross-env NODE_ENV=production prisma migrate reset`: borra el esquema de la BD de `.env.production`, aplica todas las migraciones y ejecuta el seed con el catálogo exportado.
 5. Levantar el backend y volver a crear los usuarios (solo queda `admin@andyscoffee.local`).
 
 ---
@@ -236,5 +274,5 @@ npm run test:critical
 npm run test:db:down      # borra el contenedor y sus datos
 ```
 
-- `test/setup/test-env.ts` sustituye las variables de `.env` y **se niega a correr contra cualquier host que no sea localhost**. Los archivos nuevos de integración o E2E deben importarlo antes que cualquier cosa que use Prisma.
+- `test/setup/test-env.ts` fija `NODE_ENV=test` y todas las variables (no se lee ningún `.env.*`) y **se niega a correr contra cualquier host que no sea localhost**. Los archivos nuevos de integración o E2E deben importarlo antes que cualquier cosa que use Prisma.
 - Las E2E necesitan los puertos 4000 y 5173 libres. En Windows, si Vite falla con `EACCES` en el 5173, el rango está reservado por WinNAT; reiniciar el equipo (o `net stop winnat && net start winnat` como administrador) lo libera.

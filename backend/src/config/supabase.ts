@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 const supabaseUrl = process.env.SUPABASE_URL;
 // Storage writes need the service-role key: the anon key is public by design, and the
 // bucket's RLS policies (correctly) do not allow anonymous inserts. The service-role key
-// must only ever live in backend/.env — never in the frontend.
+// must only ever live in backend/.env.* — never in the frontend.
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseKey = serviceRoleKey || process.env.SUPABASE_ANON_KEY;
 

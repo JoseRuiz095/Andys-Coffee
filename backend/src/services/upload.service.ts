@@ -1,9 +1,10 @@
 import { supabase } from '../config/supabase';
+import { PRODUCT_IMAGE_BUCKET } from '../config/storage';
 import { v4 as uuidv4 } from 'uuid';
 import sharp, { type Metadata } from 'sharp';
 import { logger } from '../utils/logger';
 
-const BUCKET_NAME = 'Img';
+const BUCKET_NAME = PRODUCT_IMAGE_BUCKET;
 const MAX_IMAGE_DIMENSION = 4096;
 
 class UploadValidationError extends Error {

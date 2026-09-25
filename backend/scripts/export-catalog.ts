@@ -1,8 +1,9 @@
 /**
- * Exports the catalog of the database in .env to prisma/seed-data/catalog.json so the seed
+ * Exports the catalog of the database in .env.<NODE_ENV> (`npm run catalog:export` or
+ * `npm run catalog:export:prod`) to prisma/seed-data/catalog.json so the seed
  * can rebuild it on a clean database. READ-ONLY: it only runs SELECTs.
  *
- *   cd backend && npx tsx scripts/export-catalog.ts
+ *   cd backend && npm run catalog:export:prod
  *
  * Exported: inventory units, categories, products, ingredients (with current stock, minimum
  * and average cost), recipes, extras (+ recipes and product links), combos (+ items),

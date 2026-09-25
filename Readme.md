@@ -51,8 +51,9 @@ El repositorio contiene dos aplicaciones independientes que se comunican por una
 npm run install:all
 
 # 2. Variables de entorno
-cp backend/.env.example backend/.env        # y completar los valores
-cp frontend/.env.example frontend/.env      # opcional
+cp backend/.env.example backend/.env.development    # y completar los valores
+cp backend/.env.example backend/.env.production     # solo donde se corre producción
+cp frontend/.env.example frontend/.env              # opcional
 
 # 3. Certificado CA de Supabase (Project Settings → Database → SSL)
 #    guardarlo en backend/certs/prod-ca-2021.crt (la carpeta está en .gitignore)
@@ -67,7 +68,9 @@ npm run dev:frontend     # App en http://127.0.0.1:5173 (redirige /api al backen
 
 Abre `http://127.0.0.1:5173` e inicia sesión. En una base de datos recién creada, el seed crea `admin@andyscoffee.local` con la contraseña de `ADMIN_SEED_PASSWORD`.
 
-> ⚠️ **`backend/.env` apunta a la base de datos real.** Contra ella solo se aplican migraciones con `npm run prisma:migrate:deploy`. Nunca ejecutes `prisma migrate dev` ni `prisma migrate reset` sin haber leído la sección de base de datos de [backend/Readme.md](backend/Readme.md#base-de-datos-y-migraciones).
+> El backend carga `backend/.env.<NODE_ENV>`: `.env.development` por defecto y `.env.production` con los comandos de producción (`npm run start`, `…:prod`). Ver [Variables de entorno](backend/Readme.md#variables-de-entorno).
+>
+> ⚠️ **Las BD de `.env.development` y `.env.production` pueden ser reales (Supabase).** Contra ellas solo se aplican migraciones con `npm run prisma:migrate:deploy` / `prisma:migrate:deploy:prod`. Nunca ejecutes `prisma migrate dev` ni `prisma migrate reset` sin haber leído la sección de base de datos de [backend/Readme.md](backend/Readme.md#base-de-datos-y-migraciones).
 
 ---
 

@@ -1,8 +1,9 @@
 /**
  * Environment for integration tests and the test-database scripts.
  *
- * Loaded with `--import` BEFORE any app module, so these values win over backend/.env
- * (dotenv never overrides variables that are already set). It points everything at the
+ * Loaded with `--import` BEFORE any app module, so these values win over backend/.env.*
+ * (dotenv never overrides variables that are already set; NODE_ENV=test also means no
+ * .env.development/.env.production file is loaded). It points everything at the
  * local Docker database from test/db/docker-compose.yml and refuses to run against any
  * non-local host, so integration tests can never write to the real (Supabase) database.
  */

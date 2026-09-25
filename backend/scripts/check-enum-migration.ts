@@ -4,7 +4,8 @@
  *   20260923110000_uniform_cash_movement_sign
  *   20260923120000_align_ingredients_schema
  *
- * Usage (from backend/, against the database in .env):
+ * Usage (from backend/, against the database in .env.development; prefix with
+ * `npx cross-env NODE_ENV=production` for .env.production):
  *   npx tsx scripts/check-enum-migration.ts            # report only (SELECTs)
  *   npx tsx scripts/check-enum-migration.ts --backup   # also writes prisma/backups/2026-09-23-enums-signs.json
  *

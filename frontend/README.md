@@ -34,7 +34,7 @@ Todo lo que empieza con `VITE_` **llega al navegador**: aquí solo van valores p
 
 | Variable | Descripción |
 | -------- | ----------- |
-| `VITE_SUPABASE_URL` | URL pública de Supabase para mostrar imágenes. Si falta, `vite.config.ts` toma `SUPABASE_URL` de `backend/.env` |
+| `VITE_SUPABASE_URL` | URL pública de Supabase para mostrar imágenes. Si falta, `vite.config.ts` toma `SUPABASE_URL` de `backend/.env.development` (con `npm run dev`) o de `backend/.env.production` (con `npm run build`) |
 | `BACKEND_PROXY_URL` | Backend al que Vite redirige `/api` en desarrollo (por defecto `http://127.0.0.1:4000`) |
 
 En producción, el servidor web que sirve `dist/` debe redirigir `/api` al backend en el mismo dominio, porque la sesión viaja en una cookie.

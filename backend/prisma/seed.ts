@@ -1,11 +1,9 @@
+// Variables de backend/.env.<NODE_ENV> (development por defecto).
+import { ENV_MODE, USES_PRODUCTION_DATABASE } from "../src/config/env";
 import { prisma } from "../src/config/prisma";
 import { PromotionType } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { readCatalogExport, seedCatalogFromExport } from "./seed-catalog";
-import dotenv from 'dotenv';
-
-// Cargar variables de entorno desde el archivo .env
-dotenv.config();
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 
@@ -591,6 +589,10 @@ const permissions = [
 async function main() {
   console.log("========================================");
   console.log("   ANDY'S COFFEE - INICIANDO SEED");
+  console.log(`   Modo: ${ENV_MODE}`);
+  if (USES_PRODUCTION_DATABASE) {
+    console.warn("   ⚠ Este modo apunta a la BD de PRODUCCIÓN (la misma de .env.production).");
+  }
   console.log("========================================");
 
   // ==========================================================
