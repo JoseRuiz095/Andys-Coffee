@@ -3,8 +3,9 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://andys-coffee-2gyb-sigma.vercel.app/api/:path*"
+      "destination": "https://andys-coffee-api.onrender.com/api/:path*"
     },
+
 
     {
       "source": "/(.*)",
@@ -12,3 +13,4 @@
     }
   ]
 }
+
