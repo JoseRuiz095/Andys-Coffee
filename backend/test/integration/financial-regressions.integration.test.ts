@@ -16,7 +16,7 @@ import { ProductService } from "../../src/services/product.service";
 import { dashboardRepository } from "../../src/repositories/dashboard.repository";
 import { getZonedCalendarDate, getZonedDayBoundaries } from "../../src/utils/businessDate";
 
-// Regression coverage for the Fase 6 fixes (docs/auditoria-mvp-2026-09-22.md):
+// Regression coverage for the Fase 6 fixes (docs/Project/auditoria-mvp-2026-09-22.md):
 // C-01, C-02, H-01, H-02, H-03, H-04, H-05, M-02, M-04.
 // Tests in this file run in order and share one cash register.
 

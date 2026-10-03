@@ -261,7 +261,7 @@ Borra ventas, cajas, gastos, compras, movimientos, conteos, notificaciones y usu
 
 ## Producción (Docker)
 
-`npm run build` genera `dist/server.js` (esbuild) y la imagen de `Dockerfile` lo ejecuta con `node dist/server.js`: multi-stage, solo dependencias de producción, usuario no root, `HEALTHCHECK` en `/health`, sin `.env` ni datos. Despliegue en Render, variables y migraciones: [docs/deployment.md](../docs/deployment.md).
+`npm run build` genera `dist/server.js` (esbuild) y la imagen de `Dockerfile` lo ejecuta con `node dist/server.js`: multi-stage, solo dependencias de producción, usuario no root, `HEALTHCHECK` en `/health`, sin `.env` ni datos. Despliegue en Render, variables y migraciones: [docs/Project/deployment.md](../docs/Project/deployment.md).
 
 ## Pruebas
 

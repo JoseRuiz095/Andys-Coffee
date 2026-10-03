@@ -1,7 +1,7 @@
 ## TODO List — Andy's Coffee POS (Actualizado Sept 22, 2026)
 
 Este documento registra el progreso del proyecto: 11 fases de desarrollo + auditoría integral y testing (Sept 22) + pendientes.
-Detalle completo de la auditoría: [docs/auditoria-mvp-2026-09-22.md](docs/auditoria-mvp-2026-09-22.md).
+Detalle completo de la auditoría: [docs/Project/auditoria-mvp-2026-09-22.md](docs/Project/auditoria-mvp-2026-09-22.md).
 
 ---
 
@@ -153,7 +153,7 @@ Detalle completo de la auditoría: [docs/auditoria-mvp-2026-09-22.md](docs/audit
 - [x] Bug fix: Validación Zod en `/api/orders/by-date` (z.strictObject → z.object)
 
 ### Fase 12: Auditoría integral, estabilización y testing ✅ (Sept 22, 2026)
-Plan: [docs/plan-test.md](docs/plan-test.md) · Reporte: [docs/auditoria-mvp-2026-09-22.md](docs/auditoria-mvp-2026-09-22.md)
+Plan: [docs/Project/plan-test.md](docs/Project/plan-test.md) · Reporte: [docs/Project/auditoria-mvp-2026-09-22.md](docs/Project/auditoria-mvp-2026-09-22.md)
 
 - [x] Auditoría Fases 0-5: 2 críticos, 6 altos, 11 medios, 11 bajos, código muerto, riesgos
 - [x] Críticos: gastos con fecha que desaparecían del estado de resultados (C-01); cancelar ventas de cajas cerradas alteraba el corte (C-02)

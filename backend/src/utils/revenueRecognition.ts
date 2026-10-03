@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 /**
- * Revenue recognition rule (business decision R-02, docs/auditoria-mvp-2026-09-22.md):
+ * Revenue recognition rule (business decision R-02, docs/Project/auditoria-mvp-2026-09-22.md):
  * a sale counts as revenue once it is paid, whatever its kitchen status
  * (pending/preparing/ready/completed). Cancelled orders never count.
  * Reports must use these filters so sales, cash and the income statement agree.

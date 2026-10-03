@@ -69,7 +69,7 @@ El navegador envía las cookies SameSite=Lax (`token`) y SameSite=Strict (`csrfT
 
 ## 3. Desarrollo local
 
-Ver [Readme.md](../Readme.md), [backend/Readme.md](../backend/Readme.md) y [frontend/README.md](../frontend/README.md).
+Ver [Readme.md](../../Readme.md), [backend/Readme.md](../../backend/Readme.md) y [frontend/README.md](../../frontend/README.md).
 - `npm run dev` en cada app. El backend usa `.env.development` y Vite hace de proxy de `/api` hacia `:4000`.
 - La BD de desarrollo es un proyecto de Supabase aparte (ver el backend README, "Base de datos de desarrollo").
 

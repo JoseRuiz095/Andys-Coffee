@@ -8,7 +8,7 @@ El repositorio contiene dos aplicaciones independientes que se comunican por una
 | ------- | ------ | ---- |
 | [`backend/`](backend/Readme.md) | API en Node.js + Express + Prisma sobre PostgreSQL (Supabase) | [backend/Readme.md](backend/Readme.md) |
 | [`frontend/`](frontend/README.md) | SPA en React + Vite + TanStack Query | [frontend/README.md](frontend/README.md) |
-| [`docs/`](docs/) | Auditorías, planes de prueba y decisiones | — |
+| [`docs/`](docs/) | Documentación de ingeniería (`GPS/`) y técnica (`Project/`) | [Documentación](#documentación) |
 | [`todo.md`](todo.md) | Seguimiento del trabajo y pendientes | — |
 
 ---
@@ -68,7 +68,7 @@ npm run dev:frontend     # App en http://127.0.0.1:5173 (redirige /api al backen
 
 Abre `http://127.0.0.1:5173` e inicia sesión. En una base de datos recién creada, el seed crea `admin@andyscoffee.local` con la contraseña de `ADMIN_SEED_PASSWORD`.
 
---
+---
 
 ## Scripts de la raíz
 
@@ -149,10 +149,33 @@ Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 
 ---
 
-## Documentación adicional
+## Estado del proyecto
 
-- [`docs/deployment.md`](docs/deployment.md): despliegue (Vercel + Docker en Render + Supabase), variables de entorno, CI/CD, migraciones en producción y rollback.
-- [`CLAUDE.md`](CLAUDE.md): convenciones detalladas de arquitectura, temas y seguridad.
-- [`docs/auditoria-mvp-2026-09-22.md`](docs/auditoria-mvp-2026-09-22.md): auditoría del MVP, hallazgos y correcciones.
-- [`docs/plan-test.md`](docs/plan-test.md): plan de estabilización y pruebas.
-- [`todo.md`](todo.md): estado del proyecto y pendientes.
+El MVP está terminado y desplegado (fases 1–12 en [`todo.md`](todo.md)). Siguientes funcionalidades, fuera del MVP: módulo de reportes, edición de compras en borrador, proyecciones de stock y administración de promociones desde la interfaz.
+
+El documento de alcance ([`docs/GPS/Ingenieria del proyecto.docx`](docs/GPS/)) describe además módulos que **no están implementados**: facturación CFDI, modo offline, impresoras de tickets y gavetas, respaldos automáticos, exportación de reportes a PDF/Excel y el rol de Barista (hoy solo existen `ADMIN` y `CAJERO`). También planteaba Flutter y MySQL; la implementación real usa React y PostgreSQL.
+
+---
+
+## Documentación
+
+```
+docs/
+├── GPS/        Entregables de ingeniería del proyecto (Word)
+└── Project/    Documentación técnica para desarrolladores (Markdown)
+```
+
+| Documento | Contenido |
+| --------- | --------- |
+| [`docs/GPS/Ingenieria del proyecto.docx`](docs/GPS/) | Alcance, objetivos, actores y matriz de permisos, módulos, plataformas, restricciones y casos de uso (UML) |
+| [`docs/Project/deployment.md`](docs/Project/deployment.md) | Despliegue (Vercel + Docker en Render + Supabase), variables de entorno, CI/CD, migraciones en producción y rollback |
+| [`docs/Project/auditoria-mvp-2026-09-22.md`](docs/Project/auditoria-mvp-2026-09-22.md) | Auditoría integral del MVP: hallazgos (C/A/M/B), correcciones y decisiones de negocio (R-02, R-03…) |
+| [`docs/Project/plan-test.md`](docs/Project/plan-test.md) | Plan de estabilización y pruebas |
+| [`docs/Project/auditoria-estado-resultados.md`](docs/Project/auditoria-estado-resultados.md) | Auditoría del estado de resultados |
+| [`docs/Project/auditoria-logica-delete-deactivate.md`](docs/Project/auditoria-logica-delete-deactivate.md) | Auditoría de la lógica de eliminar vs. desactivar |
+| [`docs/Project/[FIXED] todo-list 08-09-26.md`](<docs/Project/[FIXED] todo-list 08-09-26.md>) | Lista de pendientes del 8 de septiembre (histórico, ya resuelta) |
+| [`backend/Readme.md`](backend/Readme.md) · [`frontend/README.md`](frontend/README.md) | Guías de cada aplicación |
+| [`CLAUDE.md`](CLAUDE.md) | Convenciones detalladas de arquitectura, temas, seguridad y documentación |
+| [`todo.md`](todo.md) | Estado del proyecto y pendientes |
+
+La documentación se escribe en español. Al agregar, mover o eliminar un archivo en `docs/`, actualiza esta tabla.
