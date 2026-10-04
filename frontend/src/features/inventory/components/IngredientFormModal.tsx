@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
+import { Modal } from '../../../shared/components/Modal'
 import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits, useInventoryById } from '../hooks/useInventory'
 import { getErrorMessage, getErrorStatus } from '../../../shared/utils/errors'
 import type { InventoryIngredient } from '../api/inventory.api'
@@ -50,19 +50,6 @@ export function IngredientFormModal({
       return () => clearTimeout(timer)
     }
   }, [editingIngredient, isOpen])
-
-  useEffect(() => {
-    if (isOpen) {
-      firstInputRef.current?.focus()
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose()
-        }
-      }
-      document.addEventListener('keydown', handleEscape)
-      return () => document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -137,25 +124,13 @@ export function IngredientFormModal({
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      role="presentation"
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabelledBy="ingredient-modal-title"
+      initialFocusRef={firstInputRef}
     >
-      <motion.div
-        className="w-full max-w-md rounded-lg shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ingredient-modal-title"
-      >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <h2 id="ingredient-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {editingIngredientId ? 'Editar Ingrediente' : 'Crear Ingrediente'}
@@ -163,14 +138,14 @@ export function IngredientFormModal({
 
           {/* Búsqueda de similares */}
           {showSimilarMatches && !editingIngredientId && name.length >= 2 && (
-            <div className="rounded-lg bg-blue-50 p-3">
-              <p className="mb-2 text-xs font-medium text-blue-900">Ingredientes similares encontrados:</p>
+            <div className="rounded-lg border border-[var(--color-info)]/40 bg-[var(--color-info)]/10 p-3">
+              <p className="mb-2 text-xs font-medium text-[var(--color-text-primary)]">Ingredientes similares encontrados:</p>
               {isSearching ? (
-                <p className="text-xs text-blue-700">Buscando...</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">Buscando...</p>
               ) : similarResults && similarResults.length > 0 ? (
                 <ul className="space-y-1">
                   {similarResults.map((ing) => (
-                    <li key={ing.id} className="flex items-center justify-between text-xs text-blue-700">
+                    <li key={ing.id} className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
                       <span>
                         {ing.name} ({ing.sku || 'sin SKU'})
                       </span>
@@ -180,7 +155,7 @@ export function IngredientFormModal({
                           handleClose()
                           onSuccess?.(ing)
                         }}
-                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-white hover:opacity-90"
                       >
                         Usar este
                       </button>
@@ -188,7 +163,7 @@ export function IngredientFormModal({
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-blue-700">No hay similares</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">No hay similares</p>
               )}
             </div>
           )}
@@ -305,7 +280,6 @@ export function IngredientFormModal({
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }

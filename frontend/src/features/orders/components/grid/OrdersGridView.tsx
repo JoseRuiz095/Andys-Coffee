@@ -1,15 +1,22 @@
 import { Order, OrderStatus } from '../../types/orders.types';
 import { OrderGridCard } from './OrderGridCard';
 import type { AuthUser } from '../../../auth/types/auth.types';
+import { useNow } from '../../hooks/useNow';
+import { sortOrdersByUrgency } from '../../utils/orderTimer';
 
 interface OrdersGridViewProps {
   orders: Order[];
   onStatusChange: (orderId: string, newStatus: OrderStatus) => void;
   currentUser: AuthUser | null;
+  updatingOrderId?: string | null;
 }
 
-export function OrdersGridView({ orders, onStatusChange, currentUser }: OrdersGridViewProps) {
-  const activeOrders = orders.filter(order => order.status !== 'completed' && order.status !== 'cancelled');
+export function OrdersGridView({ orders, onStatusChange, currentUser, updatingOrderId = null }: OrdersGridViewProps) {
+  const now = useNow();
+  const activeOrders = sortOrdersByUrgency(
+    orders.filter(order => order.status !== 'completed' && order.status !== 'cancelled'),
+    now,
+  );
 
   if (activeOrders.length === 0) {
     return (
@@ -25,8 +32,10 @@ export function OrdersGridView({ orders, onStatusChange, currentUser }: OrdersGr
         <OrderGridCard
           key={order.id}
           order={order}
+          now={now}
           onStatusChange={onStatusChange}
           currentUser={currentUser}
+          isUpdating={updatingOrderId === order.id}
         />
       ))}
     </div>

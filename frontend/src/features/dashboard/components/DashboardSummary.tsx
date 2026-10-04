@@ -6,7 +6,7 @@ interface DashboardSummaryProps {
   period: PeriodType;
 }
 
-function StatCard({ label, value, unit = '', trend }: { label: string; value: string | number; unit?: string; trend?: 'up' | 'down' }) {
+function StatCard({ label, value, unit = '', trend, hint }: { label: string; value: string | number; unit?: string; trend?: 'up' | 'down'; hint?: string }) {
   return (
     <div
       className="rounded-2xl border p-5 shadow-sm"
@@ -31,6 +31,11 @@ function StatCard({ label, value, unit = '', trend }: { label: string; value: st
           </span>
         )}
       </div>
+      {hint && (
+        <p className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -69,16 +74,22 @@ export function DashboardSummary({ period }: DashboardSummaryProps) {
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
       <StatCard label="Órdenes" value={data.ordersCount} />
       <StatCard label="Ingresos" value={formatCurrency(data.revenue)} />
-      <StatCard label="Gastos" value={formatCurrency(data.expenses)} />
+      <StatCard label="Gastos" value={formatCurrency(data.expenses)} hint="Gastos + compras recibidas" />
       <StatCard
         label="Utilidad"
         value={formatCurrency(data.profit)}
         trend={data.profit >= 0 ? 'up' : 'down'}
+        hint={
+          data.fixedExpenses > 0
+            ? `Distribuible: ${formatCurrency(data.distributableProfit)} (tras gastos fijos)`
+            : undefined
+        }
       />
       <StatCard
         label="Stock Bajo"
         value={data.lowStockProducts + data.outOfStockProducts}
         unit="ítems"
+        hint={data.outOfStockProducts > 0 ? `${data.outOfStockProducts} agotados` : undefined}
       />
     </div>
   );

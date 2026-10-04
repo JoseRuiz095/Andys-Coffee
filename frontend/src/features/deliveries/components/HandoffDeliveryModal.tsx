@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useHandoffDelivery } from '../hooks/useDeliveries';
 import type { PendingDelivery } from '../api/deliveries.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
@@ -17,7 +18,7 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
     handoffDelivery(delivery.id, { onSuccess: () => onClose() });
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
@@ -70,6 +71,7 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById('modal-root') ?? document.body,
   );
 }

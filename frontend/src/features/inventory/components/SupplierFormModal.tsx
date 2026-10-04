@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
+import { Modal } from '../../../shared/components/Modal'
 import { useCreateSupplier, useSearchSuppliers, useUpdateSupplier, useSupplierById } from '../hooks/usePurchases'
 import { getErrorMessage, getErrorStatus } from '../../../shared/utils/errors'
 import type { Supplier } from '../api/purchases.api'
@@ -47,19 +47,6 @@ export function SupplierFormModal({
       return () => clearTimeout(timer)
     }
   }, [editingSupplier, isOpen])
-
-  useEffect(() => {
-    if (isOpen) {
-      firstInputRef.current?.focus()
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose()
-        }
-      }
-      document.addEventListener('keydown', handleEscape)
-      return () => document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,25 +119,13 @@ export function SupplierFormModal({
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      role="presentation"
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabelledBy="supplier-modal-title"
+      initialFocusRef={firstInputRef}
     >
-      <motion.div
-        className="w-full max-w-md rounded-lg shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="supplier-modal-title"
-      >
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <h2 id="supplier-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {editingSupplierId ? 'Editar Proveedor' : 'Crear Proveedor'}
@@ -158,14 +133,14 @@ export function SupplierFormModal({
 
           {/* Búsqueda de similares */}
           {showSimilarMatches && !editingSupplierId && name.length >= 2 && (
-            <div className="rounded-lg bg-blue-50 p-3">
-              <p className="mb-2 text-xs font-medium text-blue-900">Proveedores similares encontrados:</p>
+            <div className="rounded-lg border border-[var(--color-info)]/40 bg-[var(--color-info)]/10 p-3">
+              <p className="mb-2 text-xs font-medium text-[var(--color-text-primary)]">Proveedores similares encontrados:</p>
               {isSearching ? (
-                <p className="text-xs text-blue-700">Buscando...</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">Buscando...</p>
               ) : similarResults && similarResults.length > 0 ? (
                 <ul className="space-y-1">
                   {similarResults.map((supplier) => (
-                    <li key={supplier.id} className="flex items-center justify-between text-xs text-blue-700">
+                    <li key={supplier.id} className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
                       <span>{supplier.name}</span>
                       <button
                         type="button"
@@ -173,7 +148,7 @@ export function SupplierFormModal({
                           handleClose()
                           onSuccess?.(supplier)
                         }}
-                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-white hover:opacity-90"
                       >
                         Usar este
                       </button>
@@ -181,7 +156,7 @@ export function SupplierFormModal({
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-blue-700">No hay similares</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">No hay similares</p>
               )}
             </div>
           )}
@@ -283,7 +258,6 @@ export function SupplierFormModal({
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }

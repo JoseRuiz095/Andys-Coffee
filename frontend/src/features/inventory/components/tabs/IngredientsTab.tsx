@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
+import { Modal } from '../../../../shared/components/Modal'
 import { Skeleton } from '../../../../shared/components/Skeleton'
 import { StatusBadge } from '../../../../shared/components/StatusBadge'
 import { PencilIcon } from '../../../../components/ui/PencilIcon'
@@ -451,19 +452,16 @@ export function IngredientsTab() {
 
       {/* Modal de Confirmación de Eliminación */}
       {deletingId && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <Modal
+          isOpen
+          onClose={() => {
+            if (!isDeleting) setDeletingId(null)
+          }}
+          ariaLabelledBy="delete-ingredient-title"
+          maxWidthClassName="max-w-sm"
         >
-          <motion.div
-            className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-          >
-            <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
+          <div className="p-6">
+            <h3 id="delete-ingredient-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
               ¿Eliminar ingrediente?
             </h3>
             <p className="mb-6 text-[var(--color-text-secondary)]">
@@ -485,8 +483,8 @@ export function IngredientsTab() {
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </Modal>
       )}
     </>
   )

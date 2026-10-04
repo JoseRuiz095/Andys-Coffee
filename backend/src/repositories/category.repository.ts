@@ -31,6 +31,15 @@ export const CategoryRepository = {
     return prisma.category.update({ where: { id }, data });
   },
 
+  /** Products and combos that still belong to the category. */
+  async countUsage(id: string) {
+    const [products, combos] = await Promise.all([
+      prisma.product.count({ where: { categoryId: id } }),
+      prisma.combo.count({ where: { categoryId: id } }),
+    ]);
+    return { products, combos };
+  },
+
   async delete(id: string) {
     return prisma.category.delete({ where: { id } });
   },

@@ -72,6 +72,8 @@ export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
         return 'var(--color-success)';
       case 'sale':
         return 'var(--color-primary)';
+      case 'sale_reversal':
+        return 'var(--color-warning)';
       case 'adjustment':
         return 'var(--color-info)';
       case 'exit':
@@ -87,6 +89,8 @@ export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
         return 'Compra';
       case 'sale':
         return 'Venta';
+      case 'sale_reversal':
+        return 'Venta cancelada';
       case 'adjustment':
         return 'Ajuste';
       case 'exit':

@@ -89,11 +89,13 @@ export function useProductDetail(id: string | undefined) {
   })
 }
 
-export function useCategories() {
+/** `includeInactive` is for the category manager; pickers and filters only need the active ones. */
+export function useCategories(options: { includeInactive?: boolean } = {}) {
+  const includeInactive = options.includeInactive ?? false
   const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => CategoryAPI.getAll(1, 100, false),
+    queryKey: ['categories', { includeInactive }],
+    queryFn: () => CategoryAPI.getAll(1, 100, includeInactive),
   })
 
   const createMutation = useMutation({
@@ -120,6 +122,14 @@ export function useCategories() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => CategoryAPI.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu'] })
+    },
+  })
+
   return {
     categories: data?.categories || [],
     loading: isLoading,
@@ -127,8 +137,10 @@ export function useCategories() {
     create: createMutation.mutate,
     update: updateMutation.mutate,
     setActive: setActiveMutation.mutate,
+    remove: deleteMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isLoadingActive: setActiveMutation.isPending,
+    isDeleting: deleteMutation.isPending,
   }
 }

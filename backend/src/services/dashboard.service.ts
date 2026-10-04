@@ -1,4 +1,6 @@
-import { dashboardRepository, getPeriodDateRange } from '../repositories/dashboard.repository';
+import { dashboardRepository, getPeriodDateRange, getPeriodDays } from '../repositories/dashboard.repository';
+import { incomeStatementService } from './income-statement.service';
+import { addCalendarDays, getTodayInZone } from '../utils/businessDate';
 import type {
   DashboardSummaryQuery,
   DashboardSalesQuery,
@@ -11,6 +13,27 @@ import type {
   DashboardRecentMovementsQuery,
 } from '../validators/dashboard.validator';
 
+type DashboardPeriod = DashboardSummaryQuery['period'];
+
+/** Business days of the period up to today (a chart never plots days that have not happened). */
+function listElapsedDays(period: DashboardPeriod, from?: string, to?: string): string[] {
+  const { firstDay, lastDay } = getPeriodDays(period, from, to);
+  const today = getTodayInZone();
+  const end = lastDay < today ? lastDay : today;
+
+  const days: string[] = [];
+  for (let cursor = firstDay; cursor <= end; cursor = addCalendarDays(cursor, 1)) {
+    days.push(cursor);
+  }
+  return days;
+}
+
+/** One row per day: days without sales get an explicit zero row instead of being skipped. */
+function fillMissingDays<T extends { date: string }>(days: string[], rows: T[], empty: (date: string) => T): T[] {
+  const byDate = new Map(rows.map((row) => [row.date, row]));
+  return days.map((date) => byDate.get(date) ?? empty(date));
+}
+
 export const dashboardService = {
   async getSummary(query: DashboardSummaryQuery) {
     const { from, to } = getPeriodDateRange(
@@ -19,13 +42,29 @@ export const dashboardService = {
       query.to,
     );
 
-    const summary = await dashboardRepository.getSummary(from, to, query.cashRegisterId);
+    // Money figures come from the income statement, so both screens always agree
+    // (frozen snapshots, received purchases counted as expenses, fixed operating expenses).
+    const days = listElapsedDays(query.period, query.from, query.to);
+    const [ordersCount, stock, totals] = await Promise.all([
+      dashboardRepository.countRecognizedOrders(from, to, query.cashRegisterId),
+      dashboardRepository.getStockCounts(),
+      days.length > 0
+        ? incomeStatementService.getRangeTotals(days[0], days[days.length - 1], query.cashRegisterId)
+        : null,
+    ]);
 
     return {
       period: query.period,
       from: from.toISOString(),
       to: to.toISOString(),
-      ...summary,
+      ordersCount,
+      revenue: totals?.ingresosTotales ?? 0,
+      expenses: totals?.gastos ?? 0,
+      profit: totals?.gananciaNeta ?? 0,
+      fixedExpenses: totals?.gastosOperativosFijos ?? 0,
+      distributableProfit: totals?.gananciaDistribuible ?? 0,
+      lowStockProducts: stock.lowStockCount,
+      outOfStockProducts: stock.outOfStockCount,
     };
   },
 
@@ -36,23 +75,25 @@ export const dashboardService = {
       query.to,
     );
 
-    const sales = await dashboardRepository.getSales(from, to, query.limit);
+    const topProducts = await dashboardRepository.getTopProducts(from, to, query.limit);
 
     return {
       period: query.period,
       from: from.toISOString(),
       to: to.toISOString(),
-      ...sales,
+      topProducts,
     };
   },
 
   async getInventory(query?: DashboardInventoryQuery) {
-    const inventory = await dashboardRepository.getInventory(query?.onlyLow ?? false);
+    const [inventory, stock] = await Promise.all([
+      dashboardRepository.getInventory(query?.onlyLow ?? false),
+      dashboardRepository.getStockCounts(),
+    ]);
 
     return {
       items: inventory,
-      lowStockCount: inventory.filter((i) => i.isLow).length,
-      outOfStockCount: inventory.filter((i) => i.isEmpty).length,
+      ...stock,
     };
   },
 
@@ -69,7 +110,11 @@ export const dashboardService = {
       period: query.period,
       from: from.toISOString(),
       to: to.toISOString(),
-      data: trend,
+      data: fillMissingDays(listElapsedDays(query.period, query.from, query.to), trend, (date) => ({
+        date,
+        ordersCount: 0,
+        revenue: 0,
+      })),
     };
   },
 
@@ -103,7 +148,12 @@ export const dashboardService = {
       period: query.period,
       from: from.toISOString(),
       to: to.toISOString(),
-      data: evolution,
+      data: fillMissingDays(listElapsedDays(query.period, query.from, query.to), evolution, (date) => ({
+        date,
+        cogs: 0,
+        revenue: 0,
+        marginPercent: 0,
+      })),
     };
   },
 

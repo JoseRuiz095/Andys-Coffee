@@ -40,10 +40,10 @@ describe('Dashboard Period Range (business timezone)', () => {
     assert.equal(range.to.toISOString(), '2026-09-16T06:00:00.000Z');
   });
 
-  it('week covers Monday to Sunday of the current week', () => {
+  it('week covers today and the 6 previous days', () => {
     const range = getPeriodDateRange('week');
-    assert.equal(range.from.toISOString(), '2026-09-14T06:00:00.000Z');
-    assert.equal(range.to.toISOString(), '2026-09-21T06:00:00.000Z');
+    assert.equal(range.from.toISOString(), '2026-09-10T06:00:00.000Z');
+    assert.equal(range.to.toISOString(), '2026-09-17T06:00:00.000Z');
   });
 
   it('month covers the whole current month', () => {

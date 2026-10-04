@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { Button } from '../../../shared/components/Button'
@@ -90,7 +89,7 @@ export function RoleFormModal({
     onClose()
   }, [onClose])
 
-  const modalContent = (
+  return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -166,9 +165,4 @@ export function RoleFormModal({
       </form>
     </Modal>
   )
-
-  const portalRoot = document.getElementById('modal-root')
-  if (!portalRoot) return modalContent
-
-  return createPortal(modalContent, portalRoot)
 }

@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { useProducts, useCategories, useProductDetail } from '../../../products/hooks/useProducts'
 import { authStore } from '../../../auth/store/auth.store'
 import { hasPermission } from '../../../auth/utils/permissions'
 import { Card } from '../../../../shared/components/Card'
 import { ConfirmDialog } from '../../../../shared/components/ConfirmDialog'
+import { Modal } from '../../../../shared/components/Modal'
 import { formatCurrency } from '../../../../shared/utils/formatCurrency'
 import { CategoryManagerModal } from '../CategoryManagerModal'
 import { sileo } from 'sileo'
@@ -395,29 +395,15 @@ export function ProductsTab() {
       )}
 
       {/* Create/Edit Modal */}
-      <AnimatePresence mode="wait">
-        {isCreateModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => {
-              setIsCreateModalOpen(false)
-              setEditingProduct(null)
-            }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="product-modal-title"
-              className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-lg p-6"
-              style={{ backgroundColor: 'var(--color-surface)' }}
-            >
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          setEditingProduct(null)
+        }}
+        ariaLabelledBy="product-modal-title"
+      >
+            <div className="space-y-4 p-6">
               <h2 id="product-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                 {editingProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
               </h2>
@@ -432,7 +418,7 @@ export function ProductsTab() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                     placeholder="Nombre del producto"
                   />
                 </div>
@@ -446,7 +432,7 @@ export function ProductsTab() {
                     value={formData.sku}
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                     placeholder="SKU único"
                   />
                 </div>
@@ -459,7 +445,7 @@ export function ProductsTab() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                     placeholder="Descripción del producto"
                     rows={3}
                   />
@@ -473,7 +459,7 @@ export function ProductsTab() {
                     value={formData.categoryId || ''}
                     onChange={(e) => setFormData({ ...formData, categoryId: e.target.value || undefined })}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                   >
                     <option value="">Sin categoría</option>
                     {categories.map((cat) => (
@@ -493,7 +479,7 @@ export function ProductsTab() {
                     accept="image/jpeg,image/png,image/webp"
                     onChange={(e) => setImageFile(e.target.files?.[0] || null)}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                   />
                   {imageFile && (
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
@@ -512,7 +498,7 @@ export function ProductsTab() {
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded-lg border px-4 py-2"
-                      style={{ borderColor: 'var(--color-border)' }}
+                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                       placeholder="0.00"
                       min="0"
                       step="0.01"
@@ -528,7 +514,7 @@ export function ProductsTab() {
                       value={formData.cost}
                       onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded-lg border px-4 py-2"
-                      style={{ borderColor: 'var(--color-border)' }}
+                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                       placeholder="0.00"
                       min="0"
                       step="0.01"
@@ -559,7 +545,7 @@ export function ProductsTab() {
                       value={formData.displayOrder ?? 0}
                       onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value, 10) || 0 })}
                       className="mt-1 w-full rounded-lg border px-4 py-2"
-                      style={{ borderColor: 'var(--color-border)' }}
+                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                       placeholder="0"
                       min="0"
                       step="1"
@@ -588,10 +574,8 @@ export function ProductsTab() {
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
 
       {/* Delete Confirmation */}
       <ConfirmDialog

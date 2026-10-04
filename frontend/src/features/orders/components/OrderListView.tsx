@@ -8,6 +8,7 @@ interface OrderListViewProps {
   orders: Order[]
   onStatusChange: (orderId: string, newStatus: OrderStatus) => void
   currentUser: AuthUser | null
+  updatingOrderId?: string | null
 }
 
 const statusTextMap: Record<OrderStatus, string> = {
@@ -26,7 +27,7 @@ const statusToneMap: Record<OrderStatus, 'warning' | 'info' | 'success' | 'neutr
   CANCELLED: 'danger',
 }
 
-export function OrderListView({ orders, onStatusChange, currentUser }: OrderListViewProps) {
+export function OrderListView({ orders, onStatusChange, currentUser, updatingOrderId = null }: OrderListViewProps) {
   if (orders.length === 0) {
     return (
       <div className="rounded-xl border p-8 text-center shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -84,6 +85,7 @@ export function OrderListView({ orders, onStatusChange, currentUser }: OrderList
                     order={order}
                     onStatusChange={(status) => onStatusChange(order.id, status)}
                     currentUser={currentUser}
+                    isUpdating={updatingOrderId === order.id}
                   />
                 </td>
               </tr>

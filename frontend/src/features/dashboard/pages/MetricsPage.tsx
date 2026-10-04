@@ -26,7 +26,7 @@ function MetricsOverview() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
             Dashboard Administrativo
@@ -58,7 +58,13 @@ function MetricsOverview() {
       {/* Resumen */}
       <section>
         <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Resumen del Día
+          {period === 'today'
+            ? 'Resumen de hoy'
+            : period === 'yesterday'
+            ? 'Resumen de ayer'
+            : period === 'week'
+            ? 'Resumen de los últimos 7 días'
+            : 'Resumen del mes'}
         </h2>
         <DashboardSummary period={period} />
       </section>

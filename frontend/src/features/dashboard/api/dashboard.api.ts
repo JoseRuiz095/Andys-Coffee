@@ -10,6 +10,11 @@ export interface DashboardSummary {
   revenue: number;
   expenses: number;
   profit: number;
+  /** Fixed operating expenses of the period (days with operation), as in the income statement. */
+  fixedExpenses: number;
+  /** profit - fixedExpenses: "Ganancia distribuible" in the income statement. */
+  distributableProfit: number;
+  /** Below minimum but still in stock (out-of-stock items are counted apart). */
   lowStockProducts: number;
   outOfStockProducts: number;
 }
@@ -18,11 +23,6 @@ export interface SalesData {
   period: string;
   from: string;
   to: string;
-  orders: Array<{
-    createdAt: string;
-    total: number;
-    _count: { items: number };
-  }>;
   topProducts: Array<{
     productId: string;
     productName: string;

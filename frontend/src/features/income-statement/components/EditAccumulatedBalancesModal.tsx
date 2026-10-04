@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { sileo } from 'sileo';
 import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
@@ -88,7 +89,7 @@ export function EditAccumulatedBalancesModal({
     color: 'var(--color-input-text)',
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
@@ -184,6 +185,7 @@ export function EditAccumulatedBalancesModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById('modal-root') ?? document.body,
   );
 }

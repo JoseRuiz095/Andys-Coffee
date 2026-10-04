@@ -89,4 +89,8 @@ export const CategoryAPI = {
     const { data } = await apiClient.patch<Category>(`/categories/${id}/active`, { isActive })
     return data
   },
+
+  async delete(id: string) {
+    await apiClient.delete(`/categories/${id}`)
+  },
 }

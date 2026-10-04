@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+
 interface ConfirmDialogProps {
   isOpen: boolean
   title: string
@@ -19,11 +22,32 @@ export function ConfirmDialog({
   onCancel,
   isDangerous = false,
 }: ConfirmDialogProps) {
+  const onCancelRef = useRef(onCancel)
+
+  useEffect(() => {
+    onCancelRef.current = onCancel
+  }, [onCancel])
+
+  useEffect(() => {
+    if (!isOpen) return
+    // Capture phase + stopPropagation: Escape closes only this dialog, not the
+    // Drawer or Modal it was opened from.
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onCancelRef.current()
+    }
+    document.addEventListener('keydown', handleEscape, true)
+    return () => document.removeEventListener('keydown', handleEscape, true)
+  }, [isOpen])
+
   if (!isOpen) return null
 
-  return (
+  // Layering: Drawer z-50 < Modal z-[60] < ConfirmDialog z-[70], so a confirmation
+  // opened from a drawer or a modal is always on top of it.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50"
       onClick={onCancel}
       role="presentation"
     >
@@ -87,6 +111,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById('modal-root') ?? document.body
   )
 }

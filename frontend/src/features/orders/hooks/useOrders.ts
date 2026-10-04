@@ -8,7 +8,9 @@ import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInval
 
 export function useOrders() {
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  // The board has no pagination: ask for the API maximum so an active order is not
+  // pushed out of view by newer ones.
+  const [limit] = useState(100);
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
@@ -17,6 +19,8 @@ export function useOrders() {
     queryKey: ['orders', { page, limit, status, search }],
     queryFn: () => getOrders(page, limit, status, search),
     placeholderData: (previous) => previous,
+    // Orders are created from the POS on other devices: poll so they show up on the board.
+    refetchInterval: 15_000,
   });
 
   const statusMutation = useMutation({
@@ -38,7 +42,14 @@ export function useOrders() {
     setPage,
     setStatus,
     setSearch,
-    updateStatus: (id: string, newStatus: OrderStatus) => statusMutation.mutate({ id, newStatus }),
+    updateStatus: (id: string, newStatus: OrderStatus) => {
+      // One request at a time: a second click while the first is in flight would be rejected
+      // by the server anyway (the transition is no longer valid).
+      if (statusMutation.isPending) return;
+      statusMutation.mutate({ id, newStatus });
+    },
+    /** Order whose status change is in flight (its buttons are disabled meanwhile). */
+    updatingOrderId: statusMutation.isPending ? statusMutation.variables?.id ?? null : null,
   };
 }
 

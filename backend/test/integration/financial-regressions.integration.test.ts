@@ -14,6 +14,7 @@ import { OrderService } from "../../src/services/order.service";
 import { UserService } from "../../src/services/user.service";
 import { ProductService } from "../../src/services/product.service";
 import { dashboardRepository } from "../../src/repositories/dashboard.repository";
+import { dashboardService } from "../../src/services/dashboard.service";
 import { getZonedCalendarDate, getZonedDayBoundaries } from "../../src/utils/businessDate";
 
 // Regression coverage for the Fase 6 fixes (docs/Project/auditoria-mvp-2026-09-22.md):
@@ -370,6 +371,28 @@ test("Dashboard: la tendencia de ventas agrupa por día de negocio (una venta a 
 
   const trend = await dashboardRepository.getSalesTrend(start, end);
   assert.equal(trend.length, 1);
-  assert.equal(new Date(trend[0].date).toISOString().slice(0, 10), DAY);
+  assert.equal(trend[0].date, DAY);
   assert.equal(trend[0].revenue, PRODUCT_PRICE);
+});
+
+test("Dashboard: el resumen coincide con el estado de resultados y la tendencia rellena los días sin ventas", { skip: !integrationEnabled }, async () => {
+  const FROM = "2026-02-10";
+  const TO = "2026-02-13";
+  const query = { period: "customRange" as const, from: FROM, to: TO };
+
+  const [summary, statement, trend, evolution] = await Promise.all([
+    dashboardService.getSummary(query),
+    incomeStatementService.getRangeFinancials(FROM, TO),
+    dashboardService.getSalesTrend(query),
+    dashboardService.getCostEvolution(query),
+  ]);
+
+  assert.equal(summary.revenue, statement.totals.ingresosTotales);
+  assert.equal(summary.expenses, statement.totals.gastos);
+  assert.equal(summary.profit, statement.totals.gananciaNeta);
+  assert.equal(summary.fixedExpenses, statement.totals.gastosOperativosFijos);
+
+  const days = ["2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13"];
+  assert.deepEqual(trend.data.map((row) => row.date), days);
+  assert.deepEqual(evolution.data.map((row) => row.date), days);
 });

@@ -9,12 +9,15 @@ interface OrderActionsProps {
   order: Order
   onStatusChange: (status: OrderStatus) => void
   currentUser: AuthUser | null
+  /** True while this order's status change is being sent: the buttons are locked. */
+  isUpdating?: boolean
 }
 
-const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar }: { onClick: () => void; className: string; children: React.ReactNode; ariaLabel?: string; bgVar: string; hoverVar: string }) => (
+const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disabled }: { onClick: () => void; className: string; children: React.ReactNode; ariaLabel?: string; bgVar: string; hoverVar: string; disabled?: boolean }) => (
   <button
     onClick={onClick}
-    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-white ${className}`}
+    disabled={disabled}
+    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-white disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     style={{ backgroundColor: `var(${bgVar})` }}
     onMouseEnter={(e) => {
       e.currentTarget.style.backgroundColor = `var(${hoverVar})`
@@ -29,7 +32,7 @@ const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar }: { 
   </button>
 )
 
-export function OrderActions({ order, onStatusChange, currentUser }: OrderActionsProps) {
+export function OrderActions({ order, onStatusChange, currentUser, isUpdating = false }: OrderActionsProps) {
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
   useTheme();
@@ -41,6 +44,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
           <Button
             onClick={() => onStatusChange('PREPARING')}
             className="text-xs px-2 py-1"
+            disabled={isUpdating}
             bgVar="--color-primary"
             hoverVar="--color-primary-hover"
             ariaLabel={`Marcar orden #${order.orderNumber} como Preparando`}
@@ -51,6 +55,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
             <Button
               onClick={() => onStatusChange('CANCELLED')}
               className="text-xs px-2 py-1"
+              disabled={isUpdating}
               bgVar="--color-danger"
               hoverVar="--color-danger-hover"
               ariaLabel={`Cancelar orden #${order.orderNumber}`}
@@ -66,6 +71,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
           <Button
             onClick={() => onStatusChange('READY')}
             className="text-xs px-2 py-1"
+            disabled={isUpdating}
             bgVar="--color-success"
             hoverVar="--color-success-hover"
             ariaLabel={`Marcar orden #${order.orderNumber} como Lista`}
@@ -76,6 +82,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
             <Button
               onClick={() => onStatusChange('CANCELLED')}
               className="text-xs px-2 py-1"
+              disabled={isUpdating}
               bgVar="--color-danger"
               hoverVar="--color-danger-hover"
               ariaLabel={`Cancelar orden #${order.orderNumber}`}
@@ -91,6 +98,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
           <Button
             onClick={() => onStatusChange('COMPLETED')}
             className="text-xs px-2 py-1"
+            disabled={isUpdating}
             bgVar="--color-success"
             hoverVar="--color-success-hover"
             ariaLabel={`Entregar orden #${order.orderNumber}`}
@@ -101,6 +109,7 @@ export function OrderActions({ order, onStatusChange, currentUser }: OrderAction
             <Button
               onClick={() => onStatusChange('CANCELLED')}
               className="text-xs px-2 py-1"
+              disabled={isUpdating}
               bgVar="--color-danger"
               hoverVar="--color-danger-hover"
               ariaLabel={`Cancelar orden #${order.orderNumber}`}

@@ -5,14 +5,48 @@ import {
   addCalendarDays,
   getZonedDayBoundaries,
   getMonthRange,
-  getWeekRange,
 } from '../utils/businessDate';
 import { CASH_TIMEZONE } from '../config/app';
-import { recognizedOrderStatus, recognizedSaleOrderWhere } from '../utils/revenueRecognition';
+import { recognizedSaleOrderWhere } from '../utils/revenueRecognition';
 
 interface DateRange {
   from: Date;
   to: Date;
+}
+
+type DashboardPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'customRange';
+
+/** First and last business calendar day (YYYY-MM-DD, CASH_TIMEZONE) covered by a period. */
+export function getPeriodDays(
+  period: DashboardPeriod,
+  customFrom?: string,
+  customTo?: string,
+): { firstDay: string; lastDay: string } {
+  const today = getTodayInZone(CASH_TIMEZONE);
+
+  switch (period) {
+    case 'today':
+      return { firstDay: today, lastDay: today };
+    case 'yesterday': {
+      const yesterday = addCalendarDays(today, -1);
+      return { firstDay: yesterday, lastDay: yesterday };
+    }
+    case 'week':
+      // Rolling window: today and the 6 previous days (the UI labels it "7 días").
+      return { firstDay: addCalendarDays(today, -6), lastDay: today };
+    case 'month': {
+      const { monthStart, monthEnd } = getMonthRange(today.slice(0, 7)); // YYYY-MM
+      return { firstDay: monthStart, lastDay: monthEnd };
+    }
+    case 'customRange': {
+      if (!customFrom || !customTo) {
+        throw new Error('customFrom and customTo required for customRange');
+      }
+      return { firstDay: customFrom, lastDay: customTo };
+    }
+    default:
+      throw new Error(`Unknown period: ${period}`);
+  }
 }
 
 /**
@@ -20,116 +54,50 @@ interface DateRange {
  * This ensures Dashboard and IncomeStatement use the same business day definition
  */
 export function getPeriodDateRange(
-  period: 'today' | 'yesterday' | 'week' | 'month' | 'customRange',
+  period: DashboardPeriod,
   customFrom?: string,
   customTo?: string,
 ): DateRange {
-  const today = getTodayInZone(CASH_TIMEZONE);
+  const { firstDay, lastDay } = getPeriodDays(period, customFrom, customTo);
+  return {
+    from: getZonedDayBoundaries(firstDay, CASH_TIMEZONE).start,
+    to: getZonedDayBoundaries(lastDay, CASH_TIMEZONE).end,
+  };
+}
 
-  switch (period) {
-    case 'today': {
-      const { start, end } = getZonedDayBoundaries(today, CASH_TIMEZONE);
-      return { from: start, to: end };
-    }
-    case 'yesterday': {
-      const yesterday = addCalendarDays(today, -1);
-      const { start, end } = getZonedDayBoundaries(yesterday, CASH_TIMEZONE);
-      return { from: start, to: end };
-    }
-    case 'week': {
-      const { weekStart, weekEnd } = getWeekRange(today);
-      const startBoundary = getZonedDayBoundaries(weekStart, CASH_TIMEZONE);
-      const endBoundary = getZonedDayBoundaries(weekEnd, CASH_TIMEZONE);
-      return { from: startBoundary.start, to: endBoundary.end };
-    }
-    case 'month': {
-      const { monthStart, monthEnd } = getMonthRange(today.slice(0, 7)); // YYYY-MM
-      const startBoundary = getZonedDayBoundaries(monthStart, CASH_TIMEZONE);
-      const endBoundary = getZonedDayBoundaries(monthEnd, CASH_TIMEZONE);
-      return { from: startBoundary.start, to: endBoundary.end };
-    }
-    case 'customRange': {
-      if (!customFrom || !customTo) {
-        throw new Error('customFrom and customTo required for customRange');
-      }
-      const fromBoundary = getZonedDayBoundaries(customFrom, CASH_TIMEZONE);
-      const toBoundary = getZonedDayBoundaries(customTo, CASH_TIMEZONE);
-      return { from: fromBoundary.start, to: toBoundary.end };
-    }
-    default:
-      throw new Error(`Unknown period: ${period}`);
-  }
+function toDecimal(value: Prisma.Decimal | number | string | null): Prisma.Decimal {
+  if (value === null) return new Prisma.Decimal(0);
+  return value instanceof Prisma.Decimal ? value : new Prisma.Decimal(String(value));
 }
 
 export const dashboardRepository = {
-  async getSummary(from: Date, to: Date, cashRegisterId?: string) {
-    const whereOrder: Prisma.OrderWhereInput = {
-      ...recognizedSaleOrderWhere,
-      createdAt: { gte: from, lt: to },
-      ...(cashRegisterId && { cashSession: { cashRegisterId } }),
-    };
-
-    const whereExpense: Prisma.ExpenseWhereInput = {
-      expenseDate: { gte: from, lt: to },
-      ...(cashRegisterId && { cashSession: { cashRegisterId } }),
-    };
-
-    const whereIngredient: Prisma.IngredientWhereInput = {
-      isActive: true,
-    };
-
-    const [totalOrders, totalRevenue, totalExpenses, lowStockData, outOfStockCount] = await Promise.all([
-      prisma.order.count({ where: whereOrder }),
-      prisma.payment.aggregate({
-        where: { status: 'paid', order: { status: recognizedOrderStatus, createdAt: { gte: from, lt: to } } },
-        _sum: { amount: true },
-      }),
-      prisma.expense.aggregate({
-        where: whereExpense,
-        _sum: { amount: true },
-      }),
-      prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*) as count FROM ingredients
-        WHERE "isActive" = true AND "currentStock" <= "minimumStock"
-      `,
-      prisma.ingredient.count({
-        where: {
-          ...whereIngredient,
-          currentStock: { lte: 0 },
-        },
-      }),
-    ]);
-
-    const lowStockCount = Number(lowStockData[0]?.count ?? 0);
-
-    const revenue = totalRevenue._sum.amount || new Prisma.Decimal(0);
-    const expenses = totalExpenses._sum.amount || new Prisma.Decimal(0);
-    const profit = revenue.minus(expenses);
-
-    return {
-      ordersCount: totalOrders,
-      revenue: revenue.toNumber(),
-      expenses: expenses.toNumber(),
-      profit: profit.toNumber(),
-      lowStockProducts: lowStockCount,
-      outOfStockProducts: outOfStockCount,
-    };
-  },
-
-  async getSales(from: Date, to: Date, limit: number) {
-    const orders = await prisma.order.findMany({
+  async countRecognizedOrders(from: Date, to: Date, cashRegisterId?: string) {
+    return prisma.order.count({
       where: {
         ...recognizedSaleOrderWhere,
         createdAt: { gte: from, lt: to },
+        ...(cashRegisterId && { cashSession: { cashRegisterId } }),
       },
-      select: {
-        createdAt: true,
-        total: true,
-        _count: { select: { items: true } },
-      },
-      orderBy: { createdAt: 'desc' },
     });
+  },
 
+  /** Active ingredients at or below their minimum, split so an out-of-stock one is not counted twice. */
+  async getStockCounts() {
+    const rows = await prisma.$queryRaw<Array<{ low: bigint; empty: bigint }>>`
+      SELECT
+        COUNT(*) FILTER (WHERE "currentStock" > 0 AND "currentStock" <= "minimumStock") as low,
+        COUNT(*) FILTER (WHERE "currentStock" <= 0) as empty
+      FROM ingredients
+      WHERE "isActive" = true
+    `;
+
+    return {
+      lowStockCount: Number(rows[0]?.low ?? 0),
+      outOfStockCount: Number(rows[0]?.empty ?? 0),
+    };
+  },
+
+  async getTopProducts(from: Date, to: Date, limit: number) {
     const topProducts = await prisma.orderItem.groupBy({
       by: ['productId'],
       where: {
@@ -150,24 +118,19 @@ export const dashboardRepository = {
       take: limit,
     });
 
-    const productIds = topProducts.map((p) => p.productId).filter((id) => id !== null);
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: topProducts.map((p) => p.productId) } },
       select: { id: true, name: true },
     });
 
     const productMap = new Map(products.map((p) => [p.id, p.name]));
 
-    const topProductsWithNames = topProducts
-      .map((p) => ({
-        productId: p.productId,
-        productName: productMap.get(p.productId) || 'Unknown',
-        quantity: p._sum.quantity?.toNumber() || 0,
-        revenue: p._sum.subtotal?.toNumber() || 0,
-      }))
-      .slice(0, limit);
-
-    return { orders, topProducts: topProductsWithNames };
+    return topProducts.map((p) => ({
+      productId: p.productId,
+      productName: productMap.get(p.productId) || 'Unknown',
+      quantity: p._sum.quantity?.toNumber() || 0,
+      revenue: p._sum.subtotal?.toNumber() || 0,
+    }));
   },
 
   async getInventory(onlyLow: boolean = false) {
@@ -221,10 +184,11 @@ export const dashboardRepository = {
   },
 
   async getSalesTrend(from: Date, to: Date) {
-    const data = await prisma.$queryRaw<Array<{ date: Date; ordersCount: bigint; revenue: Prisma.Decimal }>>`
+    const data = await prisma.$queryRaw<Array<{ date: string; ordersCount: bigint; revenue: Prisma.Decimal }>>`
       SELECT
         -- Business day (CASH_TIMEZONE), not the UTC day: late sales stay on their own day.
-        (o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date as date,
+        -- Returned as text so no client shifts it to the previous day.
+        to_char((o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date, 'YYYY-MM-DD') as date,
         COUNT(DISTINCT o.id)::bigint as "ordersCount",
         COALESCE(SUM(p.amount), 0) as revenue
       FROM orders o
@@ -238,49 +202,53 @@ export const dashboardRepository = {
     return data.map((row) => ({
       date: row.date,
       ordersCount: Number(row.ordersCount),
-      revenue: row.revenue instanceof Prisma.Decimal ? row.revenue.toNumber() : Number(row.revenue),
+      revenue: toDecimal(row.revenue).toNumber(),
     }));
   },
 
   async getProductCosts(from: Date, to: Date, limit: number) {
-    const data = await prisma.orderItem.groupBy({
-      by: ['productId'],
-      where: {
-        order: {
-          ...recognizedSaleOrderWhere,
-          createdAt: { gte: from, lt: to },
-        },
-      },
-      _sum: {
-        costSnapshot: true,
-        subtotal: true,
-        quantity: true,
-      },
-      orderBy: {
-        _sum: {
-          subtotal: 'desc',
-        },
-      },
-      take: limit,
-    });
+    // A line's revenue and cost include its extras, like the income statement's COGS (L-06).
+    const data = await prisma.$queryRaw<Array<{
+      productId: string;
+      quantity: Prisma.Decimal | number | string;
+      revenue: Prisma.Decimal | number | string;
+      cogs: Prisma.Decimal | number | string;
+    }>>`
+      SELECT
+        oi."productId",
+        SUM(oi.quantity) as quantity,
+        SUM(oi.subtotal + COALESCE(ex.subtotal, 0)) as revenue,
+        SUM(COALESCE(oi."costSnapshot", 0) + COALESCE(ex.cost, 0)) as cogs
+      FROM order_items oi
+      JOIN orders o ON oi."orderId" = o.id
+      LEFT JOIN LATERAL (
+        SELECT SUM(e.subtotal) as subtotal, SUM(COALESCE(e."costSnapshot", 0)) as cost
+        FROM order_item_extras e
+        WHERE e."orderItemId" = oi.id
+      ) ex ON true
+      WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+        AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
+      GROUP BY oi."productId"
+      ORDER BY 3 DESC
+      LIMIT ${limit}
+    `;
 
-    const productIds = data.map((p) => p.productId).filter((id) => id !== null);
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: data.map((p) => p.productId) } },
       select: { id: true, name: true },
     });
 
     const productMap = new Map(products.map((p) => [p.id, p.name]));
 
     return data.map((row) => {
-      const cogs = row._sum.costSnapshot || new Prisma.Decimal(0);
-      const revenue = row._sum.subtotal || new Prisma.Decimal(0);
+      const cogs = toDecimal(row.cogs);
+      const revenue = toDecimal(row.revenue);
       const marginPercent = revenue.greaterThan(0) ? revenue.minus(cogs).dividedBy(revenue).times(100).toNumber() : 0;
 
       return {
         productId: row.productId,
         productName: productMap.get(row.productId) || 'Unknown',
-        quantity: row._sum.quantity?.toNumber() || 0,
+        quantity: toDecimal(row.quantity).toNumber(),
         revenue: revenue.toNumber(),
         cogs: cogs.toNumber(),
         marginPercent,
@@ -289,14 +257,19 @@ export const dashboardRepository = {
   },
 
   async getCostEvolution(from: Date, to: Date) {
-    const data = await prisma.$queryRaw<Array<{ date: Date; cogs: Prisma.Decimal | number | string; revenue: Prisma.Decimal | number | string }>>`
+    const data = await prisma.$queryRaw<Array<{ date: string; cogs: Prisma.Decimal | number | string; revenue: Prisma.Decimal | number | string }>>`
       SELECT
         -- Business day (CASH_TIMEZONE), not the UTC day: late sales stay on their own day.
-        (o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date as date,
-        COALESCE(SUM(oi."costSnapshot"), 0) as cogs,
-        COALESCE(SUM(oi.subtotal), 0) as revenue
+        to_char((o."createdAt" AT TIME ZONE ${CASH_TIMEZONE})::date, 'YYYY-MM-DD') as date,
+        COALESCE(SUM(COALESCE(oi."costSnapshot", 0) + COALESCE(ex.cost, 0)), 0) as cogs,
+        COALESCE(SUM(oi.subtotal + COALESCE(ex.subtotal, 0)), 0) as revenue
       FROM order_items oi
       JOIN orders o ON oi."orderId" = o.id
+      LEFT JOIN LATERAL (
+        SELECT SUM(e.subtotal) as subtotal, SUM(COALESCE(e."costSnapshot", 0)) as cost
+        FROM order_item_extras e
+        WHERE e."orderItemId" = oi.id
+      ) ex ON true
       WHERE o.status <> 'cancelled' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
         AND EXISTS (SELECT 1 FROM payments pp WHERE pp."orderId" = o.id AND pp.status = 'paid')
       GROUP BY 1
@@ -304,8 +277,8 @@ export const dashboardRepository = {
     `;
 
     return data.map((row) => {
-      const cogsDecimal = row.cogs instanceof Prisma.Decimal ? row.cogs : new Prisma.Decimal(String(row.cogs));
-      const revenueDecimal = row.revenue instanceof Prisma.Decimal ? row.revenue : new Prisma.Decimal(String(row.revenue));
+      const cogsDecimal = toDecimal(row.cogs);
+      const revenueDecimal = toDecimal(row.revenue);
       const marginPercent = revenueDecimal.greaterThan(0)
         ? revenueDecimal.minus(cogsDecimal).dividedBy(revenueDecimal).times(100).toNumber()
         : 0;
@@ -320,25 +293,34 @@ export const dashboardRepository = {
   },
 
   async getExpensesByCategory(from: Date, to: Date) {
-    const data = await prisma.expense.groupBy({
-      by: ['category'],
-      where: {
-        expenseDate: { gte: from, lt: to },
-      },
-      _sum: {
-        amount: true,
-      },
-      orderBy: {
-        _sum: {
-          amount: 'desc',
+    const [data, purchases] = await Promise.all([
+      prisma.expense.groupBy({
+        by: ['category'],
+        where: {
+          expenseDate: { gte: from, lt: to },
         },
-      },
-    });
+        _sum: {
+          amount: true,
+        },
+      }),
+      // Received purchases are expenses in the income statement (R-03), so they get their own bar.
+      prisma.purchase.aggregate({
+        where: { status: 'received', purchasedAt: { gte: from, lt: to } },
+        _sum: { total: true },
+      }),
+    ]);
 
-    return data.map((row) => ({
+    const categories: Array<{ category: string; amount: number }> = data.map((row) => ({
       category: row.category,
-      amount: (row._sum.amount || new Prisma.Decimal(0)).toNumber(),
+      amount: toDecimal(row._sum.amount).toNumber(),
     }));
+
+    const purchasesTotal = toDecimal(purchases._sum.total).toNumber();
+    if (purchasesTotal > 0) {
+      categories.push({ category: 'compras', amount: purchasesTotal });
+    }
+
+    return categories.sort((a, b) => b.amount - a.amount);
   },
 
   async getUpcomingPurchases(limit: number) {

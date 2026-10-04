@@ -434,7 +434,12 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
  * IMPORTANT: Final snapshots are frozen and reused — they are NOT recomputed with
  * live config (distribution %, fixed-expense rate) to preserve historical accuracy.
  */
-async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): Promise<DayFinancialSummary[]> {
+async function computeDaySequence(
+  dateStrs: string[],
+  cashRegisterId?: string,
+  options: { persistSnapshots?: boolean } = {},
+): Promise<DayFinancialSummary[]> {
+  const persistSnapshots = options.persistSnapshots ?? true;
   if (dateStrs.length === 0) return [];
 
   const { start } = getZonedDayBoundaries(dateStrs[0]);
@@ -494,7 +499,7 @@ async function computeDaySequence(dateStrs: string[], cashRegisterId?: string): 
       };
 
       const isFinal = dateStr < today && (core.sessionsCount === 0 || core.openSessionsCount === 0);
-      if (isFinal) {
+      if (isFinal && persistSnapshots) {
         // Write-through cache: only persisted once a day is truly closed out, so a snapshot is never
         // written for "today" or for a day that still has an open cash session.
         await incomeStatementRepository.upsertSnapshot(dateStr, {
@@ -686,6 +691,20 @@ export const incomeStatementService = {
     }
     const daySummaries = await computeDaySequence(days, cashRegisterId);
     return { from, to, days: daySummaries, totals: computeTotals(daySummaries) };
+  },
+
+  /**
+   * Period totals for read-only consumers (the dashboard summary): same numbers as
+   * getRangeFinancials, but never writes a snapshot.
+   */
+  async getRangeTotals(from: string, to: string, cashRegisterId?: string): Promise<PeriodTotals> {
+    const days: string[] = [];
+    let cursor = from;
+    while (cursor <= to) {
+      days.push(cursor);
+      cursor = addCalendarDays(cursor, 1);
+    }
+    return computeTotals(await computeDaySequence(days, cashRegisterId, { persistSnapshots: false }));
   },
 
   async getFixedExpenseSettings() {

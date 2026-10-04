@@ -99,6 +99,12 @@ a {
   min-width: 1024px;
 }
 
+/* Toasts sit above every overlay (Drawer z-50, Modal z-60, ConfirmDialog z-70): the library
+   default (z-50) left them hidden behind an open drawer or modal backdrop. */
+[data-sileo-viewport] {
+  z-index: 100 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

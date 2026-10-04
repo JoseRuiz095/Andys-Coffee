@@ -21,6 +21,7 @@ export function OrdersPage() {
     loading,
     error,
     updateStatus,
+    updatingOrderId,
     setSearch,
     setStatus,
   } = useOrders();
@@ -138,9 +139,9 @@ export function OrdersPage() {
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : viewMode === 'grid' ? (
-        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} />
+        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} updatingOrderId={updatingOrderId} />
       ) : (
-        <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} />
+        <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} updatingOrderId={updatingOrderId} />
       )}
     </div>
   );

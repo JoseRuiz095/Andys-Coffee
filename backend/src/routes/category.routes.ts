@@ -15,5 +15,6 @@ router.get('/:id', CategoryController.getById);
 router.post('/', requireAuth, checkPermission('categories.create'), validate(createCategorySchema), CategoryController.create);
 router.patch('/:id', requireAuth, checkPermission('categories.update'), validate(updateCategorySchema), CategoryController.update);
 router.patch('/:id/active', requireAuth, checkPermission('categories.update'), validate(setActiveSchema), CategoryController.setActive);
+router.delete('/:id', requireAuth, checkPermission('categories.delete'), CategoryController.delete);
 
 export default router;

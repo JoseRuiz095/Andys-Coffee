@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Modal } from '../../../shared/components/Modal'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { PencilIcon } from '../../../components/ui/PencilIcon'
@@ -690,21 +691,15 @@ export function InventoryAddEntry() {
         </div>
 
         {/* Confirmation Modal */}
-        <AnimatePresence>
-          {isConfirming && (
-            <motion.div
-              className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="w-full rounded-t-lg bg-[var(--color-surface)] p-6 sm:w-auto sm:rounded-lg"
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-              >
-                <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
+        <Modal
+          isOpen={isConfirming}
+          onClose={() => {
+            if (!isCreating) setIsConfirming(false)
+          }}
+          ariaLabelledBy="confirm-purchase-title"
+        >
+              <div className="p-6">
+                <h3 id="confirm-purchase-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
                   Confirmar creación de compra
                 </h3>
                 <p className="mb-6 text-[var(--color-text-secondary)]">
@@ -727,10 +722,8 @@ export function InventoryAddEntry() {
                     {isCreating ? 'Creando...' : 'Confirmar'}
                   </button>
                 </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </div>
+        </Modal>
 
         {/* Ingredient Creation Modal */}
         <IngredientFormModal

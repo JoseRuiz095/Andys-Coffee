@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Modal } from '../../../shared/components/Modal'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { PencilIcon } from '../../../components/ui/PencilIcon'
@@ -783,22 +784,15 @@ export function InventoryPhysical() {
       </div>
 
       {/* Confirmation Dialog */}
-      <AnimatePresence>
-        {isConfirmingApply && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="w-full rounded-t-lg bg-[var(--color-surface)] p-6 sm:w-auto sm:rounded-lg"
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <h3 className="mb-2 text-lg font-semibold">Confirmar aplicación de ajustes</h3>
+      <Modal
+        isOpen={isConfirmingApply}
+        onClose={() => {
+          if (!isApplying) setIsConfirmingApply(false)
+        }}
+        ariaLabelledBy="confirm-apply-title"
+      >
+            <div className="p-6">
+              <h3 id="confirm-apply-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">Confirmar aplicación de ajustes</h3>
               <p className="mb-6 text-[var(--color-text-secondary)]">
                 Esto aplicará {count.items.filter((i) => i.difference.toString() !== '0').length}{' '}
                 ajustes al inventario. ¿Continuar?
@@ -819,27 +813,20 @@ export function InventoryPhysical() {
                   {isApplying ? 'Aplicando...' : 'Confirmar'}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
 
       {/* Confirmar eliminación de item */}
-      <AnimatePresence>
-        {deletingItemId && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-            >
-              <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Quitar item del conteo?</h3>
+      <Modal
+        isOpen={Boolean(deletingItemId)}
+        onClose={() => {
+          if (!isRemovingItem) setDeletingItemId(null)
+        }}
+        ariaLabelledBy="remove-count-item-title"
+        maxWidthClassName="max-w-sm"
+      >
+            <div className="p-6">
+              <h3 id="remove-count-item-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Quitar item del conteo?</h3>
               <p className="mb-6 text-[var(--color-text-secondary)]">
                 Se eliminará este ingrediente del conteo. Podrás volver a agregarlo si lo necesitas.
               </p>
@@ -859,27 +846,20 @@ export function InventoryPhysical() {
                   {isRemovingItem ? 'Eliminando...' : 'Eliminar'}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
 
       {/* Confirmar cancelación del conteo */}
-      <AnimatePresence>
-        {isConfirmingDeleteCount && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-            >
-              <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Cancelar este conteo?</h3>
+      <Modal
+        isOpen={isConfirmingDeleteCount}
+        onClose={() => {
+          if (!isDeletingCount) setIsConfirmingDeleteCount(false)
+        }}
+        ariaLabelledBy="delete-count-title"
+        maxWidthClassName="max-w-sm"
+      >
+            <div className="p-6">
+              <h3 id="delete-count-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">¿Cancelar este conteo?</h3>
               <p className="mb-6 text-[var(--color-text-secondary)]">
                 Esta acción es irreversible. Se eliminará el conteo y todos sus items registrados; el inventario no se ve afectado ya que aún no se aplicó.
               </p>
@@ -899,10 +879,8 @@ export function InventoryPhysical() {
                   {isDeletingCount ? 'Eliminando...' : 'Eliminar conteo'}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+      </Modal>
     </motion.div>
   )
 }

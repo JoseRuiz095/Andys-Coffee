@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { Input } from '../../../shared/components/Input'
@@ -153,7 +152,7 @@ export function UserFormModal({
 
   const passwordStrength = !editingUserId ? getPasswordStrength(password) : { level: 0, label: '', colorVar: '' }
 
-  const modalContent = (
+  return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -267,9 +266,4 @@ export function UserFormModal({
       </form>
     </Modal>
   )
-
-  const portalRoot = document.getElementById('modal-root')
-  if (!portalRoot) return modalContent
-
-  return createPortal(modalContent, portalRoot)
 }

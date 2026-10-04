@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 
 interface ModalProps {
@@ -35,11 +36,14 @@ export function Modal({
 
   useEffect(() => {
     if (!isOpen) return
+    // Capture phase + stopPropagation: Escape closes only this modal, not a Drawer under it.
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onCloseRef.current()
     }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleEscape, true)
+    return () => document.removeEventListener('keydown', handleEscape, true)
   }, [isOpen])
 
   useEffect(() => {
@@ -63,14 +67,16 @@ export function Modal({
 
   if (!isOpen) return null
 
-  return (
+  // Rendered via portal: a transformed ancestor (framer-motion page transitions)
+  // would otherwise become the containing block of this fixed overlay.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
       role="presentation"
     >
       <motion.div
-        className={`w-full rounded-lg shadow-lg ${maxWidthClassName}`}
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-lg shadow-lg ${maxWidthClassName}`}
         style={{ backgroundColor: 'var(--color-surface)' }}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -82,6 +88,7 @@ export function Modal({
       >
         {children}
       </motion.div>
-    </div>
+    </div>,
+    document.getElementById('modal-root') ?? document.body
   )
 }

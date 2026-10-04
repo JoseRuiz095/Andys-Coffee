@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
+import { Modal } from '../../../../shared/components/Modal'
 import { Skeleton } from '../../../../shared/components/Skeleton'
+import { StatusBadge } from '../../../../shared/components/StatusBadge'
 import { PencilIcon } from '../../../../components/ui/PencilIcon'
 import { XIcon } from '../../../../components/ui/XIcon'
 import { PlusIcon } from '../../../../components/ui/PlusIcon'
@@ -134,8 +136,8 @@ export function SuppliersTab() {
               setEditingId(null)
               setIsModalOpen(true)
             }}
-            className="rounded-lg px-4 py-2 text-white font-medium flex items-center gap-2 transition-colors"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className="rounded-lg px-4 py-2 font-medium flex items-center gap-2 transition-colors"
+            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'
             }}
@@ -164,7 +166,7 @@ export function SuppliersTab() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
+          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-input-text)] px-4 py-2 outline-none transition placeholder:text-[var(--color-text-secondary)] focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
         />
 
         <div>
@@ -175,7 +177,7 @@ export function SuppliersTab() {
               setStatusFilter(e.target.value as StatusFilter)
               setPage(1)
             }}
-            className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20 md:max-w-xs"
+            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-input-text)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20 md:max-w-xs"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -210,7 +212,7 @@ export function SuppliersTab() {
                   <th className="px-6 py-3 text-right font-semibold text-[var(--color-text-primary)]">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-[var(--color-border)]">
                 {data?.data && data.data.length > 0 ? (
                   data.data.map((supplier) => (
                     <tr key={supplier.id} className="hover:bg-[var(--color-surface-hover)]">
@@ -219,15 +221,9 @@ export function SuppliersTab() {
                       <td className="px-6 py-4 text-[var(--color-text-secondary)]">{supplier.phone || '—'}</td>
                       <td className="px-6 py-4 text-[var(--color-text-secondary)] text-sm">{supplier.address || '—'}</td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            supplier.isActive
-                              ? 'bg-green-100 text-[var(--color-success)]'
-                              : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)]'
-                          }`}
-                        >
+                        <StatusBadge tone={supplier.isActive ? 'success' : 'neutral'}>
                           {supplier.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
+                        </StatusBadge>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -235,7 +231,7 @@ export function SuppliersTab() {
                             <>
                               <button
                                 onClick={() => handleEditClick(supplier.id)}
-                                className="p-1 text-[var(--color-text-secondary)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 rounded transition-colors"
                                 title="Editar"
                               >
                                 <PencilIcon size={16} />
@@ -247,8 +243,8 @@ export function SuppliersTab() {
                                 disabled={isTogglingActive}
                                 className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
                                   supplier.isActive
-                                    ? 'text-yellow-600 hover:bg-yellow-50 bg-yellow-50'
-                                    : 'text-[var(--color-success)] hover:bg-green-50 bg-green-50'
+                                    ? 'text-[var(--color-warning)] bg-[var(--color-warning)]/10 hover:bg-[var(--color-warning)]/20'
+                                    : 'text-[var(--color-success)] bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/20'
                                 } disabled:opacity-50`}
                                 title={supplier.isActive ? 'Desactivar' : 'Activar'}
                               >
@@ -260,7 +256,7 @@ export function SuppliersTab() {
                             <button
                               onClick={() => handleDelete(supplier.id)}
                               disabled={isDeleting || deletingId === supplier.id}
-                              className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 rounded transition-colors disabled:opacity-50"
                               title="Eliminar"
                             >
                               <XIcon size={16} />
@@ -312,7 +308,7 @@ export function SuppliersTab() {
                     onClick={() => setPage(pageNum)}
                     className={`rounded-lg px-3 py-2 text-sm font-medium ${
                       page === pageNum
-                        ? 'bg-[var(--color-primary)] text-white'
+                        ? 'bg-[var(--color-primary)] text-[var(--color-button-text)]'
                         : 'border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]'
                     }`}
                   >
@@ -343,19 +339,16 @@ export function SuppliersTab() {
 
       {/* Modal de Confirmación de Eliminación */}
       {deletingId && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <Modal
+          isOpen
+          onClose={() => {
+            if (!isDeleting) setDeletingId(null)
+          }}
+          ariaLabelledBy="delete-supplier-title"
+          maxWidthClassName="max-w-sm"
         >
-          <motion.div
-            className="w-full max-w-sm rounded-lg bg-[var(--color-surface)] p-6 shadow-lg"
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-          >
-            <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
+          <div className="p-6">
+            <h3 id="delete-supplier-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
               ¿Eliminar proveedor?
             </h3>
             <p className="mb-6 text-[var(--color-text-secondary)]">
@@ -377,8 +370,8 @@ export function SuppliersTab() {
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </Modal>
       )}
     </>
   )

@@ -1,19 +1,17 @@
-import { ENV_FILE, ENV_FILE_LOADED, ENV_MODE, ENV_OVERRIDDEN_KEYS, USES_PRODUCTION_DATABASE } from "./config/env";
+import { ENV_FILE, ENV_FILE_LOADED, ENV_MODE, ENV_OVERRIDDEN_KEYS, USES_PRODUCTION_DATABASE, databaseIdentity } from "./config/env";
 import { app } from "./app";
 import { logger } from "./utils/logger";
 import { PORT as port } from "./config/app";
 import { scheduleCashAutoClose } from "./jobs/cashAutoClose.job";
 import { scheduleCashReconciliation } from "./jobs/cashReconciliation.job";
 
-/** Host and database of DATABASE_URL, never the credentials. */
+/**
+ * User, host and database of DATABASE_URL, never the password. The user carries the Supabase
+ * project ref (`postgres.<ref>`): the pooler host alone does not tell two projects apart.
+ */
 function describeDatabase(url: string | undefined): string {
   if (!url) return "sin DATABASE_URL";
-  try {
-    const { hostname, port: dbPort, pathname } = new URL(url);
-    return `${hostname}${dbPort ? `:${dbPort}` : ""}${pathname}`;
-  } catch {
-    return "DATABASE_URL inválida";
-  }
+  return databaseIdentity(url) ?? "DATABASE_URL inválida";
 }
 
 function logEnvironment() {

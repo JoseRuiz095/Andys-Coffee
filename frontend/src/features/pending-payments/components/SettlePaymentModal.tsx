@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useSettlePayment } from '../hooks/usePendingPayments';
 import type { PendingPayment, SettleMethod } from '../api/pending-payments.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
@@ -29,7 +30,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
     );
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
@@ -92,6 +93,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById('modal-root') ?? document.body,
   );
 }

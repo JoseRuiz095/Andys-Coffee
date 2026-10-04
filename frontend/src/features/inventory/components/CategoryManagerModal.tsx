@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Modal } from '../../../shared/components/Modal'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 import { useCategories } from '../../products/hooks/useProducts'
 import { authStore } from '../../auth/store/auth.store'
 import { hasPermission } from '../../auth/utils/permissions'
 import { Card } from '../../../shared/components/Card'
+import { getErrorMessage } from '../../../shared/utils/errors'
 import { sileo } from 'sileo'
 import type { Category } from '../../products/types/product.types'
 
@@ -12,19 +14,33 @@ interface CategoryManagerModalProps {
   onClose: () => void
 }
 
+const EMPTY_FORM = { name: '', description: '', displayOrder: 0 }
+
+const inputStyle = {
+  borderColor: 'var(--color-border)',
+  backgroundColor: 'var(--color-input-bg)',
+  color: 'var(--color-input-text)',
+}
+
 export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalProps) {
   const currentUser = authStore.getState().user
-  const { categories, create, update, setActive } = useCategories()
+  const { categories, create, update, setActive, remove, isCreating, isUpdating, isLoadingActive, isDeleting } =
+    useCategories({ includeInactive: true })
 
-  const [formData, setFormData] = useState<Partial<Category> & { id?: string }>({
-    name: '',
-    description: '',
-    displayOrder: 0,
-  })
+  const [formData, setFormData] = useState<Partial<Category> & { id?: string }>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
 
   const canCreate = hasPermission(currentUser, 'categories.create')
   const canUpdate = hasPermission(currentUser, 'categories.update')
+  const canDelete = hasPermission(currentUser, 'categories.delete')
+  const isSaving = isCreating || isUpdating
+  const showForm = editingId ? canUpdate : canCreate
+
+  const resetForm = () => {
+    setFormData(EMPTY_FORM)
+    setEditingId(null)
+  }
 
   const handleSave = () => {
     if (!formData.name?.trim()) {
@@ -32,27 +48,34 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
       return
     }
 
-    if (editingId) {
-      update({
-        id: editingId,
-        input: {
-          name: formData.name,
-          description: formData.description,
-          displayOrder: formData.displayOrder,
-        },
-      })
-      sileo.success({ title: 'Éxito', description: 'Categoría actualizada correctamente' })
-    } else {
-      create({
-        name: formData.name,
-        description: formData.description,
-        displayOrder: formData.displayOrder ?? 0,
-      })
-      sileo.success({ title: 'Éxito', description: 'Categoría creada correctamente' })
+    const input = {
+      name: formData.name.trim(),
+      description: formData.description,
+      displayOrder: formData.displayOrder ?? 0,
     }
 
-    setFormData({ name: '', description: '', displayOrder: 0 })
-    setEditingId(null)
+    if (editingId) {
+      update(
+        { id: editingId, input },
+        {
+          onSuccess: () => {
+            sileo.success({ title: 'Categoría actualizada', description: `"${input.name}" se guardó correctamente.` })
+            resetForm()
+          },
+          onError: (error: unknown) =>
+            sileo.error({ title: 'Error', description: getErrorMessage(error, 'No se pudo actualizar la categoría.') }),
+        },
+      )
+    } else {
+      create(input, {
+        onSuccess: () => {
+          sileo.success({ title: 'Categoría creada', description: `"${input.name}" se agregó correctamente.` })
+          resetForm()
+        },
+        onError: (error: unknown) =>
+          sileo.error({ title: 'Error', description: getErrorMessage(error, 'No se pudo crear la categoría.') }),
+      })
+    }
   }
 
   const handleEdit = (category: Category) => {
@@ -64,40 +87,46 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
     })
   }
 
-  const handleToggleActive = (categoryId: string, currentStatus: boolean) => {
-    setActive({ id: categoryId, isActive: !currentStatus })
+  const handleToggleActive = (category: Category) => {
+    setActive(
+      { id: category.id, isActive: !category.isActive },
+      {
+        onError: (error: unknown) =>
+          sileo.error({ title: 'Error', description: getErrorMessage(error, 'No se pudo cambiar el estado.') }),
+      },
+    )
   }
 
-  const handleCancel = () => {
-    setFormData({ name: '', description: '', displayOrder: 0 })
-    setEditingId(null)
+  const handleConfirmDelete = () => {
+    if (!categoryToDelete) return
+    const { id, name } = categoryToDelete
+    setCategoryToDelete(null)
+    remove(id, {
+      onSuccess: () => {
+        sileo.success({ title: 'Categoría eliminada', description: `"${name}" se eliminó correctamente.` })
+        if (editingId === id) resetForm()
+      },
+      onError: (error: unknown) =>
+        sileo.error({ title: 'No se pudo eliminar', description: getErrorMessage(error, 'No se pudo eliminar la categoría.') }),
+    })
   }
-
-  if (!isOpen) return null
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        ariaLabelledBy="category-modal-title"
+        maxWidthClassName="max-w-2xl"
       >
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg p-6"
-          style={{ backgroundColor: 'var(--color-surface)' }}
-        >
+        <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            <h2 id="category-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Gestionar Categorías
             </h2>
             <button
               onClick={onClose}
+              aria-label="Cerrar"
               className="text-2xl font-semibold"
               style={{ color: 'var(--color-text-secondary)' }}
             >
@@ -106,7 +135,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
           </div>
 
           {/* Add/Edit Form */}
-          {canCreate && (
+          {showForm && (
             <Card className="mb-6">
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
@@ -122,7 +151,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full rounded-lg border px-4 py-2 text-sm"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={inputStyle}
                     placeholder="Nombre de la categoría"
                   />
                 </div>
@@ -135,7 +164,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                     value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full rounded-lg border px-4 py-2 text-sm"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={inputStyle}
                     placeholder="Descripción"
                     rows={2}
                   />
@@ -150,7 +179,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                     value={formData.displayOrder ?? 0}
                     onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value, 10) || 0 })}
                     className="w-full rounded-lg border px-4 py-2 text-sm"
-                    style={{ borderColor: 'var(--color-border)' }}
+                    style={inputStyle}
                     min="0"
                     step="1"
                   />
@@ -159,15 +188,17 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-white transition"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
+                    disabled={isSaving}
+                    className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
                   >
-                    {editingId ? 'Actualizar' : 'Crear'}
+                    {isSaving ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear'}
                   </button>
                   {editingId && (
                     <button
-                      onClick={handleCancel}
-                      className="flex-1 rounded-lg border px-4 py-2 text-sm font-semibold transition"
+                      onClick={resetForm}
+                      disabled={isSaving}
+                      className="flex-1 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
                       style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
                     >
                       Cancelar
@@ -176,6 +207,12 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 </div>
               </div>
             </Card>
+          )}
+
+          {!canCreate && !canUpdate && !canDelete && (
+            <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+              Tu rol no tiene permisos para modificar categorías; solo puedes consultarlas.
+            </p>
           )}
 
           {/* Categories List */}
@@ -211,8 +248,9 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleToggleActive(category.id, category.isActive)}
-                        className="rounded px-2 py-1 text-xs font-semibold text-white transition"
+                        onClick={() => handleToggleActive(category)}
+                        disabled={!canUpdate || isLoadingActive}
+                        className="rounded px-2 py-1 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                         style={{
                           backgroundColor: category.isActive ? 'var(--color-success)' : 'var(--color-warning)',
                         }}
@@ -222,10 +260,20 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                       {canUpdate && (
                         <button
                           onClick={() => handleEdit(category)}
-                          className="rounded px-2 py-1 text-xs font-semibold text-white transition"
-                          style={{ backgroundColor: 'var(--color-primary)' }}
+                          className="rounded px-2 py-1 text-xs font-semibold transition"
+                          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
                         >
                           Editar
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setCategoryToDelete(category)}
+                          disabled={isDeleting}
+                          className="rounded px-2 py-1 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ backgroundColor: 'var(--color-danger)' }}
+                        >
+                          Eliminar
                         </button>
                       )}
                     </div>
@@ -234,8 +282,19 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
               </div>
             )}
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={categoryToDelete !== null}
+        title="Eliminar Categoría"
+        message={`¿Estás seguro de que deseas eliminar la categoría "${categoryToDelete?.name ?? ''}"? Si tiene productos o combos no podrá eliminarse; en ese caso desactívala.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isDangerous
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setCategoryToDelete(null)}
+      />
+    </>
   )
 }

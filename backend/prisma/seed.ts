@@ -557,6 +557,7 @@ const permissions = [
   { name: "products.delete", description: "Eliminar productos" },
   { name: "categories.create", description: "Crear categorías" },
   { name: "categories.update", description: "Actualizar categorías" },
+  { name: "categories.delete", description: "Eliminar categorías" },
   { name: "sales.read", description: "Consultar ventas" },
   { name: "sales.create", description: "Crear ventas" },
   { name: "sales.update", description: "Editar datos informativos de ventas" },

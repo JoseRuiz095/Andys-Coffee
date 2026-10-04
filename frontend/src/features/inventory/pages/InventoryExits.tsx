@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import { Modal } from '../../../shared/components/Modal'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useCreateExit } from '../hooks/useInventoryExits'
@@ -343,21 +344,15 @@ export function InventoryExits() {
         </motion.div>
 
         {/* Confirmation Modal */}
-        <AnimatePresence>
-          {isConfirming && (
-            <motion.div
-              className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="w-full rounded-t-lg bg-[var(--color-surface)] p-6 sm:w-auto sm:rounded-lg"
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-              >
-                <h3 className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">Confirmar Salida</h3>
+        <Modal
+          isOpen={isConfirming}
+          onClose={() => {
+            if (!isCreatingExit) setIsConfirming(false)
+          }}
+          ariaLabelledBy="confirm-exit-title"
+        >
+              <div className="p-6">
+                <h3 id="confirm-exit-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">Confirmar Salida</h3>
                 <p className="mb-6 text-[var(--color-text-secondary)]">
                   ¿Descontar {parseFloat(quantity || '0').toFixed(2)} {selectedIngredient?.unit.abbreviation} de{' '}
                   <strong>{selectedIngredient?.name}</strong>?
@@ -382,10 +377,8 @@ export function InventoryExits() {
                     {isCreatingExit ? 'Registrando...' : 'Confirmar'}
                   </button>
                 </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </div>
+        </Modal>
       </div>
     </motion.div>
   )

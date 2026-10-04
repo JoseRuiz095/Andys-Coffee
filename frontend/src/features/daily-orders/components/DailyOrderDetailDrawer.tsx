@@ -79,7 +79,9 @@ export function DailyOrderDetailDrawer({
 
   const handleConfirmCancel = () => {
     setConfirmCancelOpen(false);
-    cancelOrder(order.id);
+    // The drawer shows a snapshot of the order: close it once cancelled, so it does not keep
+    // offering "Cancelar Orden" as if nothing had happened.
+    cancelOrder(order.id, { onSuccess: onClose });
   };
 
   return (
@@ -253,7 +255,7 @@ export function DailyOrderDetailDrawer({
             <button
               onClick={handleCancelClick}
               disabled={isCancelling}
-              className="w-full px-4 py-3 rounded-lg font-semibold text-white transition disabled:opacity-50"
+              className="w-full px-4 py-3 rounded-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-danger)' }}
             >
               {isCancelling ? 'Cancelando...' : 'Cancelar Orden'}
