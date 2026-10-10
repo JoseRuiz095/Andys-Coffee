@@ -21,7 +21,11 @@ export const errorHandler = (
   const err = (error ?? {}) as HandledError;
 
   logger.error({
+    err: error,
     errorName: err?.name ?? 'UnknownError',
+    errorMessage: err?.message,
+    errorCode: err?.code,
+    errorMeta: 'meta' in err ? err.meta : undefined,
     requestId: req.id,
     method: req.method,
     path: req.path,

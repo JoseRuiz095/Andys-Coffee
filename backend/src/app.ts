@@ -26,6 +26,8 @@ import { CSRF_SECRET } from "./config/csrf";
 import { CORS_ORIGINS, isProduction, TRUST_PROXY } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
+import { logger } from "./utils/logger";
 
 // BigInt values (e.g. orderNumber) are serialized as strings in JSON responses.
 declare global {
@@ -49,6 +51,16 @@ app.use((req, res, next) => {
     ? suppliedRequestId
     : randomUUID();
   res.setHeader("X-Request-ID", req.id);
+  const startedAt = performance.now();
+  res.on("finish", () => {
+    logger.info({
+      requestId: req.id,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: Math.round(performance.now() - startedAt),
+    }, "Request completed");
+  });
   next();
 });
 

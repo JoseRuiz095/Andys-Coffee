@@ -694,6 +694,7 @@ model IncomeStatementDailySnapshot {
   openingFund             Decimal  @default(0) @db.Decimal(12, 2)
   cashRevenue             Decimal  @default(0) @db.Decimal(12, 2)
   transferRevenue         Decimal  @default(0) @db.Decimal(12, 2)
+  cardRevenue             Decimal  @default(0) @db.Decimal(12, 2)
   otherRevenue            Decimal  @default(0) @db.Decimal(12, 2)
   totalRevenue            Decimal  @default(0) @db.Decimal(12, 2)
   totalCogs               Decimal  @default(0) @db.Decimal(12, 2)

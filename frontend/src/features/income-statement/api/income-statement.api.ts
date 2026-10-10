@@ -11,6 +11,7 @@ export interface DayFinancialSummary {
   movimientos: {
     ingresosEfectivo: number;
     ingresosTransferencia: number;
+    ingresosTarjeta: number;
     ingresosOtros: number;
     ingresosTotales: number;
     costoVenta: number;
@@ -75,6 +76,7 @@ export interface DayDetailResponse extends DayFinancialSummary {
 export interface PeriodTotals {
   ingresosEfectivo: number;
   ingresosTransferencia: number;
+  ingresosTarjeta: number;
   ingresosOtros: number;
   ingresosTotales: number;
   costoVenta: number;

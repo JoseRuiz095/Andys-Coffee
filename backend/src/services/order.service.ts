@@ -628,7 +628,7 @@ export const OrderService = {
     return OrderRepository.findPendingPayments();
   },
 
-  async settlePayment(paymentId: string, settleMethod: 'cash' | 'transfer', user: AuthUser) {
+  async settlePayment(paymentId: string, settleMethod: 'cash' | 'transfer' | 'card', user: AuthUser) {
     if (!user.permissions?.includes('sales.create')) {
       throw new AuthorizationError('No tienes permiso para liquidar pagos pendientes.');
     }

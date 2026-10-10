@@ -4,6 +4,7 @@ import { sileo } from 'sileo';
 import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
 import { getErrorMessage } from '../../../shared/utils/errors';
+import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
 
 interface EditAccumulatedBalancesModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export function EditAccumulatedBalancesModal({
   onClose,
 }: EditAccumulatedBalancesModalProps) {
   const { mutate: updateBalances, isPending } = useUpdateAccumulatedBalances();
+  useBodyScrollLock(isOpen);
 
   const [ahorro, setAhorro] = React.useState(String(currentValues.ahorroAcumulado));
   const [fondo, setFondo] = React.useState(String(currentValues.fondoNegocioAcumulado));
@@ -48,6 +50,8 @@ export function EditAccumulatedBalancesModal({
   const isToday = date === getTodayDateString();
 
   const handleSave = () => {
+    if (isPending) return;
+
     if (!isToday) {
       sileo.error({ title: 'Error', description: 'Solo se pueden editar los saldos del día actual.' });
       return;

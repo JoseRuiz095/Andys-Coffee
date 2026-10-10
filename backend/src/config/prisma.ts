@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { logger } from "../utils/logger";
+import { databaseIdentity } from "./env";
 
 // The DATABASE_URL is used for the connection pool in production.
 // It should be configured with a secure SSL mode (e.g., sslmode=require).
@@ -51,4 +52,22 @@ export const prisma = new PrismaClient({
   adapter,
 });
 
-logger.info("Prisma client configured with database connection pooling.");
+logger.info(
+  { database: databaseIdentity(databaseUrl), sslMode },
+  "Prisma client configured with database connection pooling.",
+);
+
+export async function checkDatabaseConnection() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info(
+      { database: databaseIdentity(databaseUrl) },
+      "Database connection check succeeded.",
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, database: databaseIdentity(databaseUrl) },
+      "Database connection check failed.",
+    );
+  }
+}

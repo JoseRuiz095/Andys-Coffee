@@ -46,6 +46,7 @@ export interface DayFinancialSummary {
   movimientos: {
     ingresosEfectivo: number;
     ingresosTransferencia: number;
+    ingresosTarjeta: number;
     ingresosOtros: number;
     ingresosTotales: number;
     costoVenta: number;
@@ -110,6 +111,7 @@ export interface DayDetailResponse extends DayFinancialSummary {
 export interface PeriodTotals {
   ingresosEfectivo: number;
   ingresosTransferencia: number;
+  ingresosTarjeta: number;
   ingresosOtros: number;
   ingresosTotales: number;
   costoVenta: number;
@@ -141,6 +143,7 @@ export interface DayCore {
   hadOperation: boolean;
   cashRevenue: Prisma.Decimal;
   transferRevenue: Prisma.Decimal;
+  cardRevenue: Prisma.Decimal;
   otherRevenue: Prisma.Decimal;
   totalRevenue: Prisma.Decimal;
   totalCogs: Prisma.Decimal;
@@ -187,12 +190,14 @@ export function computeDayCore(
 ): DayCore {
   const cashPayments = rows.payments.filter((p) => p.method === 'cash');
   const transferPayments = rows.payments.filter((p) => p.method === 'transfer');
-  const otherPayments = rows.payments.filter((p) => p.method !== 'cash' && p.method !== 'transfer');
+  const cardPayments = rows.payments.filter((p) => p.method === 'card');
+  const otherPayments = rows.payments.filter((p) => p.method !== 'cash' && p.method !== 'transfer' && p.method !== 'card');
 
   const cashRevenue = sumDecimals(cashPayments, (p) => p.amount);
   const transferRevenue = sumDecimals(transferPayments, (p) => p.amount);
+  const cardRevenue = sumDecimals(cardPayments, (p) => p.amount);
   const otherRevenue = sumDecimals(otherPayments, (p) => p.amount);
-  const totalRevenue = cashRevenue.plus(transferRevenue).plus(otherRevenue);
+  const totalRevenue = cashRevenue.plus(transferRevenue).plus(cardRevenue).plus(otherRevenue);
 
   // Cost of goods sold is informational only — it no longer reduces netProfit.
   // It still gets persisted (grossProfit) for historical/informational display.
@@ -256,6 +261,7 @@ export function computeDayCore(
     hadOperation,
     cashRevenue,
     transferRevenue,
+    cardRevenue,
     otherRevenue,
     totalRevenue,
     totalCogs,
@@ -295,6 +301,7 @@ function buildSummaryDto(
     movimientos: {
       ingresosEfectivo: core.cashRevenue.toNumber(),
       ingresosTransferencia: core.transferRevenue.toNumber(),
+      ingresosTarjeta: core.cardRevenue.toNumber(),
       ingresosOtros: core.otherRevenue.toNumber(),
       ingresosTotales: core.totalRevenue.toNumber(),
       costoVenta: core.totalCogs.toNumber(),
@@ -380,6 +387,7 @@ function snapshotToSummary(dateStr: string, snapshot: Awaited<ReturnType<typeof 
     movimientos: {
       ingresosEfectivo: snapshot.cashRevenue.toNumber(),
       ingresosTransferencia: snapshot.transferRevenue.toNumber(),
+      ingresosTarjeta: snapshot.cardRevenue.toNumber(),
       ingresosOtros: snapshot.otherRevenue.toNumber(),
       ingresosTotales: snapshot.totalRevenue.toNumber(),
       costoVenta: snapshot.totalCogs.toNumber(),
@@ -507,6 +515,7 @@ async function computeDaySequence(
           openingFund: core.openingFund,
           cashRevenue: core.cashRevenue,
           transferRevenue: core.transferRevenue,
+          cardRevenue: core.cardRevenue,
           otherRevenue: core.otherRevenue,
           totalRevenue: core.totalRevenue,
           totalCogs: core.totalCogs,
@@ -551,6 +560,7 @@ function computeTotals(days: DayFinancialSummary[]): PeriodTotals {
   return {
     ingresosEfectivo: sum((d) => d.movimientos.ingresosEfectivo),
     ingresosTransferencia: sum((d) => d.movimientos.ingresosTransferencia),
+    ingresosTarjeta: sum((d) => d.movimientos.ingresosTarjeta),
     ingresosOtros: sum((d) => d.movimientos.ingresosOtros),
     ingresosTotales: sum((d) => d.movimientos.ingresosTotales),
     costoVenta: sum((d) => d.movimientos.costoVenta),

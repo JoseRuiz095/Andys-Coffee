@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 interface DrawerProps {
   isOpen: boolean
@@ -36,24 +37,7 @@ export function Drawer({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    const scrollPosition = window.scrollY
-
-    document.body.style.overflow = 'hidden'
-    document.body.style.top = `-${scrollPosition}px`
-    document.body.style.position = 'fixed'
-    document.body.style.width = '100%'
-
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      window.scrollTo(0, scrollPosition)
-    }
-  }, [isOpen])
+  useBodyScrollLock(isOpen)
 
   return createPortal(
     <AnimatePresence>
@@ -80,6 +64,6 @@ export function Drawer({
         </div>
       )}
     </AnimatePresence>,
-    document.body
+    document.getElementById('modal-root') ?? document.body
   )
 }

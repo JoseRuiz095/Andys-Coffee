@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 interface ModalProps {
   isOpen: boolean
@@ -46,24 +47,7 @@ export function Modal({
     return () => document.removeEventListener('keydown', handleEscape, true)
   }, [isOpen])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    const scrollPosition = window.scrollY
-
-    document.body.style.overflow = 'hidden'
-    document.body.style.top = `-${scrollPosition}px`
-    document.body.style.position = 'fixed'
-    document.body.style.width = '100%'
-
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      window.scrollTo(0, scrollPosition)
-    }
-  }, [isOpen])
+  useBodyScrollLock(isOpen)
 
   if (!isOpen) return null
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ export function ConfirmDialog({
   isDangerous = false,
 }: ConfirmDialogProps) {
   const onCancelRef = useRef(onCancel)
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     onCancelRef.current = onCancel

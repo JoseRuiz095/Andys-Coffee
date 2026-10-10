@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useSettlePayment } from '../hooks/usePendingPayments';
 import type { PendingPayment, SettleMethod } from '../api/pending-payments.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
+import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
 
 interface SettlePaymentModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface SettlePaymentModalProps {
 export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentModalProps) {
   const { mutate: settlePayment, isPending } = useSettlePayment();
   const [method, setMethod] = React.useState<SettleMethod>('cash');
+  useBodyScrollLock(isOpen);
 
   // Default to cash each time the modal opens (adjusting state during render, not in an effect).
   const [wasOpen, setWasOpen] = React.useState(false);
@@ -24,6 +26,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   if (!isOpen || !payment) return null;
 
   const handleConfirm = () => {
+    if (isPending) return;
     settlePayment(
       { paymentId: payment.id, method },
       { onSuccess: () => onClose() },
@@ -72,6 +75,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
         >
           <option value="cash">Efectivo</option>
           <option value="transfer">Transferencia</option>
+          <option value="card">Tarjeta</option>
         </select>
 
         <div className="flex gap-2 justify-end">

@@ -1,25 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
+import { useBodyScrollLock } from '../../shared/hooks/useBodyScrollLock';
 
 const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode }) => {
-  useEffect(() => {
-    if (!open) return;
-
-    const scrollPosition = window.scrollY;
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.top = `-${scrollPosition}px`;
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollPosition);
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   if (!open) return null;
 

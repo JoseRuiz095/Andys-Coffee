@@ -14,6 +14,7 @@ import type { OrderItem } from '../types/order.types'
 
 type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
 type DeliveryPaymentMethod = 'cash' | 'transfer'
+type PaymentMethod = 'cash' | 'transfer' | 'card' | 'pending'
 
 interface OrderDetailsPanelProps {
   customerName?: string
@@ -22,7 +23,7 @@ interface OrderDetailsPanelProps {
   total?: number
   isLoading?: boolean
   orderNotes?: string
-  paymentMethod?: string
+  paymentMethod?: PaymentMethod
   hasDelivery?: boolean
   deliveryAmount?: string
   deliveryResponsible?: DeliveryResponsible
@@ -33,7 +34,7 @@ interface OrderDetailsPanelProps {
   onProcessTransaction?: () => void
   onNotesChange?: (notes: string) => void
   onCustomerNameChange?: (name: string) => void
-  onPaymentMethodChange?: (method: string) => void
+  onPaymentMethodChange?: (method: PaymentMethod) => void
   onHasDeliveryChange?: (value: boolean) => void
   onDeliveryAmountChange?: (value: string) => void
   onDeliveryResponsibleChange?: (value: DeliveryResponsible) => void
@@ -171,7 +172,7 @@ export function OrderDetailsPanel({
           />
           <select
             value={paymentMethod || ''}
-            onChange={(e) => onPaymentMethodChange?.(e.target.value)}
+            onChange={(e) => onPaymentMethodChange?.(e.target.value as PaymentMethod)}
             className="w-full rounded-xl border px-3 py-2"
             style={{
               borderColor: 'var(--color-border)',
@@ -182,9 +183,10 @@ export function OrderDetailsPanel({
             <option value="" disabled>
               Seleccionar pago
             </option>
-            <option value="Efectivo">Efectivo</option>
-            <option value="Transferencia">Transferencia</option>
-            <option value="Pago Pendiente">Pago Pendiente</option>
+            <option value="cash">Efectivo</option>
+            <option value="transfer">Transferencia</option>
+            <option value="card">Tarjeta</option>
+            <option value="pending">Pago Pendiente</option>
           </select>
 
           {/* Mandadito (delivery) */}
@@ -370,9 +372,9 @@ export function OrderDetailsPanel({
             style={{ backgroundColor: 'var(--color-primary)' }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
-            disabled={!items || items.length === 0}
+            disabled={isLoading || !items || items.length === 0}
           >
-            Procesar orden
+            {isLoading ? 'Procesando...' : 'Procesar orden'}
           </button>
         </div>
       </div>

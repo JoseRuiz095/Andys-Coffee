@@ -18,6 +18,10 @@ export interface CreateOrderPayload {
   items: CreateOrderItem[];
   paymentMethod: string;
   cashReceived?: number;
+  hasDelivery?: boolean;
+  deliveryAmount?: number;
+  deliveryResponsible?: 'customer_to_courier' | 'customer_to_business' | 'business_absorbs';
+  deliveryPaymentMethod?: 'cash' | 'transfer';
 }
 
 export interface Order {

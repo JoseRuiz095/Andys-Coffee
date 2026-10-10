@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { useHandoffDelivery } from '../hooks/useDeliveries';
 import type { PendingDelivery } from '../api/deliveries.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
+import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
 
 interface HandoffDeliveryModalProps {
   isOpen: boolean;
@@ -11,10 +12,12 @@ interface HandoffDeliveryModalProps {
 
 export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliveryModalProps) {
   const { mutate: handoffDelivery, isPending } = useHandoffDelivery();
+  useBodyScrollLock(isOpen);
 
   if (!isOpen || !delivery) return null;
 
   const handleConfirm = () => {
+    if (isPending) return;
     handoffDelivery(delivery.id, { onSuccess: () => onClose() });
   };
 

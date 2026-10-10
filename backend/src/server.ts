@@ -4,6 +4,7 @@ import { logger } from "./utils/logger";
 import { PORT as port } from "./config/app";
 import { scheduleCashAutoClose } from "./jobs/cashAutoClose.job";
 import { scheduleCashReconciliation } from "./jobs/cashReconciliation.job";
+import { checkDatabaseConnection } from "./config/prisma";
 
 /**
  * User, host and database of DATABASE_URL, never the password. The user carries the Supabase
@@ -41,6 +42,7 @@ function logEnvironment() {
 const server = app.listen(port, () => {
   logEnvironment();
   logger.info({ port, healthCheck: `http://localhost:${port}/health` }, "Backend listo");
+  void checkDatabaseConnection();
   scheduleCashAutoClose();
   scheduleCashReconciliation();
 });

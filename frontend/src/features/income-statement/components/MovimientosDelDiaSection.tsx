@@ -17,6 +17,7 @@ export function MovimientosDelDiaSection({ summary }: { summary: DayFinancialSum
       <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
         <StatBlock label="Ingresos en efectivo" value={summary.movimientos.ingresosEfectivo} />
         <StatBlock label="Ingresos por transferencia" value={summary.movimientos.ingresosTransferencia} />
+        <StatBlock label="Ingresos por tarjeta" value={summary.movimientos.ingresosTarjeta} />
         {summary.movimientos.ingresosOtros !== 0 && (
           <StatBlock label="Ingresos otros métodos" value={summary.movimientos.ingresosOtros} />
         )}

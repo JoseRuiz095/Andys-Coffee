@@ -19,6 +19,12 @@ const ROWS: PivotRow[] = [
     getValue: (d) => d.movimientos.ingresosTransferencia,
     getTotal: (t) => t.ingresosTransferencia,
   },
+  {
+    label: 'Ingresos Tarjeta',
+    kind: 'flow',
+    getValue: (d) => d.movimientos.ingresosTarjeta,
+    getTotal: (t) => t.ingresosTarjeta,
+  },
   { label: 'Ingresos Totales', kind: 'flow', getValue: (d) => d.movimientos.ingresosTotales, getTotal: (t) => t.ingresosTotales },
   { label: 'Gastos Variables', kind: 'flow', getValue: (d) => d.movimientos.gastos, getTotal: (t) => t.gastos },
   {

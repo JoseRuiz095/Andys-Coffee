@@ -46,7 +46,7 @@ const paymentMethodSchema = z.enum([
 }[value]));
 
 export const settlePaymentSchema = z.strictObject({
-  method: z.enum(['cash', 'transfer']),
+  method: z.enum(['cash', 'transfer', 'card']),
 });
 
 export const deliveryResponsibleSchema = z.enum(['customer_to_courier', 'customer_to_business', 'business_absorbs']);

@@ -72,7 +72,7 @@ export function DashboardPage() {
   const [orderItems, setOrderItems] = React.useState<OrderItem[]>([])
   const [orderNotes, setOrderNotes] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
-  const [paymentMethod, setPaymentMethod] = React.useState<string>()
+  const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'transfer' | 'card' | 'pending'>()
   const [hasDelivery, setHasDelivery] = React.useState(false)
   const [deliveryAmount, setDeliveryAmount] = React.useState('')
   const [deliveryResponsible, setDeliveryResponsible] = React.useState<
@@ -124,6 +124,8 @@ export function DashboardPage() {
   const hasUnreadNotifications = unreadCount > 0
 
   const submitOrder = (cashReceived?: number) => {
+    if (isCreatingOrder) return
+
     const orderPayload = {
       customerName: customerName || 'Cliente',
       notes: orderNotes,
@@ -160,6 +162,8 @@ export function DashboardPage() {
   }
 
   const handleProcessOrder = () => {
+    if (isCreatingOrder) return
+
     if (orderItems.length === 0) {
       sileo.error({
         title: 'Algo salio mal',
@@ -176,7 +180,7 @@ export function DashboardPage() {
       return
     }
 
-    if (paymentMethod === 'Pago Pendiente' && !customerName.trim()) {
+    if (paymentMethod === 'pending' && !customerName.trim()) {
       sileo.error({
         title: 'Algo salio mal',
         description: 'Debes ingresar el nombre del cliente para registrar un pago pendiente.',
@@ -208,7 +212,7 @@ export function DashboardPage() {
       }
     }
 
-    if (paymentMethod === 'Efectivo' || paymentMethod === 'cash') {
+    if (paymentMethod === 'cash') {
       setIsCashPaymentOpen(true)
       return
     }
@@ -375,7 +379,7 @@ export function DashboardPage() {
     setCustomerName(name)
   }
 
-  const handlePaymentMethodChange = (method: string) => {
+  const handlePaymentMethodChange = (method: 'cash' | 'transfer' | 'card' | 'pending') => {
     setPaymentMethod(method)
   }
 
@@ -464,6 +468,7 @@ export function DashboardPage() {
                 error={cashSessionError as Error | null}
                 isOpening={openSession.isPending}
                 onOpen={(openingAmount) => {
+                  if (openSession.isPending) return
                   openSession.mutate(openingAmount, {
                     onSuccess: () => {
                       sileo.success({ title: 'Caja abierta correctamente.', duration: 3000 })
@@ -791,6 +796,7 @@ export function DashboardPage() {
         isLoading={closeSession.isPending}
         onClose={() => setIsCashClosingOpen(false)}
         onConfirm={(input) => {
+          if (closeSession.isPending) return
           closeSession.mutate(input, {
             onSuccess: () => {
               setIsCashClosingOpen(false)

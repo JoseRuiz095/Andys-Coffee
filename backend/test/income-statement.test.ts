@@ -68,7 +68,7 @@ function emptyRows(): DaySubsetRows {
 test('día normal: efectivo esperado = fondo inicial + ventas efectivo - gastos efectivo', () => {
   const rows: DaySubsetRows = {
     sessions: [session({ openingAmount: money(1000), expectedAmount: money(1400), status: 'open' })],
-    payments: [payment('cash', 500), payment('transfer', 200)],
+    payments: [payment('cash', 500), payment('transfer', 200), payment('card', 150)],
     cogsRows: [],
     expenses: [expense('cash', 100)],
     purchases: [],
@@ -78,14 +78,36 @@ test('día normal: efectivo esperado = fondo inicial + ventas efectivo - gastos 
 
   assert.equal(core.cashRevenue.toNumber(), 500);
   assert.equal(core.transferRevenue.toNumber(), 200);
-  assert.equal(core.totalRevenue.toNumber(), 700);
+  assert.equal(core.cardRevenue.toNumber(), 150);
+  assert.equal(core.totalRevenue.toNumber(), 850);
   assert.equal(core.totalExpenses.toNumber(), 100);
-  assert.equal(core.netProfit.toNumber(), 600);
+  assert.equal(core.netProfit.toNumber(), 750);
   assert.equal(core.openingFund.toNumber(), 1000);
   assert.equal(core.expectedCash?.toNumber(), 1400);
   // Session is still open (no closingAmount recorded yet) -> conciliation is pending, not fabricated.
   assert.equal(core.cashStatus, 'PENDIENTE');
   assert.equal(core.actualCash, null);
+});
+
+test('ingresos por tarjeta se separan de otros métodos y no alteran efectivo esperado', () => {
+  const rows: DaySubsetRows = {
+    sessions: [session({ openingAmount: money(1000), expectedAmount: money(1000), closingAmount: money(1000), status: 'closed' })],
+    payments: [payment('card', 250), payment('voucher', 40)],
+    cogsRows: [],
+    expenses: [],
+    purchases: [],
+  };
+
+  const core = computeDayCore(rows, DEFAULT_PERCENTAGES);
+
+  assert.equal(core.cashRevenue.toNumber(), 0);
+  assert.equal(core.transferRevenue.toNumber(), 0);
+  assert.equal(core.cardRevenue.toNumber(), 250);
+  assert.equal(core.otherRevenue.toNumber(), 40);
+  assert.equal(core.totalRevenue.toNumber(), 290);
+  assert.equal(core.expectedCash?.toNumber(), 1000);
+  assert.equal(core.cashDifference?.toNumber(), 0);
+  assert.equal(core.cashStatus, 'CUADRADA');
 });
 
 test('faltante: efectivo real < efectivo esperado', () => {

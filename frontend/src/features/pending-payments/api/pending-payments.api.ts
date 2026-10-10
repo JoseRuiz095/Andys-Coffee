@@ -19,7 +19,7 @@ export interface PendingPayment {
   };
 }
 
-export type SettleMethod = 'cash' | 'transfer';
+export type SettleMethod = 'cash' | 'transfer' | 'card';
 
 export const PendingPaymentsAPI = {
   async getPendingPayments() {

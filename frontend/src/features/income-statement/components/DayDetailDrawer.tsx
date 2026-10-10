@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { useIncomeStatementDayDetail } from '../hooks/useIncomeStatement';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { CashStatusBadge } from './CashStatusBadge';
+import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
 
 interface DayDetailDrawerProps {
   date: string | null;
@@ -11,6 +12,7 @@ interface DayDetailDrawerProps {
 
 export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDrawerProps) {
   const { data, isLoading, error } = useIncomeStatementDayDetail(date, cashRegisterId);
+  useBodyScrollLock(Boolean(date));
 
   if (!date) return null;
 
