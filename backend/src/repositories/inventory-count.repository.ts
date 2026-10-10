@@ -5,6 +5,10 @@ import { paginationMeta, paginationOffset } from '../utils/pagination';
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
 export const InventoryCountRepository = {
+  async findByIdempotencyKey(createdById: string, idempotencyKey: string, client: PrismaClient = prisma) {
+    return client.inventoryCount.findFirst({ where: { createdById, idempotencyKey } });
+  },
+
   async findById(
     id: string,
     client: PrismaClient = prisma,

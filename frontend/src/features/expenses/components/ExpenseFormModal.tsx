@@ -60,7 +60,7 @@ export function ExpenseFormModal({ isOpen, isLoading = false, editingExpense, on
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && handleClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editingExpense ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle>

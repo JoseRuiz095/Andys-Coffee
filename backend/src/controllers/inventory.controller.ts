@@ -46,7 +46,11 @@ export const InventoryController = {
 
   async createExit(req: Request, res: Response) {
     const data = req.body as z.infer<typeof inventoryExitSchema>;
-    res.status(201).json(await InventoryService.createExit(data, req.user as AuthUser));
+    const idempotencyKey = req.header('X-Idempotency-Key');
+    if (!idempotencyKey || idempotencyKey.length > 100) {
+      return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
+    }
+    res.status(201).json(await InventoryService.createExit(data, req.user as AuthUser, idempotencyKey));
   },
 
   async create(req: Request, res: Response) {

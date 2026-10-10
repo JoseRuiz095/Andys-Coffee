@@ -14,7 +14,8 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (input: CreateExpenseInput) => ExpenseAPI.create(input),
+    mutationFn: ({ input, idempotencyKey }: { input: CreateExpenseInput; idempotencyKey: string }) =>
+      ExpenseAPI.create(input, idempotencyKey),
     onSuccess: () => {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Gasto registrado', description: 'El gasto se registró correctamente.' });
@@ -54,9 +55,11 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
     pagination: data?.pagination,
     loading: isLoading,
     error,
-    create: createMutation.mutate,
+    create: (input: CreateExpenseInput, options?: Parameters<typeof createMutation.mutate>[1]) =>
+      createMutation.mutate({ input, idempotencyKey: globalThis.crypto.randomUUID() }, options),
     update: updateMutation.mutate,
     delete: deleteMutation.mutate,
+    deleteAsync: deleteMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,

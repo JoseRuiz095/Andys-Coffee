@@ -24,7 +24,9 @@ export interface ExitResult {
 
 export const inventoryExitsApi = {
   create: async (payload: CreateExitPayload) => {
-    const response = await apiClient.post<ExitResult>('/inventory/exits', payload);
+    const response = await apiClient.post<ExitResult>('/inventory/exits', payload, {
+      headers: { 'X-Idempotency-Key': globalThis.crypto.randomUUID() },
+    });
     return response.data;
   },
 };

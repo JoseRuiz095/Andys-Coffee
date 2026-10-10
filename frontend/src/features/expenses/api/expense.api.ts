@@ -20,8 +20,10 @@ export const ExpenseAPI = {
     return data.expense;
   },
 
-  async create(input: CreateExpenseInput) {
-    const { data } = await apiClient.post<{ expense: Expense }>(BASE_URL, input);
+  async create(input: CreateExpenseInput, idempotencyKey: string) {
+    const { data } = await apiClient.post<{ expense: Expense }>(BASE_URL, input, {
+      headers: { 'X-Idempotency-Key': idempotencyKey },
+    });
     return data.expense;
   },
 

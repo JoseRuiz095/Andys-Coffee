@@ -35,10 +35,15 @@ export const PurchaseService = {
     return purchase;
   },
 
-  async create(data: z.infer<typeof createPurchaseSchema>, user: AuthUser) {
+  async create(data: z.infer<typeof createPurchaseSchema>, user: AuthUser, idempotencyKey?: string) {
     // Authorization
     if (!user.permissions?.includes('inventory.create_entry')) {
       throw new AuthorizationError('No tienes permiso para crear compras.');
+    }
+
+    if (idempotencyKey) {
+      const existing = await PurchaseRepository.findByIdempotencyKey(user.id, idempotencyKey);
+      if (existing) return existing;
     }
 
     // Validate supplier if supplierName is provided without supplierId
@@ -83,28 +88,37 @@ export const PurchaseService = {
     const invoiceNumber = `FAC-${year}/${month}/${day}-${randomSuffix}`;
 
     // Create purchase with items
-    const purchase = await PurchaseRepository.create({
-      status: 'draft',
-      invoiceNumber,
-      supplier: data.supplierId ? { connect: { id: data.supplierId } } : undefined,
-      notes: data.notes,
-      subtotal,
-      tax: new Prisma.Decimal(0),
-      total,
-      createdBy: { connect: { id: user.id } },
-      items: {
-        createMany: {
-          data: data.items.map(item => ({
-            ingredientId: item.ingredientId,
-            quantity: new Prisma.Decimal(item.quantity),
-            unitCost: new Prisma.Decimal(item.unitCost),
-            total: new Prisma.Decimal(item.quantity).mul(new Prisma.Decimal(item.unitCost)),
-          })),
+    try {
+      const purchase = await PurchaseRepository.create({
+        status: 'draft',
+        invoiceNumber,
+        supplier: data.supplierId ? { connect: { id: data.supplierId } } : undefined,
+        notes: data.notes,
+        subtotal,
+        tax: new Prisma.Decimal(0),
+        total,
+        createdBy: { connect: { id: user.id } },
+        ...(idempotencyKey && { idempotencyKey }),
+        items: {
+          createMany: {
+            data: data.items.map(item => ({
+              ingredientId: item.ingredientId,
+              quantity: new Prisma.Decimal(item.quantity),
+              unitCost: new Prisma.Decimal(item.unitCost),
+              total: new Prisma.Decimal(item.quantity).mul(new Prisma.Decimal(item.unitCost)),
+            })),
+          },
         },
-      },
-    });
+      });
 
-    return purchase;
+      return purchase;
+    } catch (error) {
+      if (idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await PurchaseRepository.findByIdempotencyKey(user.id, idempotencyKey);
+        if (existing) return existing;
+      }
+      throw error;
+    }
   },
 
   async receivePurchase(purchaseId: string, user: AuthUser) {

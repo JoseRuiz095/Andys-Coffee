@@ -19,7 +19,7 @@ export function ExpensesPage() {
     endDate: endDate || undefined,
   };
 
-  const { expenses, pagination, loading, create, update, delete: deleteExpense, isCreating, isUpdating, isDeleting } = useExpenses(filters);
+  const { expenses, pagination, loading, create, update, deleteAsync, isCreating, isUpdating, isDeleting } = useExpenses(filters);
 
   const handleOpenForm = () => {
     setEditingExpense(null);
@@ -38,15 +38,14 @@ export function ExpensesPage() {
 
   const handleSubmitForm = (input: CreateExpenseInput | UpdateExpenseInput) => {
     if (editingExpense && 'id' in input) {
-      update(input as UpdateExpenseInput);
+      update(input as UpdateExpenseInput, { onSuccess: handleCloseForm });
     } else {
-      create(input as CreateExpenseInput);
+      create(input as CreateExpenseInput, { onSuccess: handleCloseForm });
     }
-    handleCloseForm();
   };
 
-  const handleDeleteExpense = (id: string) => {
-    deleteExpense(id);
+  const handleDeleteExpense = async (id: string) => {
+    await deleteAsync(id);
   };
 
   const handleClearFilters = () => {
@@ -81,6 +80,7 @@ export function ExpensesPage() {
         loading={loading}
         onEdit={handleEditExpense}
         onDelete={handleDeleteExpense}
+        isDeleting={isDeleting}
       />
 
       {pagination && (

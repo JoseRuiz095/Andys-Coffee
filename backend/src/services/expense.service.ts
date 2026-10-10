@@ -5,7 +5,7 @@ import { CashRepository } from '../repositories/cash.repository';
 import { runInTransaction } from '../repositories/transaction';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { CashBusinessRuleError } from './cash.service';
-import { NotFoundError } from '../utils/errors';
+import { ConflictError, NotFoundError } from '../utils/errors';
 import { getBusinessMidpointInstant, getTodayInZone, getZonedCalendarDate, getZonedDayBoundaries } from '../utils/businessDate';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListQuery } from '../validators/expense.validator';
@@ -57,11 +57,26 @@ export const ExpenseService = {
     return expense;
   },
 
-  async create(input: CreateExpenseInput, createdById: string) {
+  async create(input: CreateExpenseInput, createdById: string, idempotencyKey?: string) {
     const expenseDate = input.expenseDate ? await resolveExpenseInstant(input.expenseDate) : undefined;
-    const result = await runInTransaction(
-      async (tx) => {
-        const amount = new Prisma.Decimal(input.amount);
+    try {
+      const result = await runInTransaction(
+        async (tx) => {
+          const amount = new Prisma.Decimal(input.amount);
+          if (idempotencyKey) {
+            const existing = await ExpenseRepository.findByIdempotencyKey(createdById, idempotencyKey, tx);
+            if (existing) {
+              const samePayload = existing.category === input.category
+                && existing.description === input.description
+                && existing.amount.equals(amount)
+                && existing.paymentMethod === input.paymentMethod;
+              if (!samePayload) {
+                throw new ConflictError('La clave de idempotencia ya fue usada con otros datos.');
+              }
+              return existing;
+            }
+          }
+
         const isCash = input.paymentMethod === 'cash';
         let cashSessionId: string | null = null;
 
@@ -74,6 +89,7 @@ export const ExpenseService = {
           expenseDate,
           cashSessionId: null, // Will be updated if cash + session exists
           createdById,
+          ...(idempotencyKey && { idempotencyKey }),
         });
 
         // If cash payment, look for open session and record movement
@@ -104,17 +120,26 @@ export const ExpenseService = {
           cashSessionId,
           cashSession: cashSessionId ? { id: cashSessionId, status: 'open' } : null,
         };
-      },
-      { serializable: true }
-    );
+        },
+        { serializable: true }
+      );
 
-    // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
-    if (result.expenseDate) {
-      const dateStr = getZonedCalendarDate(result.expenseDate);
-      await incomeStatementRepository.invalidateSnapshot(dateStr);
+      // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
+      if (result.expenseDate) {
+        const dateStr = getZonedCalendarDate(result.expenseDate);
+        await incomeStatementRepository.invalidateSnapshot(dateStr);
+      }
+
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        if (idempotencyKey) {
+          const existing = await ExpenseRepository.findByIdempotencyKey(createdById, idempotencyKey);
+          if (existing) return existing;
+        }
+      }
+      throw error;
     }
-
-    return result;
   },
 
   async update(id: string, input: UpdateExpenseInput, updatedById: string) {

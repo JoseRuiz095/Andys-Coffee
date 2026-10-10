@@ -5,6 +5,13 @@ import { paginationMeta, paginationOffset } from '../utils/pagination';
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
 export const PurchaseRepository = {
+  async findByIdempotencyKey(createdById: string, idempotencyKey: string, client: PrismaClient = prisma) {
+    return client.purchase.findFirst({
+      where: { createdById, idempotencyKey },
+      include: { items: { include: { ingredient: { include: { unit: true } } } }, supplier: true },
+    });
+  },
+
   async create(data: Prisma.PurchaseCreateInput, client: PrismaClient = prisma) {
     return client.purchase.create({
       data,

@@ -13,7 +13,11 @@ export const InventoryCountController = {
   },
 
   async createCount(req: Request, res: Response) {
-    const count = await InventoryCountService.createCount(req.user as AuthUser);
+    const idempotencyKey = req.header('X-Idempotency-Key');
+    if (!idempotencyKey || idempotencyKey.length > 100) {
+      return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
+    }
+    const count = await InventoryCountService.createCount(req.user as AuthUser, idempotencyKey);
     res.status(201).json({ success: true, data: count });
   },
 

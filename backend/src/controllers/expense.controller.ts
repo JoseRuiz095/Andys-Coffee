@@ -30,7 +30,11 @@ export const getExpense = asyncHandler(async (req: Request, res: Response) => {
 export const createExpense = asyncHandler(async (req: Request, res: Response) => {
   const input = await createExpenseSchema.parseAsync(req.body);
   const userId = getAuthenticatedUserId(req);
-  const expense = await ExpenseService.create(input, userId);
+  const idempotencyKey = req.header('X-Idempotency-Key');
+  if (!idempotencyKey || idempotencyKey.length > 100) {
+    return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
+  }
+  const expense = await ExpenseService.create(input, userId, idempotencyKey);
 
   // Check if category matches nomina/servicios and fixed expenses are configured
   let warning: string | null = null;

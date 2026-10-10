@@ -7,10 +7,11 @@ interface ExpenseListProps {
   expenses: Expense[];
   loading: boolean;
   onEdit: (expense: Expense) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+  isDeleting: boolean;
 }
 
-export function ExpenseList({ expenses, loading, onEdit, onDelete }: ExpenseListProps) {
+export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }: ExpenseListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   if (loading) {
@@ -117,9 +118,10 @@ export function ExpenseList({ expenses, loading, onEdit, onDelete }: ExpenseList
         confirmText="Eliminar"
         cancelText="Cancelar"
         isDangerous
-        onConfirm={() => {
+        isLoading={isDeleting}
+        onConfirm={async () => {
           if (deletingId) {
-            onDelete(deletingId);
+            await onDelete(deletingId);
             setDeletingId(null);
           }
         }}

@@ -302,6 +302,7 @@ export function UserDetailDrawer({
             cancelText="Cancelar"
             onConfirm={handleConfirmRoleChange}
             onCancel={() => setShowRoleConfirm(false)}
+            isLoading={isUpdatingRole}
           />
           <ConfirmDialog
             isOpen={showDeactivateConfirm}

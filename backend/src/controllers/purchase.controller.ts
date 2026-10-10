@@ -18,7 +18,11 @@ export const PurchaseController = {
 
   async create(req: Request, res: Response) {
     const data = req.body as z.infer<typeof createPurchaseSchema>;
-    const purchase = await PurchaseService.create(data, req.user as AuthUser);
+    const idempotencyKey = req.header('X-Idempotency-Key');
+    if (!idempotencyKey || idempotencyKey.length > 100) {
+      return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
+    }
+    const purchase = await PurchaseService.create(data, req.user as AuthUser, idempotencyKey);
     res.status(201).json({ success: true, message: 'Compra creada correctamente.', purchase });
   },
 

@@ -15,16 +15,30 @@ export const InventoryCountService = {
     return InventoryCountRepository.findAll(page, limit, status, date);
   },
 
-  async createCount(user: AuthUser) {
+  async createCount(user: AuthUser, idempotencyKey?: string) {
     // Authorization
     if (!user.permissions?.includes('inventory.physical_count')) {
       throw new AuthorizationError('No tienes permiso para crear conteos físicos.');
     }
 
-    return InventoryCountRepository.create({
-      createdById: user.id,
-      status: 'draft',
-    });
+    if (idempotencyKey) {
+      const existing = await InventoryCountRepository.findByIdempotencyKey(user.id, idempotencyKey);
+      if (existing) return existing;
+    }
+
+    try {
+      return await InventoryCountRepository.create({
+        createdById: user.id,
+        status: 'draft',
+        ...(idempotencyKey && { idempotencyKey }),
+      });
+    } catch (error) {
+      if (idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await InventoryCountRepository.findByIdempotencyKey(user.id, idempotencyKey);
+        if (existing) return existing;
+      }
+      throw error;
+    }
   },
 
   async findById(id: string, user: AuthUser) {

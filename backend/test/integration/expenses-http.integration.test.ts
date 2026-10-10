@@ -19,7 +19,7 @@ let user: AuthUser;
 let roleId: string;
 const expenseIds: string[] = [];
 
-async function send(method: string, path: string, body?: unknown) {
+async function send(method: string, path: string, body?: unknown, idempotencyKey?: string) {
   const csrf = await fetch(`${baseUrl}/api/auth/csrf`);
   const token = ((await csrf.json()) as { token: string }).token;
   return fetch(`${baseUrl}${path}`, {
@@ -29,6 +29,7 @@ async function send(method: string, path: string, body?: unknown) {
       "X-CSRF-TOKEN": token,
       Cookie: csrf.headers.get("set-cookie")!.split(";")[0],
       Authorization: `Bearer ${createJwtToken(user)}`,
+      ...(idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -64,7 +65,9 @@ after(async () => {
 });
 
 test("N-03: registrar, editar y eliminar un gasto por HTTP", { skip: !integrationEnabled }, async () => {
-  const created = await send("POST", "/api/expenses", { category: "insumos", description: "Leche", amount: 50, paymentMethod: "transfer" });
+  const idempotencyKey = `expense-${testId}-http`;
+  const input = { category: "insumos", description: "Leche", amount: 50, paymentMethod: "transfer" };
+  const created = await send("POST", "/api/expenses", input, idempotencyKey);
   assert.equal(created.status, 201, await created.clone().text());
   const { expense } = (await created.json()) as { expense: { id: string; amount: string | number } };
   expenseIds.push(expense.id);
@@ -73,11 +76,32 @@ test("N-03: registrar, editar y eliminar un gasto por HTTP", { skip: !integratio
   const updated = await send("PATCH", `/api/expenses/${expense.id}`, { amount: 60 });
   assert.equal(updated.status, 200, await updated.clone().text());
 
-  const invalid = await send("POST", "/api/expenses", { category: "inventada", description: "x", amount: -1 });
+  const invalid = await send("POST", "/api/expenses", { category: "inventada", description: "x", amount: -1 }, `expense-${testId}-invalid`);
   assert.equal(invalid.status, 400);
   const invalidBody = (await invalid.json()) as { message: string; errors: Record<string, string[]> };
   assert.ok(invalidBody.errors.category && invalidBody.errors.amount);
 
   const deleted = await send("DELETE", `/api/expenses/${expense.id}`);
   assert.ok(deleted.status === 200 || deleted.status === 204, String(deleted.status));
+});
+
+test("la creación de gastos repite la misma respuesta con la misma clave", { skip: !integrationEnabled }, async () => {
+  const idempotencyKey = `expense-${testId}-replay`;
+  const input = { category: "otros", description: "Reintento controlado", amount: 17, paymentMethod: "transfer" };
+
+  const first = await send("POST", "/api/expenses", input, idempotencyKey);
+  assert.equal(first.status, 201, await first.clone().text());
+  const firstBody = (await first.json()) as { expense: { id: string } };
+  expenseIds.push(firstBody.expense.id);
+
+  const replay = await send("POST", "/api/expenses", input, idempotencyKey);
+  assert.equal(replay.status, 201, await replay.clone().text());
+  const replayBody = (await replay.json()) as { expense: { id: string } };
+  assert.equal(replayBody.expense.id, firstBody.expense.id);
+
+  const count = await prisma.expense.count({ where: { idempotencyKey, createdById: user.id } });
+  assert.equal(count, 1);
+
+  const conflict = await send("POST", "/api/expenses", { ...input, amount: 18 }, idempotencyKey);
+  assert.equal(conflict.status, 409, await conflict.clone().text());
 });

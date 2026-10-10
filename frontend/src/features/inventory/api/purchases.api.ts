@@ -122,7 +122,9 @@ export const purchasesApi = {
       success: boolean;
       message: string;
       purchase: Purchase;
-    }>('/purchases', data);
+    }>('/purchases', data, {
+      headers: { 'X-Idempotency-Key': globalThis.crypto.randomUUID() },
+    });
     return response.data;
   },
 

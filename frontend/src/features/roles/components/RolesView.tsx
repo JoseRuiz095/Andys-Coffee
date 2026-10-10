@@ -44,7 +44,6 @@ export function RolesView({ currentUser }: RolesViewProps) {
       },
       onError: (error: unknown) => {
         sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al eliminar rol') })
-        setDeleteTarget(null)
       },
     })
   }
@@ -170,6 +169,7 @@ export function RolesView({ currentUser }: RolesViewProps) {
         confirmText="Eliminar"
         cancelText="Cancelar"
         isDangerous
+        isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />

@@ -520,6 +520,7 @@ export const InventoryRepository = {
       reason?: string;
       notes?: string;
       createdById?: string;
+      idempotencyKey?: string;
     },
     client: PrismaClient = prisma,
   ) {
@@ -534,6 +535,7 @@ export const InventoryRepository = {
         reason: data.reason,
         notes: data.notes,
         createdById: data.createdById,
+        idempotencyKey: data.idempotencyKey,
       },
       select: {
         id: true,
@@ -543,6 +545,16 @@ export const InventoryRepository = {
         notes: true,
         createdAt: true,
       },
+    });
+  },
+
+  async findMovementByIdempotencyKey(
+    createdById: string,
+    idempotencyKey: string,
+    client: PrismaClient = prisma,
+  ) {
+    return client.inventoryMovement.findFirst({
+      where: { createdById, idempotencyKey },
     });
   },
 

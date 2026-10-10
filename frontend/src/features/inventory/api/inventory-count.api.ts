@@ -54,7 +54,9 @@ export const InventoryCountAPI = {
   },
 
   async createCount(): Promise<InventoryCount> {
-    const response = await apiClient.post('/inventory-counts');
+    const response = await apiClient.post('/inventory-counts', undefined, {
+      headers: { 'X-Idempotency-Key': globalThis.crypto.randomUUID() },
+    });
     return response.data.data;
   },
 

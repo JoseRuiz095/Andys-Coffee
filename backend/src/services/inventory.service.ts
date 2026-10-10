@@ -140,13 +140,21 @@ export const InventoryService = {
     return InventoryRepository.getTotalInventoryValue();
   },
 
-  async createExit(data: z.infer<typeof inventoryExitSchema>, user: AuthUser) {
+  async createExit(data: z.infer<typeof inventoryExitSchema>, user: AuthUser, idempotencyKey?: string) {
     // Authorization
     if (!user.permissions?.includes('inventory.create_exit')) {
       throw new AuthorizationError('No tienes permiso para registrar salidas de inventario.');
     }
 
     return runInTransaction(async (tx) => {
+      if (idempotencyKey) {
+        const existingMovement = await InventoryRepository.findMovementByIdempotencyKey(user.id, idempotencyKey, tx);
+        if (existingMovement) {
+          const ingredient = await InventoryRepository.findIngredientById(existingMovement.ingredientId, tx);
+          return { ingredient, movement: existingMovement };
+        }
+      }
+
       const ingredient = await InventoryRepository.findIngredientById(data.ingredientId, tx);
       if (!ingredient) throw new NotFoundError('Ingrediente no encontrado.');
       if (!ingredient.isActive) throw new ValidationError('El ingrediente está inactivo.');
@@ -171,6 +179,7 @@ export const InventoryService = {
           reason: data.reason,
           notes: data.notes,
           createdById: user.id,
+          idempotencyKey,
         },
         tx,
       );
