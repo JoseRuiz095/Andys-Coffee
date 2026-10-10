@@ -7,7 +7,7 @@ import { OrderListView } from '../components/OrderListView';
 import { OrdersFilters } from '../components/OrdersFilters';
 import { MaximizeIcon } from '../../../components/ui/MaximizeIcon';
 import { useOrders } from '../hooks/useOrders';
-import { Spinner } from '@/shared/components/Spinner';
+import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 import { authStore } from '../../auth/store/auth.store';
 import type { AuthUser } from '../../auth/types/auth.types';
 
@@ -133,9 +133,7 @@ export function OrdersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Spinner />
-        </div>
+        <TableSkeleton rows={6} columns={5} />
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : viewMode === 'grid' ? (

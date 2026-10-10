@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useOverlayEscape } from '../hooks/useOverlayEscape'
 
 interface DrawerProps {
   isOpen: boolean
@@ -28,15 +28,7 @@ export function Drawer({
   widthClassName = 'max-w-lg',
   children,
 }: DrawerProps) {
-  useEffect(() => {
-    if (!isOpen) return
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
-
+  useOverlayEscape(isOpen, onClose)
   useBodyScrollLock(isOpen)
 
   return createPortal(

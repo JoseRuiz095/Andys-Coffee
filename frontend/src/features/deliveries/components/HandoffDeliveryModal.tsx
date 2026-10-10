@@ -3,6 +3,7 @@ import { useHandoffDelivery } from '../hooks/useDeliveries';
 import type { PendingDelivery } from '../api/deliveries.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
+import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
 
 interface HandoffDeliveryModalProps {
   isOpen: boolean;
@@ -13,6 +14,9 @@ interface HandoffDeliveryModalProps {
 export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliveryModalProps) {
   const { mutate: handoffDelivery, isPending } = useHandoffDelivery();
   useBodyScrollLock(isOpen);
+  useOverlayEscape(isOpen, () => {
+    if (!isPending) onClose();
+  });
 
   if (!isOpen || !delivery) return null;
 
@@ -24,7 +28,9 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+      onClick={() => {
+        if (!isPending) onClose();
+      }}
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div

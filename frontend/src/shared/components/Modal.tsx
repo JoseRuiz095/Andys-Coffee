@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useOverlayEscape } from '../hooks/useOverlayEscape'
 
 interface ModalProps {
   isOpen: boolean
@@ -21,12 +22,6 @@ export function Modal({
   maxWidthClassName = 'max-w-md',
   children,
 }: ModalProps) {
-  const onCloseRef = useRef(onClose)
-
-  useEffect(() => {
-    onCloseRef.current = onClose
-  }, [onClose])
-
   useEffect(() => {
     if (!isOpen) return
     const timer = setTimeout(() => {
@@ -35,18 +30,7 @@ export function Modal({
     return () => clearTimeout(timer)
   }, [isOpen, initialFocusRef])
 
-  useEffect(() => {
-    if (!isOpen) return
-    // Capture phase + stopPropagation: Escape closes only this modal, not a Drawer under it.
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.stopPropagation()
-      onCloseRef.current()
-    }
-    document.addEventListener('keydown', handleEscape, true)
-    return () => document.removeEventListener('keydown', handleEscape, true)
-  }, [isOpen])
-
+  useOverlayEscape(isOpen, onClose)
   useBodyScrollLock(isOpen)
 
   if (!isOpen) return null

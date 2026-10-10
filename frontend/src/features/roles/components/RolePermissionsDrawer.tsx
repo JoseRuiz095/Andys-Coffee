@@ -221,6 +221,7 @@ export function RolePermissionsDrawer({ roleId, currentUser, onClose }: RolePerm
           cancelText="Cancelar"
           onConfirm={handleConfirmSave}
           onCancel={() => setShowConfirm(false)}
+          isLoading={isSaving}
         />
       )}
     </>

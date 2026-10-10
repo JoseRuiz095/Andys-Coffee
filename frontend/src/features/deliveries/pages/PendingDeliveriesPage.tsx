@@ -3,6 +3,7 @@ import { usePendingDeliveries } from '../hooks/useDeliveries';
 import { HandoffDeliveryModal } from '../components/HandoffDeliveryModal';
 import type { PendingDelivery } from '../api/deliveries.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
+import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('es-MX', {
@@ -48,9 +49,7 @@ export function PendingDeliveriesPage() {
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {isLoading ? (
-          <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-            Cargando...
-          </div>
+          <TableSkeleton rows={4} columns={6} />
         ) : !deliveries || deliveries.length === 0 ? (
           <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
             No hay mandaditos pendientes de entregar.

@@ -5,6 +5,7 @@ import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
 import { getErrorMessage } from '../../../shared/utils/errors';
 import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
+import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
 
 interface EditAccumulatedBalancesModalProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ export function EditAccumulatedBalancesModal({
 }: EditAccumulatedBalancesModalProps) {
   const { mutate: updateBalances, isPending } = useUpdateAccumulatedBalances();
   useBodyScrollLock(isOpen);
+  useOverlayEscape(isOpen, () => {
+    if (!isPending) onClose();
+  });
 
   const [ahorro, setAhorro] = React.useState(String(currentValues.ahorroAcumulado));
   const [fondo, setFondo] = React.useState(String(currentValues.fondoNegocioAcumulado));
@@ -96,7 +100,9 @@ export function EditAccumulatedBalancesModal({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+      onClick={() => {
+        if (!isPending) onClose();
+      }}
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div
@@ -172,7 +178,9 @@ export function EditAccumulatedBalancesModal({
 
         <div className="flex gap-2 justify-end">
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (!isPending) onClose();
+            }}
             disabled={isPending}
             className="rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}

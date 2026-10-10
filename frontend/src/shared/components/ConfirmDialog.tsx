@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useId } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useOverlayEscape } from '../hooks/useOverlayEscape'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -11,6 +12,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onCancel: () => void
   isDangerous?: boolean
+  isLoading?: boolean
 }
 
 export function ConfirmDialog({
@@ -22,26 +24,13 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   isDangerous = false,
+  isLoading = false,
 }: ConfirmDialogProps) {
-  const onCancelRef = useRef(onCancel)
+  const titleId = useId()
   useBodyScrollLock(isOpen)
-
-  useEffect(() => {
-    onCancelRef.current = onCancel
-  }, [onCancel])
-
-  useEffect(() => {
-    if (!isOpen) return
-    // Capture phase + stopPropagation: Escape closes only this dialog, not the
-    // Drawer or Modal it was opened from.
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.stopPropagation()
-      onCancelRef.current()
-    }
-    document.addEventListener('keydown', handleEscape, true)
-    return () => document.removeEventListener('keydown', handleEscape, true)
-  }, [isOpen])
+  useOverlayEscape(isOpen, () => {
+    if (!isLoading) onCancel()
+  })
 
   if (!isOpen) return null
 
@@ -50,7 +39,9 @@ export function ConfirmDialog({
   return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50"
-      onClick={onCancel}
+      onClick={() => {
+        if (!isLoading) onCancel()
+      }}
       role="presentation"
     >
       <div
@@ -59,10 +50,11 @@ export function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-title"
+        aria-labelledby={titleId}
+        aria-busy={isLoading}
       >
         <h2
-          id="confirm-title"
+          id={titleId}
           className="text-lg font-semibold"
           style={{ color: 'var(--color-text-primary)' }}
         >
@@ -76,7 +68,10 @@ export function ConfirmDialog({
         </p>
         <div className="mt-6 flex gap-3 justify-end">
           <button
-            onClick={onCancel}
+            onClick={() => {
+              if (!isLoading) onCancel()
+            }}
+            disabled={isLoading}
             className="px-4 py-2 rounded-lg text-sm font-medium transition"
             style={{
               border: '1px solid var(--color-border)',
@@ -94,7 +89,8 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white transition"
+            disabled={isLoading}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               backgroundColor: isDangerous ? 'var(--color-danger)' : 'var(--color-primary)',
             }}
@@ -109,7 +105,7 @@ export function ConfirmDialog({
                 : 'var(--color-primary)'
             }}
           >
-            {confirmText}
+            {isLoading ? 'Procesando...' : confirmText}
           </button>
         </div>
       </div>

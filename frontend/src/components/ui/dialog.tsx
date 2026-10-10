@@ -1,9 +1,11 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '../../shared/hooks/useBodyScrollLock';
+import { useOverlayEscape } from '../../shared/hooks/useOverlayEscape';
 
 const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode }) => {
   useBodyScrollLock(open);
+  useOverlayEscape(open, () => onOpenChange(false));
 
   if (!open) return null;
 

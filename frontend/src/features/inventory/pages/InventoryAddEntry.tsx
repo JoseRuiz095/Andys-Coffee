@@ -255,11 +255,13 @@ export function InventoryAddEntry() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Formulario */}
           <motion.div
-            className={`lg:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 ${!canCreateEntry ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`lg:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 ${!canCreateEntry ? 'opacity-50' : ''}`}
+            aria-disabled={!canCreateEntry}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
+            <fieldset disabled={!canCreateEntry} className="contents">
             {/* Información general */}
             <h2 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">Información de la compra</h2>
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -599,6 +601,7 @@ export function InventoryAddEntry() {
             >
               {isCreating ? 'Creando compra...' : 'Crear compra'}
             </button>
+            </fieldset>
           </motion.div>
 
           {/* Resumen */}

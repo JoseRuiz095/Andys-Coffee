@@ -6,6 +6,7 @@ import { DashboardPage } from '../features/dashboard/pages/DashboardPage'
 import { authStore } from '../features/auth/store/auth.store'
 import { getCurrentUser } from '../features/auth/services/auth.service'
 import { APP_ROUTES } from '../shared/constants/routes'
+import { ScreenSkeleton } from '../shared/components/ScreenSkeleton'
 
 function usePrevious<T>(value: T) {
   const ref = useRef<T | undefined>(undefined)
@@ -87,7 +88,7 @@ export function AppRouter() {
   }, [isCheckingSession, pathname, session.user])
 
   if (isCheckingSession) {
-    return null
+    return <ScreenSkeleton compact />
   }
 
   const variants = {

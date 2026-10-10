@@ -503,12 +503,14 @@ export function InventoryPhysical() {
       <AnimatePresence>
         {count.status === 'draft' && (
           <motion.div
-            className={`mb-6 rounded-lg bg-[var(--color-surface)] p-6 shadow ${!canCount ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`mb-6 rounded-lg bg-[var(--color-surface)] p-6 shadow ${!canCount ? 'opacity-50' : ''}`}
+            aria-disabled={!canCount}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
+            <fieldset disabled={!canCount} className="contents">
             <h2 className="mb-4 text-lg font-bold">Agregar Ingrediente</h2>
 
             {isEditingExisting && (
@@ -641,6 +643,7 @@ export function InventoryPhysical() {
                 </button>
               )}
             </div>
+            </fieldset>
           </motion.div>
         )}
       </AnimatePresence>

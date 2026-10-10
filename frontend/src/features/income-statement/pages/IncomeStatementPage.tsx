@@ -15,6 +15,7 @@ import {
   useIncomeStatementMonth,
   useIncomeStatementRange,
 } from '../hooks/useIncomeStatement';
+import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 
 export function IncomeStatementPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>('day');
@@ -57,7 +58,7 @@ export function IncomeStatementPage() {
 
       {viewMode === 'day' && (
         <>
-          {dayQuery.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>Cargando…</p>}
+          {dayQuery.isLoading && <TableSkeleton rows={4} columns={2} />}
           {dayQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte del día.</p>}
           {dayQuery.data && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -72,7 +73,7 @@ export function IncomeStatementPage() {
 
       {viewMode === 'week' && (
         <>
-          {weekQuery.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>Cargando…</p>}
+          {weekQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
           {weekQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte semanal.</p>}
           {weekQuery.data && <WeekTable week={weekQuery.data} onSelectDay={setDrawerDate} />}
         </>
@@ -80,7 +81,7 @@ export function IncomeStatementPage() {
 
       {viewMode === 'month' && (
         <>
-          {monthQuery.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>Cargando…</p>}
+          {monthQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
           {monthQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte mensual.</p>}
           {monthQuery.data && <MonthTable month={monthQuery.data} onSelectDay={setDrawerDate} />}
         </>
@@ -91,7 +92,7 @@ export function IncomeStatementPage() {
           {rangeFrom > rangeTo && (
             <p style={{ color: 'var(--color-danger)' }}>La fecha inicial debe ser menor o igual a la fecha final.</p>
           )}
-          {rangeQuery.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>Cargando…</p>}
+          {rangeQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
           {rangeQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte del rango.</p>}
           {rangeQuery.data && <RangeTable range={rangeQuery.data} onSelectDay={setDrawerDate} />}
         </>

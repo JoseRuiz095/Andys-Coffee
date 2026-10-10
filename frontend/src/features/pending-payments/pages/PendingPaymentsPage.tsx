@@ -3,6 +3,7 @@ import { usePendingPayments } from '../hooks/usePendingPayments';
 import { SettlePaymentModal } from '../components/SettlePaymentModal';
 import type { PendingPayment } from '../api/pending-payments.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
+import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('es-MX', {
@@ -48,9 +49,7 @@ export function PendingPaymentsPage() {
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {isLoading ? (
-          <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-            Cargando...
-          </div>
+          <TableSkeleton rows={4} columns={5} />
         ) : !payments || payments.length === 0 ? (
           <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
             No hay pagos pendientes de cobro.

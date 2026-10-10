@@ -6,6 +6,7 @@ import { Card } from '../../../../shared/components/Card'
 import { ConfirmDialog } from '../../../../shared/components/ConfirmDialog'
 import { Modal } from '../../../../shared/components/Modal'
 import { formatCurrency } from '../../../../shared/utils/formatCurrency'
+import { getErrorMessage } from '../../../../shared/utils/errors'
 import { CategoryManagerModal } from '../CategoryManagerModal'
 import { sileo } from 'sileo'
 import type { CreateProductInput, UpdateProductInput } from '../../../products/types/product.types'
@@ -26,9 +27,9 @@ export function ProductsTab() {
     setCategoryFilter,
     statusFilter,
     setStatusFilter,
-    create,
-    update,
-    delete: deleteProduct,
+    createAsync,
+    updateAsync,
+    deleteAsync,
     setActive,
     isCreating,
     isUpdating,
@@ -92,29 +93,38 @@ export function ProductsTab() {
   const canUpdate = hasPermission(currentUser, 'products.update')
   const canDelete = hasPermission(currentUser, 'products.delete')
 
-  const handleSave = () => {
+  const isSaving = isCreating || isUpdating
+
+  const handleSave = async () => {
     if (!formData.name.trim() || !formData.sku?.trim() || formData.price < 0 || formData.cost < 0) {
       sileo.error({ title: 'Error', description: 'Por favor completa los campos requeridos' })
       return
     }
 
-    if (editingProduct) {
-      update({
-        input: {
-          id: editingProduct.id,
-          ...formData,
-        } as UpdateProductInput,
-        imageFile: imageFile || undefined,
-      })
-      sileo.success({ title: 'Éxito', description: 'Producto actualizado correctamente' })
-    } else {
-      create({ input: formData, imageFile: imageFile || undefined })
-      sileo.success({ title: 'Éxito', description: 'Producto creado correctamente' })
-    }
+    try {
+      if (editingProduct) {
+        await updateAsync({
+          input: {
+            id: editingProduct.id,
+            ...formData,
+          } as UpdateProductInput,
+          imageFile: imageFile || undefined,
+        })
+        sileo.success({ title: 'Éxito', description: 'Producto actualizado correctamente' })
+      } else {
+        await createAsync({ input: formData, imageFile: imageFile || undefined })
+        sileo.success({ title: 'Éxito', description: 'Producto creado correctamente' })
+      }
 
-    setIsCreateModalOpen(false)
-    setEditingProduct(null)
-    setImageFile(null)
+      setIsCreateModalOpen(false)
+      setEditingProduct(null)
+      setImageFile(null)
+    } catch (error) {
+      sileo.error({
+        title: 'No se pudo guardar el producto',
+        description: getErrorMessage(error, 'Intenta de nuevo.'),
+      })
+    }
   }
 
   const handleDeleteClick = (productId: string) => {
@@ -122,10 +132,20 @@ export function ProductsTab() {
     setDeleteConfirmOpen(true)
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (productToDelete) {
-      deleteProduct(productToDelete)
-      sileo.success({ title: 'Éxito', description: 'Producto eliminado correctamente' })
+      try {
+        await deleteAsync(productToDelete)
+        sileo.success({ title: 'Éxito', description: 'Producto eliminado correctamente' })
+        setDeleteConfirmOpen(false)
+        setProductToDelete(null)
+      } catch (error) {
+        sileo.error({
+          title: 'No se pudo eliminar el producto',
+          description: getErrorMessage(error, 'Intenta de nuevo.'),
+        })
+      }
+      return
     }
     setDeleteConfirmOpen(false)
     setProductToDelete(null)
@@ -398,6 +418,7 @@ export function ProductsTab() {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => {
+          if (isSaving) return
           setIsCreateModalOpen(false)
           setEditingProduct(null)
         }}
@@ -564,9 +585,11 @@ export function ProductsTab() {
                   </button>
                   <button
                     onClick={() => {
+                      if (isSaving) return
                       setIsCreateModalOpen(false)
                       setEditingProduct(null)
                     }}
+                    disabled={isSaving}
                     className="flex-1 rounded-lg border px-4 py-2 font-semibold transition"
                     style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
                   >
@@ -586,6 +609,7 @@ export function ProductsTab() {
         cancelText="Cancelar"
         isDangerous
         onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
         onCancel={() => {
           setDeleteConfirmOpen(false)
           setProductToDelete(null)

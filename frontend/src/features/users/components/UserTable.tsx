@@ -55,12 +55,12 @@ export function UserTable({ currentUser, onSelectUser }: UserTableProps) {
     setActive(
       { id: deactivateTarget.id, isActive: false },
       {
+        onSuccess: () => setDeactivateTarget(null),
         onError: (error: unknown) => {
           sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al desactivar usuario') })
         },
       }
     )
-    setDeactivateTarget(null)
   }
 
   const getRowActions = (user: UserData) => [
@@ -218,6 +218,7 @@ export function UserTable({ currentUser, onSelectUser }: UserTableProps) {
         isDangerous
         onConfirm={handleConfirmDeactivate}
         onCancel={() => setDeactivateTarget(null)}
+        isLoading={isTogglingActive}
       />
     </div>
   )

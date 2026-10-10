@@ -1,6 +1,7 @@
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import type { DailyOrder, DailyOrderStatus } from '../types/daily-orders.types';
+import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 
 interface DailyOrdersTableProps {
   orders: DailyOrder[];
@@ -44,11 +45,7 @@ function getPaymentMethodsText(methods: string[]): string {
 
 export function DailyOrdersTable({ orders, isLoading, onSelectOrder }: DailyOrdersTableProps) {
   if (isLoading) {
-    return (
-      <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-        Cargando órdenes...
-      </div>
-    );
+    return <TableSkeleton rows={6} columns={6} />;
   }
 
   if (!orders || orders.length === 0) {

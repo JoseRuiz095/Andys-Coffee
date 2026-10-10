@@ -14,7 +14,7 @@ const variantClassName: Record<ButtonVariant, string> = {
   ghost:
     'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-transparent px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-70',
   icon:
-    'inline-grid size-9 flex-shrink-0 place-items-center rounded-full bg-transparent transition focus-visible:outline-none focus-visible:ring-2',
+    'inline-grid size-9 flex-shrink-0 place-items-center rounded-full bg-transparent transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
   link:
     'inline-flex w-auto items-center gap-1 text-sm font-medium transition hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline disabled:hover:no-underline',
 }

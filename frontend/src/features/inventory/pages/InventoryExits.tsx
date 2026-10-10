@@ -161,11 +161,13 @@ export function InventoryExits() {
         )}
 
         <motion.div
-          className={`mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 ${!canCreateExit ? 'opacity-50 pointer-events-none' : ''}`}
+          className={`mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 ${!canCreateExit ? 'opacity-50' : ''}`}
+          aria-disabled={!canCreateExit}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
+          <fieldset disabled={!canCreateExit} className="contents">
           <h2 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">Registrar Salida</h2>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -260,6 +262,7 @@ export function InventoryExits() {
           >
             {isCreatingExit ? 'Registrando...' : 'Registrar Salida'}
           </motion.button>
+          </fieldset>
         </motion.div>
 
         {/* Salidas Recientes */}

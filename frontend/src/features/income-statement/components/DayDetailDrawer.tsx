@@ -3,6 +3,7 @@ import { useIncomeStatementDayDetail } from '../hooks/useIncomeStatement';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { CashStatusBadge } from './CashStatusBadge';
 import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
+import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
 
 interface DayDetailDrawerProps {
   date: string | null;
@@ -13,6 +14,7 @@ interface DayDetailDrawerProps {
 export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDrawerProps) {
   const { data, isLoading, error } = useIncomeStatementDayDetail(date, cashRegisterId);
   useBodyScrollLock(Boolean(date));
+  useOverlayEscape(Boolean(date), onClose);
 
   if (!date) return null;
 

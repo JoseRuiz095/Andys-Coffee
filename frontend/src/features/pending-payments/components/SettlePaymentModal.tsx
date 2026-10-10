@@ -4,6 +4,7 @@ import { useSettlePayment } from '../hooks/usePendingPayments';
 import type { PendingPayment, SettleMethod } from '../api/pending-payments.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
+import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
 
 interface SettlePaymentModalProps {
   isOpen: boolean;
@@ -15,6 +16,9 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   const { mutate: settlePayment, isPending } = useSettlePayment();
   const [method, setMethod] = React.useState<SettleMethod>('cash');
   useBodyScrollLock(isOpen);
+  useOverlayEscape(isOpen, () => {
+    if (!isPending) onClose();
+  });
 
   // Default to cash each time the modal opens (adjusting state during render, not in an effect).
   const [wasOpen, setWasOpen] = React.useState(false);
@@ -36,7 +40,9 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+      onClick={() => {
+        if (!isPending) onClose();
+      }}
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div

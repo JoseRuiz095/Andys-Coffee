@@ -100,10 +100,10 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
   const handleConfirmDelete = () => {
     if (!categoryToDelete) return
     const { id, name } = categoryToDelete
-    setCategoryToDelete(null)
     remove(id, {
       onSuccess: () => {
         sileo.success({ title: 'Categoría eliminada', description: `"${name}" se eliminó correctamente.` })
+        setCategoryToDelete(null)
         if (editingId === id) resetForm()
       },
       onError: (error: unknown) =>
@@ -294,6 +294,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
         isDangerous
         onConfirm={handleConfirmDelete}
         onCancel={() => setCategoryToDelete(null)}
+        isLoading={isDeleting}
       />
     </>
   )

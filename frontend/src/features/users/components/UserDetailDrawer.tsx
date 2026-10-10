@@ -98,12 +98,12 @@ export function UserDetailDrawer({
     setActive(
       { id: user.id, isActive: false },
       {
+        onSuccess: () => setShowDeactivateConfirm(false),
         onError: (error: unknown) => {
           sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al desactivar usuario') })
         },
       }
     )
-    setShowDeactivateConfirm(false)
   }
 
   const handleActivate = () => {
@@ -312,6 +312,7 @@ export function UserDetailDrawer({
             isDangerous
             onConfirm={handleConfirmDeactivate}
             onCancel={() => setShowDeactivateConfirm(false)}
+            isLoading={isTogglingActive}
           />
           <ConfirmDialog
             isOpen={showDeleteConfirm}
@@ -322,6 +323,7 @@ export function UserDetailDrawer({
             isDangerous
             onConfirm={handleConfirmDelete}
             onCancel={() => setShowDeleteConfirm(false)}
+            isLoading={isDeleting}
           />
         </>
       )}
