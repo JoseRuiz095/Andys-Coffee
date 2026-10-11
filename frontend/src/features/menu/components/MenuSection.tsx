@@ -373,12 +373,6 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
     visibleVariants.find((variant) => variant.id === selectedVariantId) ?? visibleVariants[0] ?? family.variants[0]
   const selectedPrice = selectedSize === 'JUMBO' ? selectedVariant?.jumboPrice : selectedVariant?.price
 
-  React.useEffect(() => {
-    if (selectedVariant && !visibleVariants.some((variant) => variant.id === selectedVariantId)) {
-      setSelectedVariantId(selectedVariant.id)
-    }
-  }, [selectedVariant, selectedVariantId, visibleVariants])
-
   const temperatureOptions: Array<'caliente' | 'frio'> = temperatures.filter((temperature) =>
     family.variants.some((variant) =>
       variant.temperature === 'BOTH' ||

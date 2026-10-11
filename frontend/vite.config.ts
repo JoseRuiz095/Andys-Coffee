@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
         output: {
           // Long-lived vendor chunks: they change far less often than app code, so browsers
           // keep them cached across deploys. Feature views are split with React.lazy.
-          advancedChunks: {
+          codeSplitting: {
             groups: [
               { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
               { name: 'vendor-motion', test: /[\\/]node_modules[\\/](framer-motion|motion-dom|motion-utils)[\\/]/ },

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { Order, OrderStatus } from '../types/orders.types'
 import { mapOrderStatusToFrontend } from '../types/orders.types'
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types'
@@ -13,7 +15,7 @@ interface OrderActionsProps {
   isUpdating?: boolean
 }
 
-const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disabled }: { onClick: () => void; className: string; children: React.ReactNode; ariaLabel?: string; bgVar: string; hoverVar: string; disabled?: boolean }) => (
+const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disabled }: { onClick: () => void; className: string; children: ReactNode; ariaLabel?: string; bgVar: string; hoverVar: string; disabled?: boolean }) => (
   <button
     onClick={onClick}
     disabled={disabled}
@@ -36,11 +38,23 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
   const isScheduled = Boolean(order.scheduledFor) && order.status === 'pending';
-  const canStartPreparing = !isScheduled || (() => {
-    const scheduledAt = new Date(order.scheduledFor as string).getTime();
-    const diffMs = scheduledAt - Date.now();
-    return diffMs <= 20 * 60 * 1000 && diffMs >= 0;
-  })();
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isScheduled) return;
+
+    const updateCurrentTime = () => setCurrentTime(Date.now());
+    const initialUpdate = window.setTimeout(updateCurrentTime, 0);
+    const interval = window.setInterval(updateCurrentTime, 30_000);
+
+    return () => {
+      window.clearTimeout(initialUpdate);
+      window.clearInterval(interval);
+    };
+  }, [isScheduled, order.scheduledFor]);
+
+  const scheduledAt = order.scheduledFor ? Date.parse(order.scheduledFor as string) : null;
+  const diffMs = scheduledAt !== null && currentTime !== null ? scheduledAt - currentTime : null;
+  const canStartPreparing = !isScheduled || (diffMs !== null && diffMs <= 20 * 60 * 1000 && diffMs >= 0);
   useTheme();
 
   return (

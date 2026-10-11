@@ -17,6 +17,7 @@
     "seed": "npm run prisma:generate && npm run prisma:seed",
     "catalog:export": "tsx scripts/export-catalog.ts",
     "catalog:export:prod": "cross-env NODE_ENV=production tsx scripts/export-catalog.ts",
+    "catalog:sync-menu:dev-to-prod": "tsx scripts/sync-sales-menu-dev-to-prod.ts",
     "storage:copy-to-dev": "tsx scripts/copy-storage-to-dev.ts",
     "db:replicate-prod-to-dev": "tsx scripts/replicate-prod-to-dev.ts",
     "db:reset-operations": "tsx scripts/reset-operational-data.ts",

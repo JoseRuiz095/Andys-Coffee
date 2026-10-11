@@ -44,7 +44,7 @@ if (process.platform === 'win32') {
   });
 
   if (result.error) {
-    console.warn('Could not clear stale Node processes:', result.error.message);
+    process.stderr.write(`Could not clear stale Node processes: ${result.error.message}\n`);
   }
 }
 

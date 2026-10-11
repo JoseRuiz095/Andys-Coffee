@@ -1,6 +1,5 @@
 import { OrderStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { prisma } from '../config/prisma';
 import {
   createOrderSchema,
   filterQuerySchema,
@@ -100,21 +99,11 @@ export function shouldNotifyScheduledOrder(
 
 export const OrderService = {
   async activateDueScheduledOrders(tx: Tx | null = null) {
-    const client = tx ?? prisma;
     const now = new Date();
-    const dueOrders = await client.order.findMany({
-      where: {
-        status: OrderStatus.pending,
-        scheduledFor: { not: null, lte: now },
-      },
-      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
-    });
+    const dueOrders = await OrderRepository.findDueScheduledOrders(now, tx ?? undefined);
 
     for (const order of dueOrders) {
-      const result = await client.order.updateMany({
-        where: { id: order.id, status: OrderStatus.pending },
-        data: { status: OrderStatus.preparing, activatedAt: now },
-      });
+      const result = await OrderRepository.activateScheduledOrderIfPending(order.id, now, tx ?? undefined);
 
       if (result.count > 0) {
         auditLog({
@@ -135,16 +124,8 @@ export const OrderService = {
   },
 
   async notifyDueScheduledOrders(tx: Tx | null = null) {
-    const client = tx ?? prisma;
     const now = new Date();
-    const dueReminderOrders = await client.order.findMany({
-      where: {
-        status: OrderStatus.pending,
-        scheduledFor: { not: null, gt: now },
-        scheduleNotifiedAt: null,
-      },
-      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
-    });
+    const dueReminderOrders = await OrderRepository.findDueScheduledReminders(now, tx ?? undefined);
 
     let notifiedCount = 0;
 
@@ -154,10 +135,7 @@ export const OrderService = {
         continue;
       }
 
-      const updated = await client.order.updateMany({
-        where: { id: order.id, status: OrderStatus.pending, scheduleNotifiedAt: null },
-        data: { scheduleNotifiedAt: now },
-      });
+      const updated = await OrderRepository.markScheduledReminderSent(order.id, now, tx ?? undefined);
 
       if (updated.count === 0) {
         continue;

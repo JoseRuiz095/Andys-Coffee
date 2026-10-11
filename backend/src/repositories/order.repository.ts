@@ -56,6 +56,34 @@ export const OrderRepository = {
     return client.order.findUnique({ where: { id } });
   },
 
+  async findDueScheduledOrders(now: Date, client: DbClient = prisma) {
+    return client.order.findMany({
+      where: { status: 'pending', scheduledFor: { not: null, lte: now } },
+      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
+    });
+  },
+
+  async activateScheduledOrderIfPending(id: string, now: Date, client: DbClient = prisma) {
+    return client.order.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'preparing', activatedAt: now },
+    });
+  },
+
+  async findDueScheduledReminders(now: Date, client: DbClient = prisma) {
+    return client.order.findMany({
+      where: { status: 'pending', scheduledFor: { not: null, gt: now }, scheduleNotifiedAt: null },
+      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
+    });
+  },
+
+  async markScheduledReminderSent(id: string, now: Date, client: DbClient = prisma) {
+    return client.order.updateMany({
+      where: { id, status: 'pending', scheduleNotifiedAt: null },
+      data: { scheduleNotifiedAt: now },
+    });
+  },
+
   async findStatus(tx: Tx, id: string) {
     return tx.order.findUnique({ where: { id }, select: { status: true } });
   },
