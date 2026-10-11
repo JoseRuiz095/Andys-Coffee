@@ -137,7 +137,7 @@ En Git Bash (Windows) antepón `MSYS_NO_PATHCONV=1`. Sin eso, Git Bash reescribe
 | **Health Check Path** | `/health` |
 | **Instancias** | **1**, sin autoescalado (ver §8) |
 | **Plan** | Uno **sin suspensión** (Starter o superior). El Free se suspende y los jobs no correrían |
-| **Auto-Deploy** | **After CI Checks Pass** (actívalo solo cuando `master` esté protegido, §10) |
+| **Auto-Deploy** | **No**. GitHub Actions dispara el Deploy Hook al pasar todos los checks (§10) |
 | Variables | Las de la tabla §2 |
 | CA de Supabase | *Secret File* `supabase-ca.crt` + `DATABASE_SSL_CA_PATH=/etc/secrets/supabase-ca.crt`, o `DATABASE_SSL_CA` con el PEM |
 
@@ -212,8 +212,9 @@ Si con eso no alcanza y hace falta cambiar código (aunque sea un log temporal),
 ## 10. CI/CD
 
 ```
-CI:  GitHub Actions (.github/workflows/ci.yml) → solo valida
-CD:  GitHub → Render ("Auto-Deploy: After CI Checks Pass") / Vercel (Git Integration) → producción
+CI:  GitHub Actions (.github/workflows/ci.yml) → frontend + backend + DB/E2E + Docker
+CD:  GitHub Actions (Deploy Hook, solo master y después de CI verde) → Render → producción
+   GitHub → Vercel (Git Integration) → frontend
 ```
 
 | Job | Qué valida |
@@ -222,9 +223,13 @@ CD:  GitHub → Render ("Auto-Deploy: After CI Checks Pass") / Vercel (Git Integ
 | `backend` | `npm ci`, lint, typecheck, `prisma validate`, `prisma generate`, unit tests, build |
 | `backend-db` | PostgreSQL de prueba en Docker (TLS), migraciones y seed, tests de integración, Playwright E2E |
 | `docker` | build de la imagen; sin herramientas de desarrollo, sin `.env` ni datos, usuario no root; arranque y health check |
+| `deploy-render` | Invoca el Deploy Hook solo en push a `master` y tras pasar los cuatro jobs de validación |
 
-- **No hay secretos en GitHub:** todo usa la BD de prueba y valores ficticios.
-- **Protección de `master`** (acción manual; **antes** de activar el Auto-Deploy):
+- **Secreto requerido en GitHub:** `RENDER_DEPLOY_HOOK_URL`, el Deploy Hook del servicio backend de producción en Render. No lo guardes en el repositorio ni lo imprimas en logs.
+- **Configurar el hook:** Render → servicio backend → Settings → Deploy Hook; copia la URL y guárdala en GitHub → Settings → Secrets and variables → Actions → New repository secret.
+- **Auto-Deploy de Render:** déjalo en **No** para evitar un segundo deploy automático al mismo push. El workflow dispara el hook solo después de que pasen frontend, backend, backend-db y Docker.
+- Los demás checks de CI usan la BD de prueba y valores ficticios; no requieren secretos.
+- **Protección de `master`** (acción manual; requerida para producción):
   - Pull Request obligatorio;
   - los 4 checks requeridos;
   - sin commits directos.

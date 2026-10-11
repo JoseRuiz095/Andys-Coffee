@@ -1,6 +1,6 @@
-# Continuous integration: validation only. Deployment is done by the native integrations
-# (Render "Auto-Deploy: After CI Checks Pass" and Vercel Git Integration), not by this workflow.
-# No real secrets are used: tests run against a throwaway PostgreSQL in Docker.
+# Continuous integration validates every change. Production Render deploys are triggered
+# from this workflow only after all validation jobs pass; Vercel uses Git Integration.
+# Tests run against a throwaway PostgreSQL in Docker.
 name: CI
 
 on:
@@ -155,3 +155,19 @@ jobs:
       - name: Container logs
         if: always()
         run: docker logs api || true
+
+  deploy-render:
+    name: Deploy Render (production)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [frontend, backend, backend-db, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Configura el secreto RENDER_DEPLOY_HOOK_URL en GitHub."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
