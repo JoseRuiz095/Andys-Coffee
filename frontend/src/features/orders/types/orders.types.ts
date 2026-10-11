@@ -1,4 +1,5 @@
 import { OrderStatus as BackendOrderStatus } from "./backend.types";
+import type { OrderTemperature } from '../../../shared/utils/productTemperature'
 
 export type OrderStatus =
   | 'PENDING'
@@ -20,6 +21,7 @@ export interface OrderItem {
   id: string;
   productId: string;
   productName: string;
+  temperature: OrderTemperature | null;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -49,6 +51,8 @@ export interface Order {
   total: number;
   createdAt: string;
   completedAt?: string | null;
+  scheduledFor?: string | null;
+  activatedAt?: string | null;
   items: OrderItem[];
   payments: Payment[];
 }

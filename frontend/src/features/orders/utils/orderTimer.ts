@@ -50,9 +50,10 @@ export function getTimerLevel(elapsedSeconds: number, targetMinutes: number): Ti
   return 'ok';
 }
 
-/** The timer only runs while the order is waiting for or in preparation. */
+/** The timer runs only while the order is actively in preparation. Scheduled orders stay
+ * in pending without counting down until their start window is reached. */
 export function isOrderBeingPrepared(order: Order) {
-  return order.status === 'pending' || order.status === 'preparing';
+  return order.status === 'preparing';
 }
 
 export function getOrderTimerLevel(order: Order, now: number): TimerLevel {

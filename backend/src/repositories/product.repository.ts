@@ -36,7 +36,7 @@ export const ProductRepository = {
   async findAuditFieldsById(id: string) {
     return prisma.product.findUnique({
       where: { id },
-      select: { price: true, cost: true, isActive: true, imageUrl: true },
+      select: { price: true, jumboPrice: true, cost: true, isActive: true, imageUrl: true, temperature: true },
     });
   },
 

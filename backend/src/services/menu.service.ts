@@ -34,6 +34,9 @@ export const MenuService = {
         return {
           ...product,
           price: pricing.total.toNumber(),
+          jumboPrice: product.jumboPrice === null
+            ? null
+            : calculateBestPromotion(product.jumboPrice, 1, promotions).total.toNumber(),
           type: 'product' as const,
           promotion: promotionData,
         };

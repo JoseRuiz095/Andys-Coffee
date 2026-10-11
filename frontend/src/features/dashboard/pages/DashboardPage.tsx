@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
+import { getDrinkTemperature } from '../../../shared/utils/productTemperature'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
@@ -29,6 +30,7 @@ import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
 import { CashClosingDialog } from '../components/CashClosingDialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { useCashSession } from '../hooks/useCashSession'
 import axios from 'axios'
 
@@ -59,6 +61,30 @@ function usePrevious<T>(value: T) {
   return ref.current
 }
 
+function getLocalDateTimeValue(date: Date = new Date(Date.now() + 60 * 60 * 1000)) {
+  const timezoneOffset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
+}
+
+function getScheduleReminderMinutes(scheduledFor: string | null) {
+  if (!scheduledFor) return null
+  const diffMs = new Date(scheduledFor).getTime() - Date.now()
+  return Math.max(0, Math.ceil(diffMs / 60000))
+}
+
+function readAlertedScheduledOrders() {
+  try {
+    const raw = localStorage.getItem('andy-scheduled-order-alerts')
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveAlertedScheduledOrders(orderIds: string[]) {
+  localStorage.setItem('andy-scheduled-order-alerts', JSON.stringify(orderIds))
+}
+
 export function DashboardPage() {
   const [isLoading] = React.useState(false)
   const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(
@@ -79,9 +105,13 @@ export function DashboardPage() {
     'customer_to_courier' | 'customer_to_business' | 'business_absorbs' | undefined
   >()
   const [deliveryPaymentMethod, setDeliveryPaymentMethod] = React.useState<'cash' | 'transfer' | undefined>()
+  const [scheduledFor, setScheduledFor] = React.useState<string | null>(null)
+  const [scheduleInputValue, setScheduleInputValue] = React.useState('')
+  const [isScheduleDialogOpen, setIsScheduleDialogOpen] = React.useState(false)
   const [isCashPaymentOpen, setIsCashPaymentOpen] = React.useState(false)
   const [isCashClosingOpen, setIsCashClosingOpen] = React.useState(false)
   const [closingExpectedAmount, setClosingExpectedAmount] = React.useState(0)
+  const [scheduleAlert, setScheduleAlert] = React.useState<{ orderId: string; scheduledFor: string } | null>(null)
   const [selectedCategory, setSelectedCategory] = React.useState<
     string | undefined
   >()
@@ -136,20 +166,40 @@ export function DashboardPage() {
       deliveryAmount: hasDelivery ? Number(deliveryAmount) || 0 : undefined,
       deliveryResponsible: hasDelivery ? deliveryResponsible : undefined,
       deliveryPaymentMethod: hasDelivery && deliveryResponsible === 'customer_to_business' ? deliveryPaymentMethod : undefined,
+      scheduledFor: scheduledFor ?? undefined,
       items: orderItems.map(
-        ({ productId, comboId, quantity, note, type }) => ({
+        ({ productId, comboId, quantity, note, type, temperature, size }) => ({
           productId: type === 'product' ? productId : undefined,
           comboId: type === 'combo' ? comboId : undefined,
           quantity,
           note,
+          temperature: type === 'product' ? temperature ?? undefined : undefined,
+          size: type === 'product' ? size : undefined,
         }),
       ),
     }
 
     createOrder(orderPayload, {
-      onSuccess: () => {
+      onSuccess: (createdOrder) => {
         setIsCashPaymentOpen(false)
+        setIsScheduleDialogOpen(false)
+        const alertOrderId = createdOrder?.id
+        if (orderPayload.scheduledFor && alertOrderId) {
+          const hasBeenAlerted = readAlertedScheduledOrders().includes(alertOrderId)
+          if (!hasBeenAlerted) {
+            const minutesLeft = getScheduleReminderMinutes(orderPayload.scheduledFor)
+            if (minutesLeft !== null && minutesLeft <= 20) {
+              setScheduleAlert({ orderId: alertOrderId, scheduledFor: orderPayload.scheduledFor })
+              const nextAlertedIds = [...readAlertedScheduledOrders(), alertOrderId]
+              saveAlertedScheduledOrders(nextAlertedIds)
+            }
+          }
+        }
         handleClearOrder()
+        if (orderPayload.scheduledFor) {
+          sileo.success({ title: 'Pedido programado.', description: `Se activará el ${new Date(orderPayload.scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 4000 })
+          return
+        }
         sileo.success({ title: 'Orden creada exitosamente.', duration: 3000 })
       },
       onError: (error) => {
@@ -269,7 +319,7 @@ export function DashboardPage() {
     setOrderItems((prevItems) => {
       const key = menuItem.type === 'product' ? 'productId' : 'comboId'
       const existingItemWithoutNote = prevItems.find(
-        (item) => item[key] === menuItem.id && !item.note,
+        (item) => item[key] === menuItem.id && item.temperature === menuItem.temperature && item.size === menuItem.size && !item.note,
       )
 
       if (existingItemWithoutNote) {
@@ -283,6 +333,10 @@ export function DashboardPage() {
       const newOrderItem: OrderItem = {
         id: crypto.randomUUID(),
         productName: menuItem.name,
+        size: menuItem.size,
+        temperature: menuItem.temperature === 'BOTH'
+          ? null
+          : menuItem.temperature ?? getDrinkTemperature(menuItem.name),
         quantity,
         unitPrice: menuItem.price,
         // Resolved once here (Supabase path -> URL); the app logo is the fallback image.
@@ -354,7 +408,10 @@ export function DashboardPage() {
       // Check if an item with the same note already exists
       const existingItemWithSameNote = prevItems.find(
         (item) =>
-          item.productId === newItemWithNote.productId && item.note === note,
+          item.productId === newItemWithNote.productId &&
+          item.temperature === newItemWithNote.temperature &&
+          item.size === newItemWithNote.size &&
+          item.note === note,
       )
 
       if (existingItemWithSameNote) {
@@ -392,6 +449,30 @@ export function DashboardPage() {
     setDeliveryAmount('')
     setDeliveryResponsible(undefined)
     setDeliveryPaymentMethod(undefined)
+    setScheduledFor(null)
+    setScheduleInputValue(getLocalDateTimeValue())
+  }
+
+  const handleScheduleOrderConfirmation = () => {
+    if (!scheduleInputValue) {
+      sileo.error({ title: 'Fecha inválida', description: 'Selecciona una fecha y hora futura para programar la orden.' })
+      return
+    }
+
+    const selectedDate = new Date(scheduleInputValue)
+    if (Number.isNaN(selectedDate.getTime())) {
+      sileo.error({ title: 'Fecha inválida', description: 'La fecha y hora programada no son válidas.' })
+      return
+    }
+
+    if (selectedDate.getTime() <= Date.now()) {
+      sileo.error({ title: 'Fecha inválida', description: 'La programación debe estar en el futuro.' })
+      return
+    }
+
+    setScheduledFor(selectedDate.toISOString())
+    setIsScheduleDialogOpen(false)
+    sileo.success({ title: 'Pedido programado', description: `Se activará el ${selectedDate.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 3000 })
   }
 
   const subtotal = React.useMemo(
@@ -521,6 +602,7 @@ export function DashboardPage() {
                 deliveryAmount={deliveryAmount}
                 deliveryResponsible={deliveryResponsible}
                 deliveryPaymentMethod={deliveryPaymentMethod}
+                scheduledFor={scheduledFor}
                 onNotesChange={handleNotesChange}
                 onCustomerNameChange={handleCustomerNameChange}
                 onPaymentMethodChange={handlePaymentMethodChange}
@@ -532,7 +614,64 @@ export function DashboardPage() {
                 onClearOrder={handleClearOrder}
                 onUpdateItemNote={handleUpdateItemNote}
                 onProcessTransaction={handleProcessOrder}
+                onScheduleOrder={() => {
+                  setScheduleInputValue(getLocalDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)))
+                  setIsScheduleDialogOpen(true)
+                }}
               />
+              <Dialog open={isScheduleDialogOpen} onOpenChange={(open) => setIsScheduleDialogOpen(open)}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Programar pedido</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      Fecha y hora programada
+                      <input
+                        type="datetime-local"
+                        value={scheduleInputValue}
+                        onChange={(event) => setScheduleInputValue(event.target.value)}
+                        className="mt-2 w-full rounded-xl border px-3 py-2"
+                        style={{
+                          borderColor: 'var(--color-border)',
+                          backgroundColor: 'var(--color-input-bg)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      />
+                    </label>
+                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+                      {scheduleInputValue ? `Se activará el ${new Date(scheduleInputValue).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.` : 'Selecciona una fecha y hora futura.'}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <button type="button" className="rounded-xl px-3 py-2 text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }} onClick={() => setIsScheduleDialogOpen(false)}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }} onClick={handleScheduleOrderConfirmation}>
+                      Confirmar
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={Boolean(scheduleAlert)} onOpenChange={(open) => !open && setScheduleAlert(null)}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Pedido próximo a preparación</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <p>
+                      La orden <strong>#{scheduleAlert?.orderId.slice(0, 8)}</strong> está programada para{' '}
+                      {scheduleAlert ? new Date(scheduleAlert.scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : ''}.
+                    </p>
+                    <p style={{ color: 'var(--color-text-secondary)' }}>Faltan menos de 20 minutos para iniciar su preparación.</p>
+                  </div>
+                  <DialogFooter>
+                    <button type="button" className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }} onClick={() => setScheduleAlert(null)}>
+                      Entendido
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <CashPaymentDialog
                 key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
                 open={isCashPaymentOpen}

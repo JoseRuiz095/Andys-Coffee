@@ -19,9 +19,21 @@ async function startDev() {
     stdio: 'inherit',
   });
 
-  tsx.on('error', (error) => {
-    console.error('Error al iniciar servidor:', error);
-    process.exit(1);
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => tsx.kill(signal));
+  }
+
+  await new Promise((resolve) => {
+    tsx.on('error', (error) => {
+      console.error('Error al iniciar servidor:', error);
+      process.exitCode = 1;
+      resolve();
+    });
+
+    tsx.on('exit', (code, signal) => {
+      process.exitCode = signal ? 1 : code ?? 1;
+      resolve();
+    });
   });
 }
 

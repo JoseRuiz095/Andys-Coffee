@@ -35,6 +35,12 @@ const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disa
 export function OrderActions({ order, onStatusChange, currentUser, isUpdating = false }: OrderActionsProps) {
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
+  const isScheduled = Boolean(order.scheduledFor) && order.status === 'pending';
+  const canStartPreparing = !isScheduled || (() => {
+    const scheduledAt = new Date(order.scheduledFor as string).getTime();
+    const diffMs = scheduledAt - Date.now();
+    return diffMs <= 20 * 60 * 1000 && diffMs >= 0;
+  })();
   useTheme();
 
   return (
@@ -44,12 +50,12 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
           <Button
             onClick={() => onStatusChange('PREPARING')}
             className="text-xs px-2 py-1"
-            disabled={isUpdating}
+            disabled={isUpdating || !canStartPreparing}
             bgVar="--color-primary"
             hoverVar="--color-primary-hover"
-            ariaLabel={`Marcar orden #${order.orderNumber} como Preparando`}
+            ariaLabel={canStartPreparing ? `Marcar orden #${order.orderNumber} como Preparando` : `La orden #${order.orderNumber} aún no puede empezar a prepararse`}
           >
-            Preparando
+            {isScheduled && !canStartPreparing ? 'Esperando horario' : 'Preparando'}
           </Button>
           {canCancelOrder && (
             <Button

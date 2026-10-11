@@ -46,6 +46,8 @@ export const MenuRepository = {
             id: true,
             categoryId: true,
             name: true,
+            temperature: true,
+            jumboPrice: true,
             description: true,
             price: true,
             imageUrl: true,

@@ -1,0 +1,1 @@
+ALTER TYPE "DrinkTemperature" ADD VALUE 'BOTH';

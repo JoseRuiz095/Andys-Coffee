@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Prisma, type PromotionType } from "@prisma/client";
+import { Prisma, type DrinkTemperature, type PromotionType } from "@prisma/client";
 import { prisma } from "../src/config/prisma";
 
 /**
@@ -17,7 +17,9 @@ export interface CatalogExport {
   categories: { id: string; name: string; description: Nullable<string>; imageUrl: Nullable<string>; displayOrder: number; isActive: boolean }[];
   products: {
     id: string; categoryId: Nullable<string>; name: string; description: Nullable<string>; sku: string; imageUrl: Nullable<string>;
+    temperature?: Nullable<DrinkTemperature>;
     price: string; cost: string; isActive: boolean; displayOrder: number;
+    jumboPrice?: Nullable<string>;
   }[];
   ingredients: {
     id: string; name: string; sku: Nullable<string>; unitId: string; isActive: boolean;

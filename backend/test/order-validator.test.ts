@@ -59,3 +59,65 @@ test("normaliza las variantes permitidas del método de pago", () => {
   assert.equal(result.success, true);
   if (result.success) assert.equal(result.data.paymentMethod, "cash");
 });
+
+test("acepta una fecha programada futura y rechaza una fecha pasada", () => {
+  const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const past = new Date(Date.now() - 60 * 1000).toISOString();
+
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    scheduledFor: future,
+    items: [{
+      productId: "00000000-0000-4000-8000-000000000001",
+      quantity: 1,
+    }],
+  }).success, true);
+
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    scheduledFor: past,
+    items: [{
+      productId: "00000000-0000-4000-8000-000000000001",
+      quantity: 1,
+    }],
+  }).success, false);
+});
+
+test('la temperatura de una venta debe ser concreta y no aplica a combos', () => {
+  const productId = "00000000-0000-4000-8000-000000000001";
+  const comboId = "00000000-0000-4000-8000-000000000002";
+
+  for (const temperature of ['HOT', 'COLD']) {
+    assert.equal(createOrderSchema.safeParse({
+      ...validBase,
+      items: [{ productId, quantity: 1, temperature }],
+    }).success, true);
+  }
+
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    items: [{ productId, quantity: 1, temperature: 'BOTH' }],
+  }).success, false);
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    items: [{ comboId, quantity: 1, temperature: 'HOT' }],
+  }).success, false);
+});
+
+test('Jumbo es un tamaño de producto válido y no puede agregarse a combos', () => {
+  const productId = "00000000-0000-4000-8000-000000000001";
+  const comboId = "00000000-0000-4000-8000-000000000002";
+
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    items: [{ productId, quantity: 1, size: 'JUMBO' }],
+  }).success, true);
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    items: [{ productId, quantity: 1, size: 'LARGE' }],
+  }).success, false);
+  assert.equal(createOrderSchema.safeParse({
+    ...validBase,
+    items: [{ comboId, quantity: 1, size: 'JUMBO' }],
+  }).success, false);
+});

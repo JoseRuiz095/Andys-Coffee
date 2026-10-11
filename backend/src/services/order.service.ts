@@ -1,5 +1,6 @@
 import { OrderStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { prisma } from '../config/prisma';
 import {
   createOrderSchema,
   filterQuerySchema,
@@ -21,6 +22,7 @@ import { calculateBestPromotion, promotionsForProduct, type PricingPromotion, ty
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate, getCalendarDateAsUtc } from '../utils/businessDate';
+import { getDrinkTemperature, isJumboLatteProduct } from '../utils/productTemperature';
 
 // --- Custom Errors for Service Layer ---
 
@@ -74,13 +76,120 @@ function accumulate(map: Map<string, Prisma.Decimal>, key: string, quantity: Pri
   map.set(key, (map.get(key) ?? ZERO).add(quantity));
 }
 
+export function shouldActivateScheduledOrder(referenceTime: Date, scheduledFor: Date | null | undefined) {
+  return !!scheduledFor && scheduledFor.getTime() <= referenceTime.getTime();
+}
+
+export function canStartPreparingScheduledOrder(referenceTime: Date, scheduledFor: Date | null | undefined) {
+  if (!scheduledFor) return true;
+  const diffMs = scheduledFor.getTime() - referenceTime.getTime();
+  return diffMs <= 20 * 60 * 1000 && diffMs >= 0;
+}
+
+export function shouldNotifyScheduledOrder(
+  referenceTime: Date,
+  scheduledFor: Date | null | undefined,
+  lastNotifiedAt: Date | null | undefined,
+) {
+  if (!scheduledFor || lastNotifiedAt) return false;
+  const diffMs = scheduledFor.getTime() - referenceTime.getTime();
+  return diffMs > 0 && diffMs <= 20 * 60 * 1000;
+}
 
 // --- Main Service Logic ---
 
 export const OrderService = {
+  async activateDueScheduledOrders(tx: Tx | null = null) {
+    const client = tx ?? prisma;
+    const now = new Date();
+    const dueOrders = await client.order.findMany({
+      where: {
+        status: OrderStatus.pending,
+        scheduledFor: { not: null, lte: now },
+      },
+      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
+    });
+
+    for (const order of dueOrders) {
+      const result = await client.order.updateMany({
+        where: { id: order.id, status: OrderStatus.pending },
+        data: { status: OrderStatus.preparing, activatedAt: now },
+      });
+
+      if (result.count > 0) {
+        auditLog({
+          action: 'ORDER_SCHEDULED_ACTIVATED',
+          entity: 'order',
+          entityId: order.id,
+          metadata: {
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            scheduledFor: order.scheduledFor,
+            activatedAt: now.toISOString(),
+          },
+        }, 'Scheduled order activated');
+      }
+    }
+
+    return dueOrders.length;
+  },
+
+  async notifyDueScheduledOrders(tx: Tx | null = null) {
+    const client = tx ?? prisma;
+    const now = new Date();
+    const dueReminderOrders = await client.order.findMany({
+      where: {
+        status: OrderStatus.pending,
+        scheduledFor: { not: null, gt: now },
+        scheduleNotifiedAt: null,
+      },
+      select: { id: true, orderNumber: true, customerName: true, scheduledFor: true },
+    });
+
+    let notifiedCount = 0;
+
+    for (const order of dueReminderOrders) {
+      const scheduledFor = order.scheduledFor ? new Date(order.scheduledFor) : null;
+      if (!shouldNotifyScheduledOrder(now, scheduledFor, null)) {
+        continue;
+      }
+
+      const updated = await client.order.updateMany({
+        where: { id: order.id, status: OrderStatus.pending, scheduleNotifiedAt: null },
+        data: { scheduleNotifiedAt: now },
+      });
+
+      if (updated.count === 0) {
+        continue;
+      }
+
+      try {
+        const usersToNotify = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
+        if (usersToNotify.length > 0) {
+          await NotificationService.createNotification(
+            {
+              title: 'Pedido programado',
+              message: `La orden #${order.orderNumber.toString()} está próxima a su horario programado (${scheduledFor ? new Date(scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'próximo horario'}).`,
+              type: 'NEW_ORDER',
+              referenceId: order.id,
+            },
+            usersToNotify.map((user) => user.id),
+          );
+        }
+        notifiedCount += 1;
+      } catch (notificationError) {
+        logger.error({ err: notificationError, orderId: order.id }, 'Scheduled order reminder notification failed');
+      }
+    }
+
+    return notifiedCount;
+  },
+
   async findAll(query: z.infer<typeof filterQuerySchema>, user: AuthUser) {
     const { page, limit } = query;
     const skip = paginationOffset(page, limit);
+
+    await OrderService.activateDueScheduledOrders();
 
     const where: Prisma.OrderWhereInput = {
       ...(query.status && { status: query.status }),
@@ -106,6 +215,7 @@ export const OrderService = {
   },
 
   async findOne(id: string, user: AuthUser) {
+    await OrderService.activateDueScheduledOrders();
     const order = await OrderRepository.findById(id);
 
     if (!order) {
@@ -136,6 +246,14 @@ export const OrderService = {
     // Authorization: can advance order status (preparing, ready, completed)
     if (status !== OrderStatus.cancelled && !user.permissions?.includes('sales.create')) {
       throw new AuthorizationError('No tienes permiso para avanzar el estado de este pedido.');
+    }
+
+    if (status === OrderStatus.preparing && order.scheduledFor) {
+      const windowMs = 20 * 60 * 1000;
+      const diffMs = new Date(order.scheduledFor).getTime() - Date.now();
+      if (diffMs > windowMs || diffMs < 0) {
+        throw businessRuleError('Solo se puede empezar a preparar una orden programada cuando falta 20 minutos o menos para su horario.');
+      }
     }
 
     // Authorization: can cancel orders
@@ -297,7 +415,14 @@ export const OrderService = {
   },
 
   async create(orderData: CreateOrderInput, userId: string, idempotencyKey: string, attempt = 0, requestId?: string): Promise<Prisma.OrderGetPayload<{ include: { items: { include: { extras: true } } } }>> {
-    const { items, paymentMethod, cashSessionId, cashReceived, hasDelivery, deliveryAmount, deliveryResponsible, deliveryPaymentMethod, ...restOfOrder } = orderData;
+    const { items, paymentMethod, cashSessionId, cashReceived, hasDelivery, deliveryAmount, deliveryResponsible, deliveryPaymentMethod, scheduledFor, ...restOfOrder } = orderData;
+    const scheduledDate = scheduledFor ? new Date(scheduledFor) : null;
+    if (scheduledDate && Number.isNaN(scheduledDate.getTime())) {
+      throw new ValidationError('La fecha programada es inválida.');
+    }
+    if (scheduledDate && scheduledDate.getTime() <= Date.now()) {
+      throw new ValidationError('La fecha programada debe ser futura.');
+    }
     // L-07: business day as a calendar date, so promotions compare correctly on their last day
     // whatever the server's timezone.
     const { date: businessDate, weekday } = getCalendarDateAsUtc(getTodayInZone());
@@ -358,6 +483,8 @@ export const OrderService = {
           customerName: finalCustomerName,
           notes: restOfOrder.notes,
           status: 'pending',
+          scheduledFor: scheduledDate ?? null,
+          activatedAt: null,
           createdById: userId,
           cashSessionId: openCashSession.id,
           idempotencyKey,
@@ -369,16 +496,29 @@ export const OrderService = {
           if (item.productId) {
             const product = productsMap.get(item.productId);
             if (!product) throw new ValidationError(`Producto con ID ${item.productId} no encontrado o inactivo.`);
-            const itemSubtotal = product.price.mul(item.quantity);
+            const availableTemperature = product.temperature ?? getDrinkTemperature(product.name, product.category?.name);
+            if (item.size === 'JUMBO' && (!product.jumboPrice || !isJumboLatteProduct(product.name, product.category?.name))) {
+              throw new ValidationError(`El tamaño Jumbo no está disponible para ${product.name}.`);
+            }
+            if (availableTemperature === 'BOTH' && !item.temperature) {
+              throw new ValidationError(`Selecciona caliente o frío para ${product.name}.`);
+            }
+            if (item.temperature && item.temperature !== availableTemperature) {
+              throw new ValidationError(`La temperatura seleccionada no está disponible para ${product.name}.`);
+            }
+            const orderTemperature = availableTemperature === 'BOTH' ? item.temperature ?? null : availableTemperature;
+            const unitPrice = item.size === 'JUMBO' ? product.jumboPrice! : product.price;
+            const itemSubtotal = unitPrice.mul(item.quantity);
             const itemCost = product.cost.mul(item.quantity);
             subtotal = subtotal.add(itemSubtotal);
             totalOrderCost = totalOrderCost.add(itemCost);
             const orderItem = await OrderRepository.createItem(tx, {
               orderId: order.id,
               productId: product.id,
-              productName: product.name,
+              productName: item.size === 'JUMBO' ? `${product.name} Jumbo` : product.name,
+              temperature: orderTemperature,
               quantity: item.quantity,
-              unitPrice: product.price,
+              unitPrice,
               subtotal: itemSubtotal,
               costSnapshot: itemCost,
               notes: item.note,

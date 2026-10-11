@@ -8,6 +8,7 @@ import { hasPermission } from '../../auth/utils/permissions';
 import type { AuthUser } from '../../auth/types/auth.types';
 import type { DailyOrder, DailyOrderStatus } from '../types/daily-orders.types';
 import { useCancelDailyOrder } from '../hooks/useDailyOrders';
+import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
 
 interface DailyOrderDetailDrawerProps {
   isOpen: boolean;
@@ -225,7 +226,9 @@ export function DailyOrderDetailDrawer({
                   <div key={item.id} className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span style={{ color: 'var(--color-text-primary)' }}>
-                        {item.productName} × {item.quantity}
+                        {getDrinkDisplayName(item.productName, item.temperature)}
+                        {item.temperature && ` (${formatDrinkTemperature(item.temperature)})`}
+                        {' × '}{item.quantity}
                       </span>
                       <span style={{ color: 'var(--color-text-primary)' }}>
                         {formatCurrency(Number(item.subtotal))}

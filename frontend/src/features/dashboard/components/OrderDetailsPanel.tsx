@@ -11,6 +11,7 @@ import { XIcon } from '../../../components/ui/XIcon'
 import { Button } from '../../../shared/components/Button'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import type { OrderItem } from '../types/order.types'
+import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
 
 type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
 type DeliveryPaymentMethod = 'cash' | 'transfer'
@@ -28,10 +29,12 @@ interface OrderDetailsPanelProps {
   deliveryAmount?: string
   deliveryResponsible?: DeliveryResponsible
   deliveryPaymentMethod?: DeliveryPaymentMethod
+  scheduledFor?: string | null
   onClearOrder?: () => void
   onRemoveItem?: (itemId: string) => void
   onUpdateItemNote?: (itemId: string, note: string) => void
   onProcessTransaction?: () => void
+  onScheduleOrder?: () => void
   onNotesChange?: (notes: string) => void
   onCustomerNameChange?: (name: string) => void
   onPaymentMethodChange?: (method: PaymentMethod) => void
@@ -53,9 +56,11 @@ export function OrderDetailsPanel({
   deliveryAmount = '',
   deliveryResponsible,
   deliveryPaymentMethod,
+  scheduledFor,
   onRemoveItem,
   onUpdateItemNote,
   onProcessTransaction,
+  onScheduleOrder,
   onNotesChange,
   onCustomerNameChange,
   onPaymentMethodChange,
@@ -311,8 +316,13 @@ export function OrderDetailsPanel({
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                        {item.productName}
+                        {getDrinkDisplayName(item.productName, item.temperature)}
                       </span>
+                      {item.temperature && (
+                        <span className="rounded px-1.5 py-0.5 text-xs" style={{ backgroundColor: 'var(--color-primary-soft)', color: 'var(--color-text-primary)' }}>
+                          {formatDrinkTemperature(item.temperature)}
+                        </span>
+                      )}
                       <button
                         onClick={() => handleOpenNoteModal(item)}
                         className="p-1 transition-colors"
@@ -366,16 +376,32 @@ export function OrderDetailsPanel({
             </div>
           </div>
 
-          <button
-            onClick={onProcessTransaction}
-            className="mt-4 w-full rounded-xl px-4 py-3 font-medium text-white transition-colors disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
-            disabled={isLoading || !items || items.length === 0}
-          >
-            {isLoading ? 'Procesando...' : 'Procesar orden'}
-          </button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onScheduleOrder}
+              className="rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50"
+              style={{ border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
+              disabled={isLoading || !items || items.length === 0}
+            >
+              {scheduledFor ? 'Reprogramar' : 'Programar pedido'}
+            </button>
+            <button
+              onClick={onProcessTransaction}
+              className="rounded-xl px-4 py-3 font-medium text-white transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
+              disabled={isLoading || !items || items.length === 0}
+            >
+              {isLoading ? 'Procesando...' : 'Procesar orden'}
+            </button>
+          </div>
+          {scheduledFor && (
+            <div className="mt-3 rounded-xl border p-2 text-xs" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+              Programado para: {new Date(scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+            </div>
+          )}
         </div>
       </div>
       <Dialog open={!!editingItem} onOpenChange={(isOpen: boolean) => !isOpen && handleCloseNoteModal()}>

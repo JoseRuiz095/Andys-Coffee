@@ -35,7 +35,10 @@ export const ProductService = {
     const { products, total } = await ProductRepository.findWithPagination(where, skip, limit);
 
     return {
-      data: products,
+      data: products.map((product) => ({
+        ...product,
+        jumboPrice: product.jumboPrice?.toNumber() ?? null,
+      })),
       pagination: paginationMeta(page, limit, total),
     };
   },
@@ -52,7 +55,11 @@ export const ProductService = {
           .toDecimalPlaces(2)
       : null;
 
-    return { ...product, suggestedCost };
+    return {
+      ...product,
+      jumboPrice: product.jumboPrice?.toNumber() ?? null,
+      suggestedCost,
+    };
   },
 
   async create(productData: z.infer<typeof createProductSchema>, user: AuthUser, requestId?: string) {
@@ -84,7 +91,7 @@ export const ProductService = {
     });
 
     const changes: Record<string, { from: unknown; to: unknown }> = {};
-    const fieldsToAudit = ['price', 'cost', 'isActive', 'imageUrl'];
+    const fieldsToAudit = ['price', 'jumboPrice', 'cost', 'isActive', 'imageUrl', 'temperature'];
 
     if (originalProduct) {
       for (const field of fieldsToAudit) {

@@ -4,6 +4,7 @@ import { logger } from "./utils/logger";
 import { PORT as port } from "./config/app";
 import { scheduleCashAutoClose } from "./jobs/cashAutoClose.job";
 import { scheduleCashReconciliation } from "./jobs/cashReconciliation.job";
+import { scheduleScheduledOrders } from "./jobs/orderScheduled.job";
 import { checkDatabaseConnection } from "./config/prisma";
 
 /**
@@ -45,6 +46,7 @@ const server = app.listen(port, () => {
   void checkDatabaseConnection();
   scheduleCashAutoClose();
   scheduleCashReconciliation();
+  scheduleScheduledOrders();
 });
 
 server.on("error", (error) => {

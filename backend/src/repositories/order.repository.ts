@@ -77,7 +77,16 @@ export const OrderRepository = {
     const [products, combos, extras, productExtras, promotions] = await Promise.all([
       tx.product.findMany({
         where: { id: { in: productIds }, isActive: true },
-        select: { id: true, name: true, categoryId: true, price: true, cost: true },
+        select: {
+          id: true,
+          name: true,
+          temperature: true,
+          jumboPrice: true,
+          categoryId: true,
+          category: { select: { name: true } },
+          price: true,
+          cost: true,
+        },
       }),
       tx.combo.findMany({
         where: {

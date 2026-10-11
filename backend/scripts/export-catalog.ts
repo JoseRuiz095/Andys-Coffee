@@ -50,6 +50,8 @@ async function main() {
     categories: categories.map(({ id, name, description, imageUrl, displayOrder, isActive }) => ({ id, name, description, imageUrl, displayOrder, isActive })),
     products: products.map((p) => ({
       id: p.id, categoryId: p.categoryId, name: p.name, description: p.description, sku: p.sku, imageUrl: p.imageUrl,
+      temperature: p.temperature,
+      jumboPrice: p.jumboPrice === null ? null : decimal(p.jumboPrice),
       price: decimal(p.price), cost: decimal(p.cost), isActive: p.isActive, displayOrder: p.displayOrder,
     })),
     ingredients: ingredients.map((i) => ({

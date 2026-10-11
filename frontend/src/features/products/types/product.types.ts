@@ -1,3 +1,5 @@
+import type { ProductTemperature } from '../../../shared/utils/productTemperature'
+
 export interface Product {
   id: string
   categoryId?: string
@@ -5,6 +7,8 @@ export interface Product {
   description?: string
   sku: string
   imageUrl?: string
+  temperature?: ProductTemperature | null
+  jumboPrice?: number | null
   price: number
   cost: number
   isActive: boolean
@@ -20,6 +24,8 @@ export interface ProductDetail extends Product {
 
 export interface CreateProductInput {
   categoryId?: string
+  temperature?: ProductTemperature | null
+  jumboPrice?: number | null
   name: string
   description?: string
   sku: string

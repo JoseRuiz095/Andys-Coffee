@@ -1,3 +1,5 @@
+import type { ProductTemperature } from '../../../shared/utils/productTemperature'
+
 /**
  * Representa un único ítem dentro de una categoría del menú.
  */
@@ -8,6 +10,9 @@ export interface MenuItem {
   price: number;
   imageUrl: string | null; // Ruta relativa de la imagen en Supabase Storage, si existe.
   type: 'product' | 'combo';
+  temperature?: ProductTemperature | null;
+  jumboPrice?: number | null;
+  size?: 'JUMBO';
 }
 
 /**

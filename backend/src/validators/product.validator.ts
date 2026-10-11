@@ -6,6 +6,8 @@ export const createProductSchema = z.object({
   price: z.coerce.number().positive('El precio debe ser un número positivo.'),
   cost: z.coerce.number().nonnegative('El costo debe ser un número positivo o cero.'),
   categoryId: z.string().uuid('El ID de la categoría no es válido.').optional().nullable(),
+  temperature: z.enum(['HOT', 'COLD', 'BOTH']).optional().nullable(),
+  jumboPrice: z.coerce.number().positive('El precio Jumbo debe ser mayor a cero.').optional().nullable(),
   sku: z.string().trim().optional().nullable(),
   description: z.string().optional().nullable(),
   imageUrl: z.string().url('La URL de la imagen no es válida.').optional().nullable(),

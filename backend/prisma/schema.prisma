@@ -99,7 +99,9 @@ model Product {
   description  String?
   sku          String               @unique
   imageUrl     String?
+  temperature  DrinkTemperature?
   price        Decimal              @default(0) @db.Decimal(12, 2)
+  jumboPrice   Decimal?              @db.Decimal(12, 2)
   cost         Decimal              @default(0) @db.Decimal(12, 2)
   isActive     Boolean              @default(true)
   displayOrder Int                  @default(0)
@@ -459,6 +461,9 @@ model Order {
   deliveryPaymentMethod String? // 'cash' | 'transfer' — only when deliveryResponsible = 'customer_to_business'
   deliveryHandedOff     Boolean              @default(false)
   deliveryHandedOffAt   DateTime?            @db.Timestamptz(6)
+  scheduledFor          DateTime?            @db.Timestamptz(6)
+  activatedAt           DateTime?            @db.Timestamptz(6)
+  scheduleNotifiedAt    DateTime?            @db.Timestamptz(6)
   createdById           String?
   createdAt             DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt             DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
@@ -471,6 +476,7 @@ model Order {
 
   @@unique([createdById, idempotencyKey], map: "orders_createdBy_idempotencyKey_unique")
   @@index([status])
+  @@index([scheduledFor], map: "orders_scheduledFor_idx")
   @@index([createdAt(sort: Desc)])
   @@index([cashSessionId], map: "orders_cashSession_idx")
   // @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
@@ -482,6 +488,7 @@ model OrderItem {
   orderId       String
   productId     String
   productName   String
+  temperature   DrinkTemperature?
   quantity      Decimal          @db.Decimal(12, 3)
   unitPrice     Decimal          @db.Decimal(12, 2)
   discount      Decimal          @default(0) @db.Decimal(12, 2)
@@ -581,6 +588,12 @@ enum OrderStatus {
   ready
   completed
   cancelled
+}
+
+enum DrinkTemperature {
+  HOT
+  COLD
+  BOTH
 }
 
 enum PromotionType {

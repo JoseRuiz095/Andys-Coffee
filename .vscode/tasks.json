@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Backend Development Server",
+			"type": "shell",
+			"command": "npm --prefix backend run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend Development Server",
+			"type": "shell",
+			"command": "npm --prefix backend run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend Development Server",
+			"type": "shell",
+			"command": "npm --prefix backend run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

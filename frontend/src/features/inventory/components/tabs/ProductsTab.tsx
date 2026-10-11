@@ -11,6 +11,8 @@ import { CategoryManagerModal } from '../CategoryManagerModal'
 import { sileo } from 'sileo'
 import type { CreateProductInput, UpdateProductInput } from '../../../products/types/product.types'
 import type { Product } from '../../../products/types/product.types'
+import { formatDrinkTemperature, getDrinkTemperature } from '../../../../shared/utils/productTemperature'
+import type { ProductTemperature } from '../../../../shared/utils/productTemperature'
 
 export function ProductsTab() {
   const currentUser = authStore.getState().user
@@ -55,8 +57,10 @@ export function ProductsTab() {
     description: '',
     sku: '',
     price: 0,
+    jumboPrice: null,
     cost: 0,
     categoryId: '',
+    temperature: null,
     displayOrder: 0,
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -72,8 +76,13 @@ export function ProductsTab() {
         description: editingProduct.description || '',
         sku: editingProduct.sku,
         price: editingProduct.price,
+        jumboPrice: editingProduct.jumboPrice ?? null,
         cost: editingProduct.cost,
         categoryId: editingProduct.categoryId || '',
+        temperature: editingProduct.temperature ?? getDrinkTemperature(
+          editingProduct.name,
+          categories.find((category) => category.id === editingProduct.categoryId)?.name,
+        ),
         displayOrder: editingProduct.displayOrder,
       })
     } else {
@@ -82,8 +91,10 @@ export function ProductsTab() {
         description: '',
         sku: '',
         price: 0,
+        jumboPrice: null,
         cost: 0,
         categoryId: '',
+        temperature: null,
         displayOrder: 0,
       })
     }
@@ -98,6 +109,11 @@ export function ProductsTab() {
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.sku?.trim() || formData.price < 0 || formData.cost < 0) {
       sileo.error({ title: 'Error', description: 'Por favor completa los campos requeridos' })
+      return
+    }
+
+    if (isBeverageCategory(formData.categoryId) && !formData.temperature) {
+      sileo.error({ title: 'Error', description: 'Selecciona si la bebida es caliente o fría.' })
       return
     }
 
@@ -159,6 +175,17 @@ export function ProductsTab() {
     if (!categoryId) return 'Sin categoría'
     return categories.find((c) => c.id === categoryId)?.name || 'Desconocida'
   }
+
+  const isBeverageCategory = (categoryId?: string) =>
+    getCategoryName(categoryId).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'bebidas'
+
+  const isLatteProduct = (name: string, categoryId?: string) => {
+    const normalizedName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+    return isBeverageCategory(categoryId) && normalizedName.startsWith('latte ') && normalizedName !== 'latte jumbo'
+  }
+
+  const getProductTemperature = (product: Product): ProductTemperature | null =>
+    product.temperature ?? getDrinkTemperature(product.name, getCategoryName(product.categoryId))
 
   if (error) {
     return (
@@ -309,6 +336,9 @@ export function ProductsTab() {
                   <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     Categoría
                   </th>
+                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    Temperatura
+                  </th>
                   <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     Precio
                   </th>
@@ -334,6 +364,11 @@ export function ProductsTab() {
                     </td>
                     <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
                       {getCategoryName(product.categoryId)}
+                    </td>
+                    <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
+                      {isBeverageCategory(product.categoryId)
+                        ? getProductTemperature(product) ? formatDrinkTemperature(getProductTemperature(product)!) : 'Sin definir'
+                        : '—'}
                     </td>
                     <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-primary)' }}>
                       {formatCurrency(product.price)}
@@ -478,7 +513,14 @@ export function ProductsTab() {
                   </label>
                   <select
                     value={formData.categoryId || ''}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value || undefined })}
+                    onChange={(e) => {
+                      const categoryId = e.target.value || undefined
+                      setFormData({
+                        ...formData,
+                        categoryId,
+                        temperature: isBeverageCategory(categoryId) ? formData.temperature : null,
+                      })
+                    }}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
                     style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
                   >
@@ -490,6 +532,32 @@ export function ProductsTab() {
                     ))}
                   </select>
                 </div>
+
+                {isBeverageCategory(formData.categoryId) && (
+                  <fieldset>
+                    <legend className="mb-2 block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      Temperatura
+                    </legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['HOT', 'COLD', 'BOTH'] as const).map((temperature) => (
+                        <button
+                          key={temperature}
+                          type="button"
+                          aria-pressed={formData.temperature === temperature}
+                          onClick={() => setFormData({ ...formData, temperature })}
+                          className="rounded-lg border px-4 py-2 font-medium transition-colors"
+                          style={{
+                            borderColor: formData.temperature === temperature ? 'var(--color-primary)' : 'var(--color-border)',
+                            backgroundColor: formData.temperature === temperature ? 'var(--color-primary-soft)' : 'var(--color-surface)',
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
+                          {formatDrinkTemperature(temperature)}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
@@ -573,6 +641,27 @@ export function ProductsTab() {
                     />
                   </div>
                 </div>
+
+                {isLatteProduct(formData.name, formData.categoryId) && (
+                  <div>
+                    <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      Precio Jumbo
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.jumboPrice ?? ''}
+                      onChange={(event) => setFormData({
+                        ...formData,
+                        jumboPrice: event.target.value === '' ? null : parseFloat(event.target.value),
+                      })}
+                      className="mt-1 w-full rounded-lg border px-4 py-2"
+                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                      placeholder="Sin tamaño Jumbo"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button

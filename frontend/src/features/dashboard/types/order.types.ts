@@ -1,3 +1,5 @@
+import type { OrderTemperature } from '../../../shared/utils/productTemperature'
+
 export interface OrderItemExtra {
   extraId: string;
   quantity: number;
@@ -7,6 +9,8 @@ export interface CreateOrderItem {
   productId?: string;
   comboId?: string;
   quantity: number;
+  temperature?: OrderTemperature;
+  size?: 'JUMBO';
   note?: string | null;
   extras?: OrderItemExtra[];
 }
@@ -22,6 +26,7 @@ export interface CreateOrderPayload {
   deliveryAmount?: number;
   deliveryResponsible?: 'customer_to_courier' | 'customer_to_business' | 'business_absorbs';
   deliveryPaymentMethod?: 'cash' | 'transfer';
+  scheduledFor?: string | null;
 }
 
 export interface Order {
@@ -41,6 +46,7 @@ export interface Order {
 export interface FullOrderItem {
   id: string;
   productName: string;
+  temperature: OrderTemperature | null;
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -54,6 +60,8 @@ export interface OrderItem {
   productId?: string // Corresponds to Product ID
   comboId?: string // Corresponds to Combo ID
   productName: string
+  temperature?: OrderTemperature | null
+  size?: 'JUMBO'
   quantity: number
   unitPrice: number
   image: string // ready-to-use URL (product image or the app logo)

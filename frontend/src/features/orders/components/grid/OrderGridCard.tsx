@@ -13,6 +13,7 @@ import { mapOrderStatusToFrontend } from '../../types/orders.types';
 import { OrderStatus as BackendOrderStatus } from '../../types/backend.types';
 import type { AuthUser } from '../../../auth/types/auth.types';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatDrinkTemperature, getDrinkDisplayName } from '@/shared/utils/productTemperature'
 
 interface OrderGridCardProps {
   order: Order;
@@ -47,21 +48,25 @@ const timerLevelTextMap: Record<TimerLevel, string> = {
 
 export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdating = false }: OrderGridCardProps) {
   const sizeRule = getOrderSizeRule(order);
+  const isScheduled = order.status === 'pending' && Boolean(order.scheduledFor);
   const isRunning = isOrderBeingPrepared(order);
-  const elapsedSeconds = getElapsedSeconds(order.createdAt, now);
+  const elapsedSeconds = isRunning ? getElapsedSeconds(order.activatedAt ?? order.createdAt, now) : 0;
   const timerLevel = getTimerLevel(elapsedSeconds, sizeRule.targetMinutes);
+  const scheduledMs = isScheduled ? new Date(order.scheduledFor as string).getTime() - now : 0;
+  const remainingMinutes = Math.max(0, Math.ceil(scheduledMs / 60000));
   // Once the order is ready the wait is over: the timer stops counting against it.
-  const timerColor = isRunning ? TIMER_LEVEL_COLOR[timerLevel] : 'var(--color-success)';
+  const timerColor = isRunning ? TIMER_LEVEL_COLOR[timerLevel] : isScheduled ? '#d97706' : 'var(--color-success)';
 
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const statusText = statusTextMap[frontendStatus];
-  const statusTone = statusToneMap[frontendStatus];
+  const statusTone = isScheduled ? 'warning' : statusToneMap[frontendStatus];
+  const waitLabel = isScheduled ? 'Esperando horario' : frontendStatus === 'PENDING' ? 'Pendiente' : frontendStatus === 'READY' ? 'Lista para entregar' : frontendStatus === 'COMPLETED' ? 'Entregada' : 'Cancelada';
 
   return (
     <div
       className="flex h-full flex-col rounded-xl border p-4 shadow-md"
       style={{
-        borderColor: isRunning && timerLevel !== 'ok' ? timerColor : 'var(--color-border)',
+        borderColor: isScheduled ? '#f59e0b' : isRunning && timerLevel !== 'ok' ? timerColor : 'var(--color-border)',
         backgroundColor: 'var(--color-surface)',
       }}
     >
@@ -74,13 +79,23 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
             </span>
           )}
         </h3>
-        <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
+        <StatusBadge tone={statusTone}>{isScheduled ? 'PROGRAMADA' : statusText}</StatusBadge>
       </div>
+
+      {isScheduled && (
+        <div className="mb-2 rounded-md border px-2 py-1 text-xs" style={{ borderColor: '#fbbf24', backgroundColor: 'rgba(245, 158, 11, 0.08)', color: '#b45309' }}>
+          <div className="font-semibold">Programada para: {new Date(order.scheduledFor as string).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</div>
+          <div className="mt-1">Faltan {remainingMinutes} min para activarse</div>
+        </div>
+      )}
 
       <div className="flex-1 space-y-2 text-base overflow-y-auto pr-2"> {/* Increased font size and added scroll */}
         {order.items.map((item) => (
           <div key={item.id} className="flex flex-col">
-            <span className="font-medium">{Number(item.quantity)}x {item.productName}</span>
+            <span className="font-medium">
+              {Number(item.quantity)}x {getDrinkDisplayName(item.productName, item.temperature)}
+              {item.temperature && ` (${formatDrinkTemperature(item.temperature)})`}
+            </span>
             {item.notes && (
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Nota: {item.notes}</span>
             )}
@@ -100,11 +115,11 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
           </>
         ) : (
           <p className="text-2xl font-bold" style={{ color: timerColor }}>
-            Lista para entregar
+            {isScheduled ? 'Esperando horario' : waitLabel}
           </p>
         )}
         <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          {sizeRule.label} · meta {sizeRule.targetMinutes} min
+          {isScheduled ? `Se activa en ${remainingMinutes} min` : `${sizeRule.label} · meta ${sizeRule.targetMinutes} min`}
         </p>
       </div>
 

@@ -1,7 +1,7 @@
 // Variables de backend/.env.<NODE_ENV> (development por defecto).
 import { ENV_MODE, USES_PRODUCTION_DATABASE } from "../src/config/env";
 import { prisma } from "../src/config/prisma";
-import { PromotionType } from "@prisma/client";
+import { PromotionType, type DrinkTemperature } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { readCatalogExport, seedCatalogFromExport } from "./seed-catalog";
 
@@ -54,7 +54,10 @@ interface SeedProduct {
   cost: number;
   category: string;
   displayOrder: number;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  temperature?: DrinkTemperature | null;
+  jumboPrice?: number | null;
+  isActive?: boolean;
 }
 
 // ============================================================
@@ -75,6 +78,7 @@ const products: SeedProduct[] = [
     category: "Bebidas",
     displayOrder: 1,
     imageUrl: `Menu/espresso.png`, // Asegúrate de que esta imagen exista en tu bucket
+    temperature: "BOTH",
   },
   {
     sku: "BEV-002",
@@ -85,6 +89,8 @@ const products: SeedProduct[] = [
     category: "Bebidas",
     displayOrder: 2,
     imageUrl: `Menu/Andys.png`, // Asegúrate de que esta imagen exista en tu bucket
+    temperature: "BOTH",
+    jumboPrice: 98,
   },
   {
     sku: "BEV-003",
@@ -94,6 +100,8 @@ const products: SeedProduct[] = [
     cost: 22.88,
     category: "Bebidas",
     displayOrder: 3,
+    temperature: "BOTH",
+    jumboPrice: 98,
   },
   {
     sku: "BEV-004",
@@ -103,6 +111,8 @@ const products: SeedProduct[] = [
     cost: 19.95,
     category: "Bebidas",
     displayOrder: 4,
+    temperature: "BOTH",
+    jumboPrice: 98,
     imageUrl: `Menu/Caramelo.png`
   },
   {
@@ -113,6 +123,8 @@ const products: SeedProduct[] = [
     cost: 18.69,
     category: "Bebidas",
     displayOrder: 5,
+    temperature: "BOTH",
+    jumboPrice: 98,
   },
   {
     sku: "BEV-006",
@@ -122,7 +134,9 @@ const products: SeedProduct[] = [
     cost: 26.74,
     category: "Bebidas",
     displayOrder: 6,
-    imageUrl: `Menu/Biscoff.png`
+    imageUrl: `Menu/Biscoff.png`,
+    temperature: "BOTH",
+    jumboPrice: 120,
   },
   {
     sku: "BEV-007",
@@ -132,7 +146,9 @@ const products: SeedProduct[] = [
     cost: 21.83,
     category: "Bebidas",
     displayOrder: 7,
-    imageUrl: `Menu/Andys.png`
+    imageUrl: `Menu/Andys.png`,
+    temperature: "BOTH",
+    jumboPrice: 98,
   },
   {
     sku: "BEV-008",
@@ -143,97 +159,7 @@ const products: SeedProduct[] = [
     cost: 10.57,
     category: "Bebidas",
     displayOrder: 8,
-  },
-  {
-    sku: "BEV-009",
-    name: "Chai Guayaba",
-    description:
-      "Te Chai sabor guayaba con leche.",
-    price: 70,
-    cost: 22.37,
-    category: "Bebidas",
-    displayOrder: 9,
-  },
-  {
-    sku: "BEV-010",
-    name: "Chai-Vainilla",
-    description:
-      "Te Chai sabor Vainilla con leche.",
-    price: 70,
-    cost: 40.08,
-    category: "Bebidas",
-    displayOrder: 10,
-  },
-  {
-    sku: "BEV-011",
-    name: "Latte regular Frio",
-    description:
-      "Nuestro clásico latte, pero refrescante y con hielo.",
-    price: 55,
-    cost: 13.27,
-    category: "Bebidas",
-    displayOrder: 11,
-  },
-  {
-    sku: "BEV-012",
-    name: "Latte Vainilla Frio",
-    description: "La dulzura de la vainilla en un latte helado.",
-    price: 65,
-    cost: 20.92,
-    category: "Bebidas",
-    displayOrder: 12,
-  },
-  {
-    sku: "BEV-013",
-    name: "Latte Caramel Macciato Frio",
-    description:
-      "La versión helada de nuestro popular Caramel Macchiato.",
-    price: 65,
-    cost: 20.26,
-    category: "Bebidas",
-    displayOrder: 13,
-    imageUrl: `Menu/Caramelo.png`
-  },
-  {
-    sku: "BEV-014",
-    name: "Latte Biscoff Frio",
-    description:
-      "Galleta Biscoff y café en una bebida fría irresistible.",
-    price: 70,
-    cost: 27.04,
-    category: "Bebidas",
-    displayOrder: 14,
-    imageUrl: `Menu/Biscoff.png`
-  },
-  {
-    sku: "BEV-015",
-    name: "Latte Moka Frio",
-    description:
-      "Chocolate y café en una refrescante bebida helada.",
-    price: 65,
-    cost: 16.73,
-    category: "Bebidas",
-    displayOrder: 15,
-  },
-  {
-    sku: "BEV-016",
-    name: "Latte Andy's Frio",
-    description:
-      "Nuestra especialidad secreta, ahora en versión fría.",
-    price: 65,
-    cost: 19.41,
-    category: "Bebidas",
-    displayOrder: 16,
-
-  },
-  {
-    sku: "BEV-017",
-    name: "Americano Iced",
-    description: "Un americano clásico servido con hielo.",
-    price: 45,
-    cost: 10.80,
-    category: "Bebidas",
-    displayOrder: 17,
+    temperature: "BOTH",
   },
   {
     sku: "BEV-018",
@@ -243,27 +169,30 @@ const products: SeedProduct[] = [
     cost: 16.19,
     category: "Bebidas",
     displayOrder: 18,
-    imageUrl: `Menu/CoffeeCream.png`
+    imageUrl: `Menu/CoffeeCream.png`,
+    temperature: "COLD"
   },
   {
     sku: "BEV-019",
-    name: "Chai vainilla frio",
+    name: "Chai vainilla",
     description:
       "Té chai con un toque de vainilla, servido frío.",
     price: 70,
     cost: 36.26,
     category: "Bebidas",
     displayOrder: 19,
+    temperature: "COLD",
   },
   {
     sku: "BEV-020",
-    name: "Chai Guayaba Frio",
+    name: "Chai Guayaba",
     description:
       "Té chai especiado con leche y un toque de vainilla.",
     price: 70,
     cost: 18.54,
     category: "Bebidas",
     displayOrder: 20,
+    temperature: "COLD",
   },
   {
     sku: "BEV-021",
@@ -273,7 +202,9 @@ const products: SeedProduct[] = [
     cost: 11.27,
     category: "Bebidas",
     displayOrder: 21,
-    imageUrl: `Menu/Limonada.png`
+    imageUrl: `Menu/Limonada.png`,
+    temperature: "COLD",
+
   },
   {
     sku: "BEV-022",
@@ -284,7 +215,9 @@ const products: SeedProduct[] = [
     cost: 19.41,
     category: "Bebidas",
     displayOrder: 22,
-    imageUrl: `Menu/Bloom.png`
+    imageUrl: `Menu/Bloom.png`,
+    temperature: "COLD",
+
   },
   {
     sku: "BEV-023",
@@ -295,18 +228,32 @@ const products: SeedProduct[] = [
     cost: 13.25, // Revisar costos
     category: "Bebidas",
     displayOrder: 23,
-    imageUrl: `Menu/Taro.png`
+    imageUrl: `Menu/Taro.png`,
+    temperature: "BOTH",
   },
-    {
-    sku: "BEV-024",
-    name: "Taro Frio",
-    description:
-      "Bebida refrescante sabor Taro fria.",
-    price: 60,
-    cost: 13.25, // Revisar costos
+
+  {
+    sku: "ESP-01",
+    name: "Latte Jumbo",
+    description: "Todos los lattes de sabor excepto biscote",
+    price: 98,
+    cost: 0,
     category: "Bebidas",
-    displayOrder: 24,
-    imageUrl: `Menu/TaroFrio.png`
+    displayOrder: 0,
+    imageUrl: null,
+    temperature: "BOTH",
+  },
+  {
+    sku: "ESP-02",
+    name: "Latte Pan de muerto",
+    description: "Latte de temporada",
+    price: 80,
+    cost: 0,
+    category: "Bebidas",
+    displayOrder: 0,
+    imageUrl: null,
+    temperature: "BOTH",
+    jumboPrice: 98,
   },
 
 
@@ -679,6 +626,30 @@ async function main() {
     await seedSampleCatalog();
   }
 
+  const activeCashRegister = await prisma.cashRegister.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!activeCashRegister) {
+    const existingCashRegister = await prisma.cashRegister.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+    if (existingCashRegister) {
+      await prisma.cashRegister.update({
+        where: { id: existingCashRegister.id },
+        data: { isActive: true },
+      });
+    } else {
+      await prisma.cashRegister.create({
+        data: {
+          name: "Caja principal",
+          description: "Caja principal de ventas",
+          isActive: true,
+        },
+      });
+    }
+  }
+
   // ==========================================================
   // PREFERENCIAS: DISTRIBUCIÓN DEL ESTADO DE RESULTADOS
   // ==========================================================
@@ -773,13 +744,13 @@ async function seedSampleCatalog() {
     if (!categoryId) {
       throw new Error(`No se encontró la categoría "${product.category}" para "${product.name}".`);
     }
-    const imageUrl = product.imageUrl || DEFAULT_IMAGE_URL;
+    const imageUrl = product.imageUrl === undefined ? DEFAULT_IMAGE_URL : product.imageUrl;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { category, ...productData } = product;
     await prisma.product.upsert({
       where: { sku: product.sku },
-      update: { ...productData, categoryId, imageUrl, isActive: true },
-      create: { ...productData, categoryId, imageUrl, isActive: true },
+      update: { ...productData, categoryId, imageUrl, isActive: product.isActive ?? true },
+      create: { ...productData, categoryId, imageUrl, isActive: product.isActive ?? true },
     });
   }
 
@@ -797,7 +768,7 @@ async function seedSampleCatalog() {
       imageUrl: "Menu/ComboMatutino.png",
       activeOnDays: [], // Disponible todos los días
       items: [
-        { sku: "BEV-011", quantity: 1 },
+        { sku: "BEV-002", quantity: 1 },
         { sku: "OTR-002", quantity: 1 },
       ],
     },
@@ -810,7 +781,7 @@ async function seedSampleCatalog() {
       activeOnDays: [], // Disponible todos los días
       items: [
         { sku: "BAG-004", quantity: 1 },
-        { sku: "BEV-016", quantity: 1 },
+        { sku: "BEV-007", quantity: 1 },
       ],
     },
     {
@@ -879,7 +850,7 @@ async function seedSampleCatalog() {
       buyQuantity: 1,
       getQuantity: 1,
       activeOnDays: [1], // Lunes
-      productNames: ["Latte Andy's", "Latte Andy's Frio"],
+      productNames: ["Latte Andy's"],
       categoryNames: [] as string[],
     },
     {
@@ -900,7 +871,6 @@ async function seedSampleCatalog() {
       activeOnDays: [5], // Viernes
       productNames: [
         "Latte Vainilla", "Latte Caramel Macciato", "Latte Moka", "Latte Biscoff",
-        "Latte Vainilla Frio", "Latte Caramel Macciato Frio", "Latte Biscoff Frio", "Latte Moka Frio",
       ],
       categoryNames: [] as string[],
     },

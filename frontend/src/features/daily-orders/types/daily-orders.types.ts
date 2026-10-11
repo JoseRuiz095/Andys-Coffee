@@ -1,3 +1,5 @@
+import type { OrderTemperature } from '../../../shared/utils/productTemperature'
+
 export interface DailyOrderItemExtra {
   id: string;
   extraId: string | null;
@@ -11,6 +13,7 @@ export interface DailyOrderItem {
   id: string;
   productId: string;
   productName: string;
+  temperature: OrderTemperature | null;
   quantity: number;
   unitPrice: number;
   discount: number;

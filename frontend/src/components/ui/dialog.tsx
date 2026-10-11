@@ -32,8 +32,8 @@ const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange:
   return createPortal(dialogContent, portalRoot);
 };
 
-const DialogContent = ({ children }: { children: React.ReactNode }) => (
-  <div className="p-6">{children}</div>
+const DialogContent = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <div className={['p-6', className].filter(Boolean).join(' ')}>{children}</div>
 );
 
 const DialogHeader = ({ children }: { children: React.ReactNode }) => (

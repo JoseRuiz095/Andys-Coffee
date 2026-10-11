@@ -17,12 +17,18 @@ export const orderItemSchema = z.strictObject({
   productId: z.string().uuid().optional(),
   comboId: z.string().uuid().optional(),
   quantity: z.number().int().positive().max(99),
+  temperature: z.enum(['HOT', 'COLD']).optional(),
+  size: z.enum(['JUMBO']).optional(),
   note: z.string().trim().max(500).optional().nullable(),
   extras: z.array(orderItemExtraSchema).max(20).optional(),
 }).refine((item) => Boolean(item.productId) !== Boolean(item.comboId), {
   message: 'Cada item debe contener exactamente un productId o comboId.',
 }).refine((item) => !item.comboId || !item.extras?.length, {
   message: 'Los extras solo pueden asociarse a productos.',
+}).refine((item) => !item.comboId || item.temperature === undefined, {
+  message: 'Los combos no pueden tener una temperatura individual.',
+}).refine((item) => !item.comboId || item.size === undefined, {
+  message: 'Los combos no pueden tener un tamaño individual.',
 });
 
 const paymentMethodSchema = z.enum([
@@ -64,10 +70,14 @@ export const createOrderSchema = z.strictObject({
   deliveryAmount: z.number().finite().nonnegative().max(999999.99).optional(),
   deliveryResponsible: deliveryResponsibleSchema.optional(),
   deliveryPaymentMethod: z.enum(['cash', 'transfer']).optional(),
+  scheduledFor: z.string().datetime({ offset: true }).optional().nullable(),
   // cashSessionId y createdById se obtendrán del request/sesión, no del body.
 }).refine((data) => data.paymentMethod !== 'pending' || Boolean(data.customerName?.trim()), {
   message: 'Se requiere el nombre del cliente para registrar un pago pendiente.',
   path: ['customerName'],
+}).refine((data) => !data.scheduledFor || new Date(data.scheduledFor).getTime() > Date.now(), {
+  message: 'La fecha programada debe ser futura.',
+  path: ['scheduledFor'],
 }).refine((data) => !data.hasDelivery || (data.deliveryAmount !== undefined && data.deliveryAmount > 0), {
   message: 'El costo del mandadito es requerido y debe ser mayor a 0.',
   path: ['deliveryAmount'],
