@@ -168,6 +168,8 @@ docs/
 | Documento | Contenido |
 | --------- | --------- |
 | [`docs/GPS/Ingenieria del proyecto.docx`](docs/GPS/) | Alcance, objetivos, actores y matriz de permisos, módulos, plataformas, restricciones y casos de uso (UML) |
+| [`docs/GPS/3.1a Enunciado del alcance y EDT.docx`](docs/GPS/) | Enunciado del alcance, entregables, EDT, fases, cronograma, ruta crítica, presupuesto y ROI estimados |
+| [`docs/GPS/3.1b Casos de uso e historias de usuario.docx`](docs/GPS/) | Casos de uso e historias de usuario del sistema |
 | [`docs/Project/deployment.md`](docs/Project/deployment.md) | Despliegue (Vercel + Docker en Render + Supabase), variables de entorno, CI/CD, migraciones en producción y rollback |
 | [`docs/Project/auditoria-mvp-2026-09-22.md`](docs/Project/auditoria-mvp-2026-09-22.md) | Auditoría integral del MVP: hallazgos (C/A/M/B), correcciones y decisiones de negocio (R-02, R-03…) |
 | [`docs/Project/plan-test.md`](docs/Project/plan-test.md) | Plan de estabilización y pruebas |
