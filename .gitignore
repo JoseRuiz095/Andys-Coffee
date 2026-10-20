@@ -3,3 +3,6 @@ CLAUDE.md
 
 # graphify (grafo de conocimiento local)
 graphify-out/
+
+# Original menu photos (large PNGs); the committed WebP versions live in backend/assets/menu-images
+backend/assets/menu-images-originals/

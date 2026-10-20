@@ -49,7 +49,7 @@ export interface OrderItem {
   size?: 'JUMBO'
   quantity: number
   unitPrice: number
-  image: string // ready-to-use URL (product image or the app logo)
+  image: string | null // product image URL from the API (null = no image)
   note?: string
   type: 'product' | 'combo'
   /** Extras of each unit of the line (2 lattes with 1 shot = 2 shots). */

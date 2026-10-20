@@ -23,9 +23,9 @@ const testEnv: Record<string, string> = {
   JWT_SECRET: 'integration-test-jwt-secret-0123456789-abcdefXYZ',
   CSRF_SECRET: 'integration-test-csrf-secret-32c',
   CASH_TIMEZONE: 'America/Mexico_City',
-  CORS_ORIGINS: 'http://localhost:5173',
+  // Only to build public image URLs; no request is sent (storage is faked in tests).
   SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_ANON_KEY: 'integration-test-anon-key',
+  CORS_ORIGINS: 'http://localhost:5173',
   ADMIN_SEED_PASSWORD: 'IntegrationAdmin123!',
   ENABLE_CASH_AUTO_CLOSE: 'false',
   ENABLE_CASH_RECONCILIATION: 'false',

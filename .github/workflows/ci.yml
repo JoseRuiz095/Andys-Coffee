@@ -136,8 +136,6 @@ jobs:
             -e DATABASE_SSL_CA="test-ca" \
             -e JWT_SECRET="ci-jwt-secret-0123456789-abcdefghijklmnopXYZ" \
             -e CSRF_SECRET="ci-csrf-secret-0123456789abcdefg" \
-            -e SUPABASE_URL="http://localhost:54321" \
-            -e SUPABASE_ANON_KEY="ci-anon-key" \
             -e CORS_ORIGINS="https://example.vercel.app" \
             -e ENABLE_CASH_AUTO_CLOSE=false \
             -e ENABLE_CASH_RECONCILIATION=false \

@@ -31,9 +31,10 @@ npm run start                   # Modo produccion
 | `npm run prisma:migrate` | `prisma migrate dev`. **Solo contra la BD de Docker** (ver abajo) |
 | `npm run seed` | Genera el cliente y ejecuta `prisma/seed.ts` |
 | `npm run catalog:export` / `catalog:export:prod` | Exporta el catálogo de la BD de desarrollo / producción (solo lectura) |
+| `npm run images:migrate` / `images:migrate:prod` | Sube las fotos del menú (WebP) al bucket y actualiza `imageUrl`. Sin `--apply` solo simula; `--restore <respaldo>` revierte |
+| `npm run images:build` | Regenera `assets/menu-images/*.webp` a partir de los originales |
 | `npm run db:replicate-prod-to-dev -- --yes` | Reemplaza **todos** los datos de desarrollo por una copia de producción (solo lee producción; guarda la copia en `backups/`, ignorada por git) |
 | `npm run db:reset-operations:prod -- --yes` | Limpia la operación de producción (ventas, cajas, gastos, compras, movimientos, conteos, notificaciones, auditoría); conserva catálogo, ingredientes con su stock como saldo inicial, proveedores, preferencias y usuarios. Sin `:prod`, lo hace en desarrollo |
-| `npm run storage:copy-to-dev` | Copia las imágenes del bucket de producción al proyecto de desarrollo (`--dry-run` para solo listar) |
 | `npm run test:unit` | Pruebas unitarias (sin BD) |
 | `npm run test:db:up` / `test:db:prepare` / `test:db:down` | BD de pruebas en Docker |
 | `npm run test:integration` | Pruebas de integración (BD de Docker) |
@@ -44,7 +45,6 @@ Scripts de mantenimiento en `scripts/`. Se ejecutan con `npx tsx scripts/<archiv
 
 | Script | Qué hace |
 | ------ | -------- |
-| `copy-storage-to-dev.ts` | Lee el bucket `Img` de producción y copia al de desarrollo lo que falte (ignora `NODE_ENV`; usa los dos archivos) |
 | `export-catalog.ts` | **Solo lectura.** Exporta el catálogo de la BD a `prisma/seed-data/catalog.json` (ver [Seed](#seed-y-catálogo)) |
 | `check-enum-migration.ts` | **Solo lectura.** Verificación antes/después de las migraciones `20260923*`; `--backup` escribe un respaldo JSON en `prisma/backups/` |
 | `seed-inventory.ts`, `seed-suppliers.ts` | Cargas iniciales antiguas de ingredientes y proveedores (sustituidas por `export-catalog` + seed) |
@@ -74,7 +74,6 @@ Desarrollo debe tener su propia base de datos (un proyecto de Supabase aparte), 
 1. **Crear el proyecto** de Supabase de desarrollo.
 2. **Completar `.env.development`** con los datos del proyecto nuevo:
    - `DATABASE_URL` y `DIRECT_URL`: Project Settings → Database → Connection string. Deben incluir `sslmode=require`.
-   - `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`: Project Settings → API.
    - `JWT_SECRET` y `CSRF_SECRET` **distintos** a los de producción, para que una sesión de un entorno no sirva en el otro.
    - `ADMIN_SEED_PASSWORD`: contraseña del admin de desarrollo.
    - `DATABASE_SSL_CA_PATH`: el certificado CA de Supabase. Suele ser el mismo para todos los proyectos; descárgalo del proyecto nuevo (Database → SSL) si la conexión lo rechaza.
@@ -83,10 +82,9 @@ Desarrollo debe tener su propia base de datos (un proyecto de Supabase aparte), 
 5. **Copiar los datos de producción**, a elegir:
    - **Todo** (ventas, cajas, gastos, usuarios…), para tener una réplica exacta: `npm run db:replicate-prod-to-dev -- --yes`. Usa `pg_dump`/`psql` de la imagen `postgres:17-alpine`, así que necesita Docker. Exige las mismas migraciones en ambas BD y reemplaza desarrollo en una sola transacción.
    - **Solo el catálogo:** `npm run catalog:export:prod` y después `npm run seed`.
-6. **Copiar las imágenes:** `npm run storage:copy-to-dev -- --dry-run` para revisar la lista, y luego `npm run storage:copy-to-dev`. Crea el bucket `Img` público si no existe. Las imágenes subidas desde la app guardan su URL completa de producción y se siguen viendo desde ahí.
-7. El frontend no necesita cambios: con `npm run dev` toma `SUPABASE_URL` de `.env.development`.
+Las imágenes del menú están en Supabase Storage: en un proyecto de desarrollo nuevo, súbelas con `npm run images:migrate -- --apply` (ver [Imágenes de productos](#imágenes-de-productos)).
 
-Para refrescar desarrollo con datos nuevos de producción, repite los pasos 5 y 6. Si quieres empezar de cero, antes ejecuta `npx prisma migrate reset`, que ahora sí se permite porque desarrollo ya no apunta a producción.
+Para refrescar desarrollo con datos nuevos de producción, repite el paso 5. Si quieres empezar de cero, antes ejecuta `npx prisma migrate reset`, que ahora sí se permite porque desarrollo ya no apunta a producción.
 
 | Variable | Obligatoria | Descripción |
 | -------- | ----------- | ----------- |
@@ -95,8 +93,10 @@ Para refrescar desarrollo con datos nuevos de producción, repite los pasos 5 y 
 | `DATABASE_SSL_CA_PATH` | Sí (o `DATABASE_SSL_CA`) | Ruta al certificado CA del proyecto de Supabase: `certs/dev/prod-ca-2021.crt` en desarrollo, `certs/prod/prod-ca-2021.crt` en producción local. En Render: Secret File o `DATABASE_SSL_CA` con el contenido |
 | `JWT_SECRET` | Sí | ≥ 32 caracteres y ≥ 16 distintos (`openssl rand -base64 48`) |
 | `CSRF_SECRET` | Sí | Exactamente 32 caracteres |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Sí | Proyecto de Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Sí | Para subir imágenes de productos. **Solo backend, jamás en el frontend** |
+| `SUPABASE_URL` | Para imágenes | Proyecto de Supabase. Sin ella la API no devuelve URLs de imagen |
+| `SUPABASE_SERVICE_ROLE_KEY` | Para subir imágenes | Storage rechaza la anon key. **Solo backend, jamás en el frontend** |
+| `PRODUCT_IMAGE_BUCKET` | No | Bucket público de las imágenes (por defecto `Img`) |
+| `PRODUCT_IMAGE_MAX_UPLOAD_MB` / `PRODUCT_IMAGE_MAX_DIMENSION` / `PRODUCT_IMAGE_WEBP_QUALITY` | No | Límite de carga (10 MB), lado máximo guardado (1200 px) y calidad WebP (80) |
 | `PORT` | No | Por defecto `4000` |
 | `NODE_ENV` | No | `development` / `production` |
 | `CORS_ORIGINS` | En producción | Orígenes permitidos, separados por comas |
@@ -178,7 +178,7 @@ Prefijo `/api`. Formato: colección `GET /recurso`, detalle `GET /recurso/:id`, 
 | ------- | --- |
 | `/auth` | `login`, `logout`, `csrf`, `me`, `change-password`, `profile` |
 | `/menu` | Menú público del POS (productos, combos y promociones activas) |
-| `/categories`, `/products` | Catálogo (imágenes vía multipart a Supabase Storage) |
+| `/categories`, `/products` | Catálogo. Imagen: `PATCH /products/:id/image` (multipart, campo `image`) y `DELETE /products/:id/image`, con `products.update` |
 | `/orders` | Ventas, estados, pagos pendientes (`/payments/pending`), mandaditos (`/deliveries/pending`), `/by-date` |
 | `/cash-register` | Sesiones de caja: abrir, cerrar, corregir, reabrir, historial |
 | `/expenses` | Gastos |
@@ -249,6 +249,30 @@ Borra ventas, cajas, gastos, compras, movimientos, conteos, notificaciones y usu
 5. Levantar el backend y volver a crear los usuarios (solo queda `admin@andyscoffee.local`).
 
 ---
+
+## Imágenes de productos
+
+Las fotos se guardan en **Supabase Storage** (bucket público `Img`), nunca en el disco del contenedor: Render no lo conserva entre despliegues.
+
+**Subida** (`PATCH /api/products/:id/image`, multipart, campo `image`, permiso `products.update`):
+
+1. `multer` acepta un solo archivo de hasta `PRODUCT_IMAGE_MAX_UPLOAD_MB` (10 MB) en memoria; hay un límite de 30 subidas por usuario cada 15 minutos.
+2. `image-processing.service.ts` detecta el formato real con `sharp` (JPEG, PNG, WebP o AVIF; el `Content-Type` y la extensión no cuentan). Rechaza archivos dañados, de menos de 100 px o de más de 50 MP.
+3. Corrige la orientación EXIF, reduce el lado mayor a `PRODUCT_IMAGE_MAX_DIMENSION` (1200 px, sin agrandar), quita los metadatos y la codifica como WebP con calidad `PRODUCT_IMAGE_WEBP_QUALITY` (80).
+4. `product-image.service.ts` la sube con un nombre generado por el servidor: `products/<productId>/<uuid>.webp`. No sobrescribe nada (`upsert: false`) y usa `Cache-Control` de un año.
+5. Cambia `imageUrl` con *compare-and-set*: si otro usuario cambió la imagen mientras tanto, responde 409. Si la BD falla, borra el archivo recién subido y el producto conserva su imagen anterior.
+6. Libera el archivo anterior.
+
+**Liberar un archivo** (al reemplazar, al quitar la imagen con `DELETE /api/products/:id/image` y al eliminar el producto): solo se borra si lo subió la API (`products/…` o el antiguo `public/…`) y ningún producto, combo o categoría lo sigue usando. Las fotos del catálogo (`catalog/…`, `Menu/…`) y las URL externas nunca se borran. Si el borrado falla, la BD ya quedó correcta y el archivo huérfano queda en el log.
+
+**Qué guarda la BD:** `imageUrl` guarda la clave dentro del bucket. Las filas antiguas pueden tener la URL pública completa, que sigue funcionando. La API devuelve siempre la URL pública (`resolveImageUrl`), así que el menú de ventas y el catálogo usan la misma referencia. `POST`/`PATCH /products` ya no aceptan `imageUrl`.
+
+**Fotos del menú:** los originales (PNG de hasta 8.5 MB, ignorados por git) están en `assets/menu-images-originals/` y su versión WebP (≈1.5 MB en total) en `assets/menu-images/`. `prisma/menu-images.ts` define qué foto lleva cada SKU o combo, y lo usan el seed y `npm run images:migrate`. Reglas de la migración:
+
+- Una referencia existente (`Menu/Andys.png` o la URL completa) pasa a la foto del catálogo con **el mismo archivo**, por nombre o por un alias documentado.
+- Las asignaciones del mapa solo se aplican a productos sin imagen o con el logo por defecto antiguo (`Menu/LogoAndysVector.svg`).
+- Lo que no tiene equivalente se reporta y no se toca.
+- Antes de escribir guarda un respaldo en `prisma/backups/menu-images-<fecha>.json`; `--restore` lo revierte. No borra nada del bucket.
 
 ## Jobs programados
 

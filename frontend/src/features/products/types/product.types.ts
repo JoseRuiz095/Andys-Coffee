@@ -6,7 +6,8 @@ export interface Product {
   name: string
   description?: string
   sku: string
-  imageUrl?: string
+  /** Public URL resolved by the API (null = no image). */
+  imageUrl?: string | null
   temperature?: ProductTemperature | null
   jumboPrice?: number | null
   price: number
@@ -31,10 +32,18 @@ export interface CreateProductInput {
   name: string
   description?: string
   sku: string
-  imageUrl?: string
   price: number
   cost: number
   displayOrder?: number
+}
+
+/** PATCH /products/:id/image: the stored WebP. */
+export interface ProductImageUploadResult {
+  imageUrl: string
+  width: number
+  height: number
+  bytes: number
+  originalBytes: number
 }
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {

@@ -21,7 +21,7 @@ Monorepo con dos aplicaciones independientes que se comunican por una API REST:
 
 ## Stack
 
-React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query — Node.js · Express 5 · Prisma 6 · Zod · Pino — PostgreSQL y Storage en Supabase — `node:test`, Playwright y Docker para pruebas.
+React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query — Node.js · Express 5 · Prisma 6 · Zod · Pino — PostgreSQL en Supabase — `node:test`, Playwright y Docker para pruebas.
 
 ## Puesta en marcha
 
@@ -68,7 +68,7 @@ Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 
 - [`docs/GPS/`](docs/GPS/): entregables de ingeniería del proyecto (alcance, EDT, casos de uso).
 - [`docs/Project/AUDIT/`](docs/Project/AUDIT/): auditorías técnicas.
-- [`docs/Project/FIXED/`](docs/Project/FIXED/): hallazgos resueltos y cambios realizados (p. ej. la auditoría del flujo de ventas del 20/10/2026).
+- [`docs/Project/FIXED/`](docs/Project/FIXED/): hallazgos resueltos y cambios realizados (p. ej. la auditoría del flujo de ventas y el nuevo flujo de imágenes de productos, ambos del 20/10/2026).
 - [`todo.md`](todo.md): estado del proyecto y pendientes.
 
 La documentación se escribe en español.

@@ -47,6 +47,8 @@ const NO_BODY = new Set([
   "POST /api/notifications/read-all",
   // Validated in the controller because the URL :key is part of the schema.
   "PATCH /api/preferences/:key",
+  // Multipart image: multer limits it and ProductImageService decodes and validates it with sharp.
+  "PATCH /api/products/:id/image",
 ]);
 
 const routes: RouteInfo[] = [];

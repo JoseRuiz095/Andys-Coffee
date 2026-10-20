@@ -10,7 +10,6 @@ export const createProductSchema = z.object({
   jumboPrice: z.coerce.number().positive('El precio Jumbo debe ser mayor a cero.').optional().nullable(),
   sku: z.string().trim().optional().nullable(),
   description: z.string().optional().nullable(),
-  imageUrl: z.string().url('La URL de la imagen no es válida.').optional().nullable(),
   displayOrder: z.coerce.number().int().nonnegative().optional(),
 });
 

@@ -44,3 +44,19 @@ export class DuplicateError extends Error {
     this.existingId = existingId;
   }
 }
+
+/** A dependency (e.g. image storage) is not configured or not reachable: 503. */
+export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceUnavailableError';
+  }
+}
+
+/** The storage provider rejected an operation: 502. The cause is logged, not returned. */
+export class StorageError extends Error {
+  constructor(message = 'No se pudo guardar la imagen en el almacenamiento. Intenta de nuevo.') {
+    super(message);
+    this.name = 'StorageError';
+  }
+}

@@ -2,12 +2,13 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { z } from 'zod';
-import { UploadService } from './upload.service';
 import { auditLog } from '../utils/logger';
 import { ProductRepository } from '../repositories/product.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, NotFoundError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
+import { resolveImageUrl } from '../utils/imageKeys';
+import { ProductImageService } from './product-image.service';
 
 // Helper to enforce permission checks consistently
 const ensureUserHasPermission = (user: AuthUser, permission: string) => {
@@ -37,6 +38,7 @@ export const ProductService = {
     return {
       data: products.map((product) => ({
         ...product,
+        imageUrl: resolveImageUrl(product.imageUrl),
         jumboPrice: product.jumboPrice?.toNumber() ?? null,
       })),
       pagination: paginationMeta(page, limit, total),
@@ -57,6 +59,7 @@ export const ProductService = {
 
     return {
       ...product,
+      imageUrl: resolveImageUrl(product.imageUrl),
       jumboPrice: product.jumboPrice?.toNumber() ?? null,
       suggestedCost,
     };
@@ -74,7 +77,7 @@ export const ProductService = {
       entity: 'product',
       entityId: newProduct.id,
     }, 'Product created');
-    return newProduct;
+    return { ...newProduct, imageUrl: resolveImageUrl(newProduct.imageUrl) };
   },
 
   async update(id: string, productData: z.infer<typeof updateProductSchema>, user: AuthUser, requestId?: string) {
@@ -91,7 +94,8 @@ export const ProductService = {
     });
 
     const changes: Record<string, { from: unknown; to: unknown }> = {};
-    const fieldsToAudit = ['price', 'jumboPrice', 'cost', 'isActive', 'imageUrl', 'temperature'];
+    // The image changes through ProductImageService, which audits it on its own.
+    const fieldsToAudit = ['price', 'jumboPrice', 'cost', 'isActive', 'temperature'];
 
     if (originalProduct) {
       for (const field of fieldsToAudit) {
@@ -115,7 +119,7 @@ export const ProductService = {
       }, 'Product updated');
     }
 
-    return updatedProduct;
+    return { ...updatedProduct, imageUrl: resolveImageUrl(updatedProduct.imageUrl) };
   },
 
   async remove(id: string, user: AuthUser, requestId?: string) {
@@ -136,9 +140,7 @@ export const ProductService = {
     }, 'Product deleted');
 
     await ProductRepository.delete(id);
-
-    if (productToDelete?.imageUrl) {
-      await UploadService.deleteProductImage(productToDelete.imageUrl);
-    }
+    // After the row is gone: its file is deleted only if nothing else references it.
+    await ProductImageService.release(productToDelete.imageUrl);
   },
 };

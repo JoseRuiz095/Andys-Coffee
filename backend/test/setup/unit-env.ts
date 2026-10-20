@@ -2,7 +2,7 @@
  * Environment for unit tests (`npm run test:unit`).
  *
  * Loaded with `--import` BEFORE any app module. Unit tests import modules whose config is
- * validated at load time (Prisma pool, JWT, Supabase), but they never connect to anything,
+ * validated at load time (Prisma pool, JWT), but they never connect to anything,
  * so dummy values are enough. NODE_ENV=test means no backend/.env.* file is loaded: unit
  * tests behave the same on a developer machine and in CI (where those files and certs/ do
  * not exist).
@@ -17,9 +17,9 @@ const unitEnv: Record<string, string> = {
   JWT_SECRET: 'unit-test-jwt-secret-0123456789-abcdefghijXYZ',
   CSRF_SECRET: 'unit-test-csrf-secret-0123456789',
   CASH_TIMEZONE: 'America/Mexico_City',
-  CORS_ORIGINS: 'http://localhost:5173',
+  // Only to build public image URLs; no request is sent (storage is faked in tests).
   SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_ANON_KEY: 'unit-test-anon-key',
+  CORS_ORIGINS: 'http://localhost:5173',
   ENABLE_CASH_AUTO_CLOSE: 'false',
   ENABLE_CASH_RECONCILIATION: 'false',
   LOG_LEVEL: 'silent',

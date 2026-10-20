@@ -21,8 +21,7 @@ export function useProducts(page = 1) {
   })
 
   const createMutation = useMutation({
-    mutationFn: ({ input, imageFile }: { input: CreateProductInput; imageFile?: File }) =>
-      ProductAPI.create(input, imageFile),
+    mutationFn: ({ input }: { input: CreateProductInput }) => ProductAPI.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
@@ -30,8 +29,7 @@ export function useProducts(page = 1) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ input, imageFile }: { input: UpdateProductInput; imageFile?: File }) =>
-      ProductAPI.update(input, imageFile),
+    mutationFn: ({ input }: { input: UpdateProductInput }) => ProductAPI.update(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
@@ -80,6 +78,32 @@ export function useProducts(page = 1) {
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isLoadingActive: setActiveMutation.isPending,
+  }
+}
+
+/** Upload/replace and removal of a product's image; both refresh the catalog and the POS menu. */
+export function useProductImage() {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['products'] })
+    queryClient.invalidateQueries({ queryKey: ['menu'] })
+  }
+
+  const upload = useMutation({
+    mutationFn: ({ productId, file }: { productId: string; file: File }) => ProductAPI.uploadImage(productId, file),
+    onSuccess: refresh,
+  })
+
+  const remove = useMutation({
+    mutationFn: (productId: string) => ProductAPI.removeImage(productId),
+    onSuccess: refresh,
+  })
+
+  return {
+    uploadAsync: upload.mutateAsync,
+    removeAsync: remove.mutateAsync,
+    isUploading: upload.isPending,
+    isRemoving: remove.isPending,
   }
 }
 

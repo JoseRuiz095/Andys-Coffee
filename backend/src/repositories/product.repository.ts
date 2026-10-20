@@ -43,8 +43,21 @@ export const ProductRepository = {
   async findImageById(id: string) {
     return prisma.product.findUnique({
       where: { id },
-      select: { imageUrl: true },
+      select: { id: true, imageUrl: true },
     });
+  },
+
+  /**
+   * Compare-and-set of the image: only writes when the row still holds `expected`, so two
+   * concurrent replacements cannot both win (and neither deletes the other's file).
+   * Returns false when the product changed or no longer exists.
+   */
+  async replaceImageIfUnchanged(id: string, expected: string | null, next: string | null) {
+    const { count } = await prisma.product.updateMany({
+      where: { id, imageUrl: expected },
+      data: { imageUrl: next },
+    });
+    return count === 1;
   },
 
   async create(data: Prisma.ProductUncheckedCreateInput) {

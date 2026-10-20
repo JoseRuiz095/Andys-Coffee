@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import multer from 'multer';
+import { productImageConfig } from '../config/productImages';
 import { logger } from '../utils/logger';
 import { DuplicateError } from '../utils/errors';
 import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
@@ -42,8 +43,20 @@ export const errorHandler = (
     return res.status(400).json({ message: err.message });
   }
 
-  if (err.name === 'UploadValidationError' || err instanceof multer.MulterError) {
-    return res.status(400).json({ message: err.message });
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      const maxMb = Math.round(productImageConfig.maxUploadBytes / (1024 * 1024));
+      return res.status(413).json({ message: `La imagen supera el límite de ${maxMb} MB.` });
+    }
+    return res.status(400).json({ message: 'Envía un solo archivo de imagen en el campo "image".' });
+  }
+
+  if (err.name === 'ServiceUnavailableError') {
+    return res.status(503).json({ message: err.message });
+  }
+
+  if (err.name === 'StorageError') {
+    return res.status(502).json({ message: err.message });
   }
 
   if (err.name === 'AuthenticationError' || err.message === 'Authentication required.' || err.message === 'Autenticación requerida.') {

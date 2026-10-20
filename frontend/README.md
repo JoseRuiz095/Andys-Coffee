@@ -34,7 +34,6 @@ Todo lo que empieza con `VITE_` **llega al navegador**: aquí solo van valores p
 
 | Variable | Descripción |
 | -------- | ----------- |
-| `VITE_SUPABASE_URL` | URL pública de Supabase para mostrar imágenes. Si falta, `vite.config.ts` toma `SUPABASE_URL` de `backend/.env.development` (con `npm run dev`) o de `backend/.env.production` (con `npm run build`) |
 | `BACKEND_PROXY_URL` | Backend al que Vite redirige `/api` en desarrollo (por defecto `http://127.0.0.1:4000`) |
 
 En producción, el servidor web que sirve `dist/` debe redirigir `/api` al backend en el mismo dominio, porque la sesión viaja en una cookie.
@@ -114,6 +113,13 @@ Las vistas pesadas (Órdenes, Inventario, Administración, Configuración) se ca
 
 - `ThemeProvider` y `useTheme()` están en `shared/assets/theme.ts`. La preferencia se guarda en `localStorage` (`andy-theme`); si no hay ninguna, se usa la del sistema.
 - Los colores son **variables CSS semánticas** (`--color-primary`, `--color-surface`, `--color-text-primary`, `--color-danger`…) definidas en `index.css`. **No se escriben colores fijos** en los componentes.
+
+### Imágenes del menú
+
+- La API devuelve `imageUrl` como URL pública (Supabase Storage) o `null`. El frontend no conoce el bucket ni tiene llaves.
+- `shared/components/ProductImage.tsx` pinta todas las fotos de productos (menú de ventas, diálogo de variantes, panel de la orden y catálogo de Inventario): carga diferida, `object-cover` dentro de una caja de tamaño fijo y el logo como respaldo si no hay imagen o falla la descarga.
+- En Inventario → Productos, `ProductImageField` permite elegir una foto, verla antes de subirla, confirmarla o cancelarla, reemplazarla y quitarla (con confirmación). En un producto nuevo la foto se sube justo después de crearlo. Al terminar se invalidan las consultas `products` y `menu`.
+- El servidor valida, optimiza y convierte a WebP; las validaciones del navegador (tipo y 10 MB) son solo una ayuda.
 
 ---
 

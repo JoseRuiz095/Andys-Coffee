@@ -8,7 +8,7 @@ export interface MenuItem {
   name: string;
   description: string | null;
   price: number;
-  imageUrl: string | null; // Ruta relativa de la imagen en Supabase Storage, si existe.
+  imageUrl: string | null; // URL pública de la imagen (la resuelve la API), o null si no tiene.
   type: 'product' | 'combo';
   temperature?: ProductTemperature | null;
   jumboPrice?: number | null;

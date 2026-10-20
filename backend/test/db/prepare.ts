@@ -20,8 +20,6 @@ const testEnv = {
   CSRF_SECRET: 'integration-test-csrf-secret-32c',
   CASH_TIMEZONE: 'America/Mexico_City',
   CORS_ORIGINS: 'http://localhost:5173',
-  SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_ANON_KEY: 'integration-test-anon-key',
   ADMIN_SEED_PASSWORD: 'IntegrationAdmin123!',
   ENABLE_CASH_AUTO_CLOSE: 'false',
   ENABLE_CASH_RECONCILIATION: 'false',

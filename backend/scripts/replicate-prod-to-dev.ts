@@ -13,7 +13,6 @@
  *
  * Uses the postgres:17-alpine Docker image for pg_dump/psql (no local install needed).
  * Reads the two env files directly and ignores NODE_ENV and the terminal's variables.
- * Storage images are copied separately: `npm run storage:copy-to-dev`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -131,7 +130,7 @@ END $$;
   const counts = 'SELECT (SELECT count(*) FROM products) || \' productos, \' || (SELECT count(*) FROM orders) || \' pedidos, \' || (SELECT count(*) FROM cash_sessions) || \' sesiones de caja, \' || (SELECT count(*) FROM users) || \' usuarios\'';
   const [productionCounts, developmentCounts] = await Promise.all([runInPg(production, psqlQuery(counts)), runInPg(development, psqlQuery(counts))]);
   process.stdout.write(`\nProducción: ${productionCounts.trim()}\nDesarrollo: ${developmentCounts.trim()}\n`);
-  process.stdout.write('\nListo. Para las imágenes: npm run storage:copy-to-dev\n');
+  process.stdout.write('\nListo.\n');
 }
 
 main().catch((error: unknown) => {

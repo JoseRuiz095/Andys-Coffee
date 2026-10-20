@@ -13,6 +13,7 @@ import { Skeleton } from '../../../shared/components/Skeleton'
 import type { OrderItem } from '../types/order.types'
 import { extrasUnitPrice } from '../../menu/utils/extras'
 import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
+import { ProductImage } from '../../../shared/components/ProductImage'
 
 type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
 type DeliveryPaymentMethod = 'cash' | 'transfer'
@@ -335,11 +336,7 @@ export function OrderDetailsPanel({
                   style={{ backgroundColor: 'var(--color-surface-hover)' }}
                 >
                   <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-surface-secondary)' }}>
-                    <img
-                      src={item.image}
-                      alt={item.productName}
-                      className="h-full w-full object-cover"
-                    />
+                    <ProductImage src={item.image} alt={item.productName} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">

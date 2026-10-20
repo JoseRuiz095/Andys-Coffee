@@ -3,7 +3,7 @@ import { Skeleton } from '../../../shared/components/Skeleton'
 import type { MenuCategory, MenuItem, SelectedExtra } from '../types/menu.types'
 import { ExtrasPicker } from './ExtrasPicker'
 import { extrasUnitPrice } from '../utils/extras'
-import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
+import { ProductImage } from '../../../shared/components/ProductImage'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '../../../components/ui/dialog'
 import { XIcon } from '../../../components/ui/XIcon'
 
@@ -318,7 +318,6 @@ interface ProductFamilyCardProps {
 
 function ProductFamilyCard({ title, variants, onOpen }: ProductFamilyCardProps) {
   const mainVariant = variants[0]
-  const imageUrl = mainVariant.imageUrl ? getSupabaseImageUrl(mainVariant.imageUrl, 'Img', 'public') : undefined
 
   return (
     <button
@@ -328,9 +327,7 @@ function ProductFamilyCard({ title, variants, onOpen }: ProductFamilyCardProps) 
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <div className="relative h-32 overflow-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
-        {imageUrl && (
-          <img src={imageUrl} alt={title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-        )}
+        <ProductImage src={mainVariant.imageUrl} alt={title} className="transition-transform group-hover:scale-105" />
       </div>
       <div className="p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
@@ -461,13 +458,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-14 w-14 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--color-background)' }}>
-                {selectedVariant?.imageUrl && (
-                  <img
-                    src={getSupabaseImageUrl(selectedVariant.imageUrl, 'Img', 'public') ?? undefined}
-                    alt={family.title}
-                    className="h-full w-full object-cover"
-                  />
-                )}
+                <ProductImage src={selectedVariant?.imageUrl} alt={family.title} eager />
               </div>
               <div>
                 <DialogTitle>{family.title}</DialogTitle>
@@ -583,13 +574,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
                     }}
                   >
                     <div className="mb-2 h-16 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-background)' }}>
-                      {variant.imageUrl && (
-                        <img
-                          src={getSupabaseImageUrl(variant.imageUrl, 'Img', 'public') ?? undefined}
-                          alt={variant.name}
-                          className="h-full w-full object-cover"
-                        />
-                      )}
+                      <ProductImage src={variant.imageUrl} alt={variant.name} eager />
                     </div>
                     <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                       {getVariantLabel(variant.name)}
@@ -695,9 +680,6 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onAddToOrder, onChooseExtras }: ProductCardProps) {
-  const imageUrl = product.imageUrl
-    ? getSupabaseImageUrl(product.imageUrl, 'Img', 'public')
-    : undefined
 
   return (
     <button
@@ -707,9 +689,7 @@ function ProductCard({ product, onAddToOrder, onChooseExtras }: ProductCardProps
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <div className="relative h-32 overflow-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
-        {imageUrl && (
-          <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-        )}
+        <ProductImage src={product.imageUrl} alt={product.name} className="transition-transform group-hover:scale-105" />
       </div>
       <div className="p-4">
         <h4 className="mb-1 font-semibold" style={{ color: 'var(--color-text-primary)' }}>{product.name}</h4>

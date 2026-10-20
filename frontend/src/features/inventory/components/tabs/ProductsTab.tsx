@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { useProducts, useCategories, useProductDetail } from '../../../products/hooks/useProducts'
+import { useProducts, useCategories, useProductDetail, useProductImage } from '../../../products/hooks/useProducts'
+import { useImageDraft } from '../../../products/hooks/useImageDraft'
+import { ProductImageField } from '../../../products/components/ProductImageField'
+import { ProductImage } from '../../../../shared/components/ProductImage'
 import { useExtras, useSetProductExtras } from '../../../extras/hooks/useExtras'
 import { authStore } from '../../../auth/store/auth.store'
 import { hasPermission } from '../../../auth/utils/permissions'
@@ -67,6 +70,72 @@ export function ProductsTab() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
 
+  // Product photo: picked locally (preview), then uploaded and converted to WebP by the API.
+  const productImage = useProductImage()
+  const imageDraft = useImageDraft()
+  // Server result shown right away, before the refetched product arrives.
+  const [imageOverride, setImageOverride] = useState<{ productId: string; url: string | null } | null>(null)
+  const [removeImageConfirmOpen, setRemoveImageConfirmOpen] = useState(false)
+  const currentImageUrl = editingProduct
+    ? imageOverride?.productId === editingProduct.id
+      ? imageOverride.url
+      : editingDetail?.imageUrl ?? editingProduct.imageUrl ?? null
+    : null
+
+  const resetImageState = () => {
+    imageDraft.clear()
+    setImageOverride(null)
+    setRemoveImageConfirmOpen(false)
+  }
+
+  const uploadDraft = async (productId: string, file: File) => {
+    const result = await productImage.uploadAsync({ productId, file })
+    setImageOverride({ productId, url: result.imageUrl })
+    imageDraft.clear()
+    return result
+  }
+
+  const handleConfirmImage = async () => {
+    if (!editingProduct || !imageDraft.draft) return
+    try {
+      const result = await uploadDraft(editingProduct.id, imageDraft.draft.file)
+      sileo.success({
+        title: 'Imagen actualizada',
+        description: `Optimizada a WebP: ${Math.round(result.bytes / 1024)} KB (original ${Math.round(result.originalBytes / 1024)} KB).`,
+      })
+    } catch (error) {
+      // The previous image stays on the server; the preview stays so the user can retry or cancel.
+      const message = getErrorMessage(error, 'No se pudo subir la imagen.')
+      imageDraft.setError(message)
+      sileo.error({ title: 'No se pudo subir la imagen', description: message })
+    }
+  }
+
+  const handleRemoveImage = async () => {
+    if (!editingProduct) return
+    try {
+      await productImage.removeAsync(editingProduct.id)
+      setImageOverride({ productId: editingProduct.id, url: null })
+      sileo.success({ title: 'Imagen eliminada', description: 'El producto ahora muestra la imagen por defecto.' })
+    } catch (error) {
+      sileo.error({ title: 'No se pudo quitar la imagen', description: getErrorMessage(error, 'Intenta de nuevo.') })
+    } finally {
+      setRemoveImageConfirmOpen(false)
+    }
+  }
+
+  /** Upload during save: a failure is reported but does not undo the saved product. */
+  const uploadPendingImage = async (productId: string, file: File) => {
+    try {
+      await uploadDraft(productId, file)
+    } catch (error) {
+      sileo.error({
+        title: 'El producto se guardó, pero la imagen no',
+        description: getErrorMessage(error, 'Vuelve a intentarlo desde Editar.'),
+      })
+    }
+  }
+
   const [formData, setFormData] = useState<CreateProductInput>({
     name: '',
     description: '',
@@ -78,7 +147,6 @@ export function ProductsTab() {
     temperature: null,
     displayOrder: 0,
   })
-  const [imageFile, setImageFile] = useState<File | null>(null)
 
   // Fill (or clear) the form whenever the product being edited changes — adjusted during
   // render instead of in an effect, as recommended by React.
@@ -122,7 +190,7 @@ export function ProductsTab() {
   const canUpdate = hasPermission(currentUser, 'products.update')
   const canDelete = hasPermission(currentUser, 'products.delete')
 
-  const isSaving = isCreating || isUpdating
+  const isSaving = isCreating || isUpdating || productImage.isUploading || productImage.isRemoving
 
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.sku?.trim() || formData.price < 0 || formData.cost < 0) {
@@ -142,25 +210,28 @@ export function ProductsTab() {
             id: editingProduct.id,
             ...formData,
           } as UpdateProductInput,
-          imageFile: imageFile || undefined,
         })
         if (extrasChanged) {
           await setProductExtras.mutateAsync({ productId: editingProduct.id, extraIds: selectedExtraIds })
         }
         sileo.success({ title: 'Éxito', description: 'Producto actualizado correctamente' })
+        // A photo picked but not confirmed yet is uploaded with the save instead of being lost.
+        if (imageDraft.draft) await uploadPendingImage(editingProduct.id, imageDraft.draft.file)
       } else {
-        const created = await createAsync({ input: formData, imageFile: imageFile || undefined })
+        const created = await createAsync({ input: formData })
         if (selectedExtraIds.length > 0 && created?.id) {
           await setProductExtras.mutateAsync({ productId: created.id, extraIds: selectedExtraIds })
         }
         sileo.success({ title: 'Éxito', description: 'Producto creado correctamente' })
+        // New products need their id before the photo can be uploaded.
+        if (imageDraft.draft && created?.id) await uploadPendingImage(created.id, imageDraft.draft.file)
       }
       setSelectedExtraIds([])
       setExtrasLoadedFor(null)
 
       setIsCreateModalOpen(false)
       setEditingProduct(null)
-      setImageFile(null)
+      resetImageState()
     } catch (error) {
       sileo.error({
         title: 'No se pudo guardar el producto',
@@ -243,6 +314,7 @@ export function ProductsTab() {
           {canCreate && (
             <button
               onClick={() => {
+                resetImageState()
                 setEditingProduct(null)
                 setIsCreateModalOpen(true)
               }}
@@ -383,7 +455,12 @@ export function ProductsTab() {
                 {products.map((product) => (
                   <tr key={product.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                     <td className="px-6 py-4" style={{ color: 'var(--color-text-primary)' }}>
-                      {product.name}
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
+                          <ProductImage src={product.imageUrl} alt="" />
+                        </div>
+                        <span>{product.name}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
                       {product.sku}
@@ -419,6 +496,7 @@ export function ProductsTab() {
                         {canUpdate && (
                           <button
                             onClick={() => {
+                              resetImageState()
                               setEditingProduct(product)
                               setIsCreateModalOpen(true)
                             }}
@@ -482,6 +560,7 @@ export function ProductsTab() {
           if (isSaving) return
           setIsCreateModalOpen(false)
           setEditingProduct(null)
+          resetImageState()
         }}
         ariaLabelledBy="product-modal-title"
       >
@@ -585,23 +664,19 @@ export function ProductsTab() {
                   </fieldset>
                 )}
 
-                <div>
-                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Imagen
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                    className="mt-1 w-full rounded-lg border px-4 py-2"
-                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
-                  />
-                  {imageFile && (
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                      📁 {imageFile.name}
-                    </p>
-                  )}
-                </div>
+                <ProductImageField
+                  currentUrl={currentImageUrl}
+                  draft={imageDraft.draft}
+                  error={imageDraft.error}
+                  uploadsOnSave={!editingProduct}
+                  disabled={isCreating || isUpdating}
+                  isUploading={productImage.isUploading}
+                  isRemoving={productImage.isRemoving}
+                  onSelect={imageDraft.select}
+                  onConfirm={handleConfirmImage}
+                  onCancel={imageDraft.clear}
+                  onRemove={() => setRemoveImageConfirmOpen(true)}
+                />
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -717,17 +792,18 @@ export function ProductsTab() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleSave}
-                    disabled={isCreating || isUpdating}
+                    disabled={isSaving}
                     className="flex-1 rounded-lg px-4 py-2 font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
-                    {isCreating || isUpdating ? (editingProduct ? 'Actualizando...' : 'Creando...') : (editingProduct ? 'Actualizar' : 'Crear')}
+                    {isSaving ? (editingProduct ? 'Actualizando...' : 'Creando...') : (editingProduct ? 'Actualizar' : 'Crear')}
                   </button>
                   <button
                     onClick={() => {
                       if (isSaving) return
                       setIsCreateModalOpen(false)
                       setEditingProduct(null)
+                      resetImageState()
                     }}
                     disabled={isSaving}
                     className="flex-1 rounded-lg border px-4 py-2 font-semibold transition"
@@ -757,6 +833,18 @@ export function ProductsTab() {
       />
 
       {/* Category Manager Modal */}
+      <ConfirmDialog
+        isOpen={removeImageConfirmOpen}
+        title="Quitar imagen"
+        message="El producto mostrará la imagen por defecto en el catálogo y en el menú de ventas. El archivo se elimina si ningún otro producto lo usa."
+        confirmText="Quitar"
+        cancelText="Cancelar"
+        isDangerous
+        isLoading={productImage.isRemoving}
+        onConfirm={handleRemoveImage}
+        onCancel={() => setRemoveImageConfirmOpen(false)}
+      />
+
       <CategoryManagerModal isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} />
     </div>
   )

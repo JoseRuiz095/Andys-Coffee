@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
-import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { getErrorMessage } from '../../../shared/utils/errors'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
@@ -370,8 +369,8 @@ export function DashboardPage() {
         temperature: menuItem.temperature === 'BOTH' ? null : menuItem.temperature ?? null,
         quantity,
         unitPrice: menuItem.price,
-        // Resolved once here (Supabase path -> URL); the app logo is the fallback image.
-        image: (menuItem.imageUrl && getSupabaseImageUrl(menuItem.imageUrl, 'Img', 'public')) || brandLogo,
+        // Public URL from the API; ProductImage shows the logo when it is missing or fails.
+        image: menuItem.imageUrl ?? null,
         type: menuItem.type,
         ...(extras.length > 0 && { extras }),
       }

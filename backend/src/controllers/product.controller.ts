@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import { ProductService } from '../services/product.service';
-import { UploadService } from '../services/upload.service';
 import { z } from 'zod';
 import { createProductSchema, filterQuerySchema, updateProductSchema } from '../validators/product.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthUser } from '../services/auth.service';
-import { AuthorizationError } from '../utils/errors';
+import { AuthorizationError, ValidationError } from '../utils/errors';
+import { ProductImageService } from '../services/product-image.service';
 
 const getAuthenticatedUser = (req: Request): AuthUser => {
   if (!req.user) {
@@ -30,52 +30,35 @@ export const ProductController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productData = req.body as z.infer<typeof createProductSchema>;
-    let uploadedImageUrl: string | undefined;
-
-    try {
-      if (req.file) {
-        uploadedImageUrl = await UploadService.uploadProductImage(req.file);
-        productData.imageUrl = uploadedImageUrl;
-      }
-
-      const newProduct = await ProductService.create(productData, user, req.id);
-      res.status(201).json(newProduct);
-    } catch (error) {
-      if (uploadedImageUrl) await UploadService.deleteProductImage(uploadedImageUrl);
-      throw error;
-    }
+    const newProduct = await ProductService.create(productData, user, req.id);
+    res.status(201).json(newProduct);
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
-    const productId = req.params.id as string;
     const productData = req.body as z.infer<typeof updateProductSchema>;
-    let uploadedImageUrl: string | undefined;
-    let previousImageUrl: string | null | undefined;
-
-    try {
-      if (req.file) {
-        const existingProduct = await ProductService.findOne(productId);
-        previousImageUrl = existingProduct?.imageUrl;
-        uploadedImageUrl = await UploadService.uploadProductImage(req.file);
-        productData.imageUrl = uploadedImageUrl;
-      }
-
-      const updatedProduct = await ProductService.update(productId, productData, user, req.id);
-      if (uploadedImageUrl && previousImageUrl) {
-        await UploadService.deleteProductImage(previousImageUrl);
-      }
-      res.status(200).json(updatedProduct);
-    } catch (error) {
-      if (uploadedImageUrl) await UploadService.deleteProductImage(uploadedImageUrl);
-      throw error;
-    }
+    const updatedProduct = await ProductService.update(req.params.id as string, productData, user, req.id);
+    res.status(200).json(updatedProduct);
   }),
 
   remove: asyncHandler(async (req: Request, res: Response) => {
     const user = getAuthenticatedUser(req);
     const productId = req.params.id as string;
     await ProductService.remove(productId, user, req.id);
+    res.status(204).send();
+  }),
+
+  /** Multipart field "image"; the service validates and converts it to WebP. */
+  uploadImage: asyncHandler(async (req: Request, res: Response) => {
+    const user = getAuthenticatedUser(req);
+    if (!req.file) throw new ValidationError('Selecciona una imagen para subir (campo "image").');
+    const result = await ProductImageService.replace(req.params.id as string, req.file.buffer, user, req.id);
+    res.status(200).json(result);
+  }),
+
+  removeImage: asyncHandler(async (req: Request, res: Response) => {
+    const user = getAuthenticatedUser(req);
+    await ProductImageService.remove(req.params.id as string, user, req.id);
     res.status(204).send();
   }),
 

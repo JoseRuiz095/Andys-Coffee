@@ -4,15 +4,11 @@ import { prisma } from "../src/config/prisma";
 import { PromotionType, type DrinkTemperature } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { readCatalogExport, seedCatalogFromExport } from "./seed-catalog";
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-
-if (!SUPABASE_URL) {
-  throw new Error("La variable de entorno SUPABASE_URL no está definida.");
-}
-
-// URL de la imagen por defecto que debe estar en tu bucket de Supabase
-const DEFAULT_IMAGE_URL = `Menu/LogoAndysVector.svg`;
+import { catalogKey, COMBO_IMAGE_BY_NAME, PRODUCT_IMAGE_BY_SKU } from "./menu-images";
+// Imágenes del menú: clave en el bucket según prisma/menu-images.ts (las sube
+// `npm run images:migrate`). Sin imagen, el POS muestra el logo.
+const productImageKey = (sku: string) => (PRODUCT_IMAGE_BY_SKU[sku] ? catalogKey(PRODUCT_IMAGE_BY_SKU[sku]) : null);
+const comboImageKey = (name: string) => (COMBO_IMAGE_BY_NAME[name] ? catalogKey(COMBO_IMAGE_BY_NAME[name]) : null);
 
 // ============================================================
 // CATEGORÍAS
@@ -54,7 +50,6 @@ interface SeedProduct {
   cost: number;
   category: string;
   displayOrder: number;
-  imageUrl?: string | null;
   temperature?: DrinkTemperature | null;
   jumboPrice?: number | null;
   isActive?: boolean;
@@ -77,7 +72,6 @@ const products: SeedProduct[] = [
     cost: 14,
     category: "Bebidas",
     displayOrder: 1,
-    imageUrl: `Menu/espresso.png`, // Asegúrate de que esta imagen exista en tu bucket
     temperature: "BOTH",
   },
   {
@@ -88,7 +82,6 @@ const products: SeedProduct[] = [
     cost: 15.23,
     category: "Bebidas",
     displayOrder: 2,
-    imageUrl: `Menu/Andys.png`, // Asegúrate de que esta imagen exista en tu bucket
     temperature: "BOTH",
     jumboPrice: 98,
   },
@@ -113,7 +106,6 @@ const products: SeedProduct[] = [
     displayOrder: 4,
     temperature: "BOTH",
     jumboPrice: 98,
-    imageUrl: `Menu/Caramelo.png`
   },
   {
     sku: "BEV-005",
@@ -134,7 +126,6 @@ const products: SeedProduct[] = [
     cost: 26.74,
     category: "Bebidas",
     displayOrder: 6,
-    imageUrl: `Menu/Biscoff.png`,
     temperature: "BOTH",
     jumboPrice: 120,
   },
@@ -146,7 +137,6 @@ const products: SeedProduct[] = [
     cost: 21.83,
     category: "Bebidas",
     displayOrder: 7,
-    imageUrl: `Menu/Andys.png`,
     temperature: "BOTH",
     jumboPrice: 98,
   },
@@ -169,7 +159,6 @@ const products: SeedProduct[] = [
     cost: 16.19,
     category: "Bebidas",
     displayOrder: 18,
-    imageUrl: `Menu/CoffeeCream.png`,
     temperature: "COLD"
   },
   {
@@ -202,7 +191,6 @@ const products: SeedProduct[] = [
     cost: 11.27,
     category: "Bebidas",
     displayOrder: 21,
-    imageUrl: `Menu/Limonada.png`,
     temperature: "COLD",
 
   },
@@ -215,7 +203,6 @@ const products: SeedProduct[] = [
     cost: 19.41,
     category: "Bebidas",
     displayOrder: 22,
-    imageUrl: `Menu/Bloom.png`,
     temperature: "COLD",
 
   },
@@ -228,7 +215,6 @@ const products: SeedProduct[] = [
     cost: 13.25, // Revisar costos
     category: "Bebidas",
     displayOrder: 23,
-    imageUrl: `Menu/Taro.png`,
     temperature: "BOTH",
   },
 
@@ -240,7 +226,6 @@ const products: SeedProduct[] = [
     cost: 0,
     category: "Bebidas",
     displayOrder: 0,
-    imageUrl: null,
     temperature: "BOTH",
   },
   {
@@ -251,7 +236,6 @@ const products: SeedProduct[] = [
     cost: 0,
     category: "Bebidas",
     displayOrder: 0,
-    imageUrl: null,
     temperature: "BOTH",
     jumboPrice: 98,
   },
@@ -270,7 +254,6 @@ const products: SeedProduct[] = [
     cost: 34.75,
     category: "Bagels",
     displayOrder: 1,
-    imageUrl: `Menu/Campirano.png`
   },
   {
     sku: "BAG-002",
@@ -281,7 +264,6 @@ const products: SeedProduct[] = [
     cost: 35.58,
     category: "Bagels",
     displayOrder: 2,
-    imageUrl: `Menu/Pollo.png`
   },
   {
     sku: "BAG-003",
@@ -302,7 +284,6 @@ const products: SeedProduct[] = [
     cost: 37.91,
     category: "Bagels",
     displayOrder: 4,
-    imageUrl: `Menu/Carnivoro.png`
   },
 
 
@@ -399,7 +380,6 @@ const products: SeedProduct[] = [
     cost: 33.94,
     category: "Desayunos",
     displayOrder: 9,
-    imageUrl: `Menu/Canadiense.png`
   },
   {
     sku: "DES-010",
@@ -410,7 +390,6 @@ const products: SeedProduct[] = [
     cost: 28.29,
     category: "Desayunos",
     displayOrder: 10,
-    imageUrl: `Menu/Viajero.png`
   },
   {
     sku: "DES-011",
@@ -421,7 +400,6 @@ const products: SeedProduct[] = [
     cost: 32.87,
     category: "Desayunos",
     displayOrder: 11,
-    imageUrl: `Menu/Continental.png`
   },
 
   // ============================================================
@@ -456,7 +434,6 @@ const products: SeedProduct[] = [
     cost: 13.47,
     category: "Otros",
     displayOrder: 5,
-    imageUrl: `Menu/MiniPhila.png`
   },
     {
     sku: "OTR-004",
@@ -467,7 +444,6 @@ const products: SeedProduct[] = [
     cost: 6.25,
     category: "Otros",
     displayOrder: 5,
-    imageUrl: `Menu/Hash.png`
   },
 ];
 
@@ -745,7 +721,7 @@ async function seedSampleCatalog() {
     if (!categoryId) {
       throw new Error(`No se encontró la categoría "${product.category}" para "${product.name}".`);
     }
-    const imageUrl = product.imageUrl === undefined ? DEFAULT_IMAGE_URL : product.imageUrl;
+    const imageUrl = productImageKey(product.sku);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { category, ...productData } = product;
     await prisma.product.upsert({
@@ -766,7 +742,6 @@ async function seedSampleCatalog() {
       description: "Un latte regular + croissant clasico.",
       price: 110,
       category: "Combos",
-      imageUrl: "Menu/ComboMatutino.png",
       activeOnDays: [], // Disponible todos los días
       items: [
         { sku: "BEV-002", quantity: 1 },
@@ -778,7 +753,6 @@ async function seedSampleCatalog() {
       description: "Un bagel carnivoro + latte andy's.",
       price: 145,
       category: "Combos",
-      imageUrl: "Menu/ComboCasa.png",
       activeOnDays: [], // Disponible todos los días
       items: [
         { sku: "BAG-004", quantity: 1 },
@@ -790,7 +764,6 @@ async function seedSampleCatalog() {
       description: "Llévate dos desayunos viajeros por solo 170 pesos.",
       price: 170,
       category: "Combos",
-      imageUrl: "Menu/Viajero.png",
       activeOnDays: [4], // Jueves
       items: [{ sku: "DES-010", quantity: 2 }],
     },
@@ -814,7 +787,7 @@ async function seedSampleCatalog() {
       description: comboDef.description,
       price: comboDef.price,
       cost: totalCost,
-      imageUrl: comboDef.imageUrl,
+      imageUrl: comboImageKey(comboDef.name),
       isActive: true,
       activeOnDays: comboDef.activeOnDays,
     };
