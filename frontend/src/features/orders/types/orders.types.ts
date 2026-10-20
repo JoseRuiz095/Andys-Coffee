@@ -40,6 +40,32 @@ export interface Payment {
   status: string;
 }
 
+export type CancellationRequestStatus = 'pending' | 'approved' | 'rejected';
+
+/** Request to cancel a completed sale, approved or rejected by an admin. */
+export interface CancellationRequestSummary {
+  id: string;
+  status: CancellationRequestStatus;
+  reason: string;
+  reviewComment: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  requestedBy: { id: string; name: string };
+  reviewedBy: { id: string; name: string } | null;
+}
+
+/** A pending request with the sale it is about (approver's list). */
+export interface PendingCancellationRequest extends CancellationRequestSummary {
+  order: {
+    id: string;
+    orderNumber: number | string;
+    customerName: string | null;
+    total: number | string;
+    createdAt: string;
+    completedAt: string | null;
+  };
+}
+
 export interface Order {
   id: string;
   orderNumber: number;
@@ -55,6 +81,8 @@ export interface Order {
   activatedAt?: string | null;
   items: OrderItem[];
   payments: Payment[];
+  /** Latest cancellation request (at most one entry). */
+  cancellationRequests?: CancellationRequestSummary[];
 }
 
 export interface PaginatedOrders {

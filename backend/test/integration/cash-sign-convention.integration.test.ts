@@ -102,11 +102,11 @@ test("los movimientos de una sesión suman exactamente su expectedAmount (TD-10)
 
   // Mandaditos: cash collected for the courier and handed off; absorbed by the business and
   // then cancelled (expense + expense_reversal); collected and cancelled before the handoff.
-  const collected = await sell({ hasDelivery: true, deliveryAmount: 25, deliveryResponsible: "customer_to_business", deliveryPaymentMethod: "cash" });
+  const collected = await sell({ cashReceived: 125, hasDelivery: true, deliveryAmount: 25, deliveryResponsible: "customer_to_business", deliveryPaymentMethod: "cash" });
   await OrderService.handoffDelivery(collected.id, admin);
   const absorbed = await sell({ hasDelivery: true, deliveryAmount: 15, deliveryResponsible: "business_absorbs" });
   await OrderService.updateStatus(absorbed.id, { status: "cancelled", reason: "prueba de signos" }, admin);
-  const collectedCancelled = await sell({ hasDelivery: true, deliveryAmount: 10, deliveryResponsible: "customer_to_business", deliveryPaymentMethod: "cash" });
+  const collectedCancelled = await sell({ cashReceived: 110, hasDelivery: true, deliveryAmount: 10, deliveryResponsible: "customer_to_business", deliveryPaymentMethod: "cash" });
   await OrderService.updateStatus(collectedCancelled.id, { status: "cancelled", reason: "prueba de signos" }, admin);
 
   const session = await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionId }, include: { movements: true } });

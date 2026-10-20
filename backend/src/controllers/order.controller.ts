@@ -8,6 +8,9 @@ import {
   settlePaymentSchema,
   updateOrderSchema,
   orderByDateQuerySchema,
+  quoteOrderSchema,
+  requestCancellationSchema,
+  reviewCancellationSchema,
 } from '../validators/order.validator';
 import { AuthUser } from '../services/auth.service';
 
@@ -46,6 +49,11 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json(order);
 });
 
+export const quoteOrder = asyncHandler(async (req: Request, res: Response) => {
+  const quote = await OrderService.quote(req.body as z.infer<typeof quoteOrderSchema>);
+  res.status(200).json(quote);
+});
+
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const id = String(req.params.id);
@@ -56,6 +64,37 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
   res.status(200).json(order);
 });
 
+export const requestOrderCancellation = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const request = await OrderService.requestCancellation(
+    String(req.params.id),
+    req.body as z.infer<typeof requestCancellationSchema>,
+    user,
+    req.id,
+  );
+  res.status(201).json(request);
+});
+
+export const getPendingCancellationRequests = asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  res.status(200).json(await OrderService.getPendingCancellationRequests(user));
+});
+
+const reviewCancellation = (decision: 'approve' | 'reject') => asyncHandler(async (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  const request = await OrderService.reviewCancellation(
+    String(req.params.requestId),
+    decision,
+    req.body as z.infer<typeof reviewCancellationSchema>,
+    user,
+    req.id,
+  );
+  res.status(200).json(request);
+});
+
+export const approveOrderCancellation = reviewCancellation('approve');
+export const rejectOrderCancellation = reviewCancellation('reject');
+
 export const getPendingPayments = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const payments = await OrderService.getPendingPayments(user);
@@ -65,8 +104,8 @@ export const getPendingPayments = asyncHandler(async (req: Request, res: Respons
 export const settleOrderPayment = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const paymentId = String(req.params.paymentId);
-  const { method } = req.body as z.infer<typeof settlePaymentSchema>;
-  const payment = await OrderService.settlePayment(paymentId, method, user);
+  const { method, cashReceived } = req.body as z.infer<typeof settlePaymentSchema>;
+  const payment = await OrderService.settlePayment(paymentId, method, user, cashReceived);
   res.status(200).json(payment);
 });
 

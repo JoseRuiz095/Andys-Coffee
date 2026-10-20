@@ -27,8 +27,11 @@ export const PendingPaymentsAPI = {
     return data;
   },
 
-  async settlePayment(paymentId: string, method: SettleMethod) {
-    const { data } = await apiClient.patch<PendingPayment>(`${BASE_URL}/payments/${paymentId}/settle`, { method });
+  async settlePayment(paymentId: string, method: SettleMethod, cashReceived?: number) {
+    const { data } = await apiClient.patch<PendingPayment>(`${BASE_URL}/payments/${paymentId}/settle`, {
+      method,
+      ...(method === 'cash' && cashReceived !== undefined && { cashReceived }),
+    });
     return data;
   },
 };

@@ -1,6 +1,8 @@
 import React from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
-import type { MenuCategory, MenuItem } from '../types/menu.types'
+import type { MenuCategory, MenuItem, SelectedExtra } from '../types/menu.types'
+import { ExtrasPicker } from './ExtrasPicker'
+import { extrasUnitPrice } from '../utils/extras'
 import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '../../../components/ui/dialog'
 import { XIcon } from '../../../components/ui/XIcon'
@@ -8,6 +10,10 @@ import { XIcon } from '../../../components/ui/XIcon'
 type DisplayProduct =
   | { kind: 'single'; product: MenuItem }
   | { kind: 'group'; key: string; title: string; variants: MenuItem[] }
+
+type DrinkTemperatureChoice = 'caliente' | 'frio'
+
+const DRINK_TEMPERATURES: readonly DrinkTemperatureChoice[] = ['caliente', 'frio']
 
 const BEVERAGE_FAMILIES = [
   'latte',
@@ -52,11 +58,18 @@ const getDrinkFamily = (name: string): string | null => {
 const getTemperatureLabel = (name: string): 'caliente' | 'frio' => {
   const normalized = normalizeProductName(name)
 
-  if (normalized.includes(' frio') || normalized.includes(' frio') || normalized.includes('iced') || normalized.includes('cold')) {
+  if (normalized.includes(' frio') || normalized.includes('iced') || normalized.includes('cold')) {
     return 'frio'
   }
 
   return 'caliente'
+}
+
+const supportsTemperature = (variant: MenuItem, temperature: DrinkTemperatureChoice) => {
+  if (variant.temperature === 'BOTH') return true
+  if (variant.temperature === 'HOT') return temperature === 'caliente'
+  if (variant.temperature === 'COLD') return temperature === 'frio'
+  return getTemperatureLabel(variant.name) === temperature
 }
 
 const getVariantLabel = (name: string) => {
@@ -95,7 +108,7 @@ interface MenuSectionProps {
   isLoading?: boolean
   selectedCategory?: string
   onSelectCategory?: (category: string) => void
-  onAddToOrder?: (product: MenuItem, quantity: number) => void
+  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
 }
 
 export function MenuSection({
@@ -107,6 +120,8 @@ export function MenuSection({
   onAddToOrder,
 }: MenuSectionProps) {
   const [searchTerm, setSearchTerm] = React.useState('')
+  // Single product with extras: chosen in a small dialog before adding it.
+  const [productForExtras, setProductForExtras] = React.useState<MenuItem | null>(null)
   const [selectedFamily, setSelectedFamily] = React.useState<{
     key: string
     title: string
@@ -263,13 +278,26 @@ export function MenuSection({
           )}
           {displayProducts.map((item) =>
             item.kind === 'single' ? (
-              <ProductCard key={item.product.id} product={item.product} onAddToOrder={onAddToOrder} />
+              <ProductCard
+                key={item.product.id}
+                product={item.product}
+                onAddToOrder={onAddToOrder}
+                onChooseExtras={setProductForExtras}
+              />
             ) : (
               <ProductFamilyCard key={item.key} title={item.title} variants={item.variants} onOpen={() => handleOpenFamilyModal(item)} />
             ),
           )}
         </div>
       </div>
+
+      {productForExtras && (
+        <ProductExtrasModal
+          product={productForExtras}
+          onClose={() => setProductForExtras(null)}
+          onAddToOrder={onAddToOrder}
+        />
+      )}
 
       {selectedFamily && (
         <ProductFamilyModal
@@ -323,14 +351,13 @@ function ProductFamilyCard({ title, variants, onOpen }: ProductFamilyCardProps) 
 interface ProductFamilyModalProps {
   family: { key: string; title: string; variants: MenuItem[] }
   onClose: () => void
-  onAddToOrder?: (product: MenuItem, quantity: number) => void
+  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
 }
 
 function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModalProps) {
   const isChilaquiles = family.key === 'Chilaquiles'
-  const temperatures = React.useMemo(
-    () => ['caliente', 'frio'] as const,
-    [],
+  const temperatureOptions = DRINK_TEMPERATURES.filter((temperature) =>
+    family.variants.some((variant) => supportsTemperature(variant, temperature)),
   )
 
   const [selectedSalsa, setSelectedSalsa] = React.useState<ChilaquilesSalsa>(() =>
@@ -339,11 +366,21 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
   const [selectedProtein, setSelectedProtein] = React.useState<ChilaquilesProtein>(() =>
     getChilaquilesProtein(family.variants[0]?.name ?? 'naturales'),
   )
-  const [selectedTemperature, setSelectedTemperature] = React.useState<'caliente' | 'frio'>(() =>
-    getTemperatureLabel(family.variants[0]?.name ?? 'caliente'),
-  )
+  const [selectedTemperature, setSelectedTemperature] = React.useState<DrinkTemperatureChoice>(() => {
+    const firstVariant = family.variants[0]
+    const initialTemperature = firstVariant?.temperature === 'HOT'
+      ? 'caliente'
+      : firstVariant?.temperature === 'COLD'
+        ? 'frio'
+        : getTemperatureLabel(firstVariant?.name ?? 'caliente')
+
+    return temperatureOptions.includes(initialTemperature)
+      ? initialTemperature
+      : temperatureOptions[0] ?? 'caliente'
+  })
   const [selectedSize, setSelectedSize] = React.useState<'REGULAR' | 'JUMBO'>('REGULAR')
   const [selectedVariantId, setSelectedVariantId] = React.useState<string>(family.variants[0]?.id ?? '')
+  const [selectedExtras, setSelectedExtras] = React.useState<SelectedExtra[]>([])
 
   const visibleVariants = React.useMemo(() => {
     if (!family.variants.length) {
@@ -358,29 +395,18 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
       )
     }
 
-    const matching = family.variants.filter(
-      (variant) =>
-        variant.temperature === 'BOTH' ||
-        (variant.temperature === 'HOT' && selectedTemperature === 'caliente') ||
-        (variant.temperature === 'COLD' && selectedTemperature === 'frio') ||
-        (!variant.temperature && getTemperatureLabel(variant.name) === selectedTemperature),
-    )
-
-    return matching.length > 0 ? matching : family.variants
+    return family.variants.filter((variant) => supportsTemperature(variant, selectedTemperature))
   }, [family.variants, isChilaquiles, selectedProtein, selectedSalsa, selectedTemperature])
 
   const selectedVariant =
     visibleVariants.find((variant) => variant.id === selectedVariantId) ?? visibleVariants[0] ?? family.variants[0]
-  const selectedPrice = selectedSize === 'JUMBO' ? selectedVariant?.jumboPrice : selectedVariant?.price
-
-  const temperatureOptions: Array<'caliente' | 'frio'> = temperatures.filter((temperature) =>
-    family.variants.some((variant) =>
-      variant.temperature === 'BOTH' ||
-      (variant.temperature === 'HOT' && temperature === 'caliente') ||
-      (variant.temperature === 'COLD' && temperature === 'frio') ||
-      (!variant.temperature && getTemperatureLabel(variant.name) === temperature),
-    ),
-  )
+  const offeredExtras = selectedVariant?.extras ?? []
+  // Only the extras the chosen variant offers (switching flavor may drop some).
+  const chosenExtras = selectedExtras.filter((extra) => offeredExtras.some((offered) => offered.id === extra.extraId))
+  const hasJumbo = selectedVariant?.jumboPrice !== null && selectedVariant?.jumboPrice !== undefined
+  const effectiveSize: 'REGULAR' | 'JUMBO' = selectedSize === 'JUMBO' && hasJumbo ? 'JUMBO' : 'REGULAR'
+  const basePrice = effectiveSize === 'JUMBO' ? selectedVariant?.jumboPrice : selectedVariant?.price
+  const selectedPrice = basePrice === null || basePrice === undefined ? basePrice : basePrice + extrasUnitPrice(chosenExtras)
 
   const salsaOptions = (['verde', 'roja'] as ChilaquilesSalsa[]).filter((salsa) =>
     family.variants.some((variant) => getChilaquilesSalsa(variant.name) === salsa),
@@ -389,9 +415,27 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
     family.variants.some((variant) => getChilaquilesProtein(variant.name) === protein),
   )
 
+  const canConfirm = Boolean(selectedVariant) && selectedPrice !== null && selectedPrice !== undefined
+
+  /**
+   * Changing the temperature keeps what the cashier already chose: the same product if it is
+   * served both ways, otherwise the same flavor in the other temperature. Only when that flavor
+   * doesn't exist there does it fall back to the first option.
+   */
+  const handleTemperatureChange = (temperature: DrinkTemperatureChoice) => {
+    setSelectedTemperature(temperature)
+    if (selectedVariant && supportsTemperature(selectedVariant, temperature)) return
+    const candidates = family.variants.filter((variant) => supportsTemperature(variant, temperature))
+    const sameFlavor = selectedVariant
+      ? candidates.find((variant) => getVariantLabel(variant.name) === getVariantLabel(selectedVariant.name))
+      : undefined
+    const next = sameFlavor ?? candidates[0]
+    if (next) setSelectedVariantId(next.id)
+  }
+
   const handleConfirm = () => {
-    if (!selectedVariant) return
-    const isJumbo = !isChilaquiles && family.key === 'Latte' && selectedSize === 'JUMBO'
+    if (!selectedVariant || !canConfirm) return
+    const isJumbo = !isChilaquiles && family.key === 'Latte' && effectiveSize === 'JUMBO'
     const price = isJumbo ? selectedVariant.jumboPrice : selectedVariant.price
     if (price === null || price === undefined) return
 
@@ -404,6 +448,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
         temperature: isChilaquiles ? null : selectedTemperature === 'frio' ? 'COLD' : 'HOT',
       },
       1,
+      chosenExtras,
     )
 
     onClose()
@@ -503,7 +548,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
                   <button
                     key={temperature}
                     type="button"
-                    onClick={() => setSelectedTemperature(temperature)}
+                    onClick={() => handleTemperatureChange(temperature)}
                     className="flex-1 rounded-xl border px-3 py-2 text-sm font-medium"
                     style={{
                       borderColor: selectedTemperature === temperature ? 'var(--color-primary)' : 'var(--color-border)',
@@ -550,7 +595,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
                       {getVariantLabel(variant.name)}
                     </div>
                     <div className="mt-1 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-                      ${(selectedSize === 'JUMBO' ? variant.jumboPrice ?? variant.price : variant.price).toFixed(2)}
+                      ${(effectiveSize === 'JUMBO' ? variant.jumboPrice ?? variant.price : variant.price).toFixed(2)}
                     </div>
                   </button>
                 )
@@ -566,12 +611,12 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  aria-pressed={selectedSize === 'REGULAR'}
+                  aria-pressed={effectiveSize === 'REGULAR'}
                   onClick={() => setSelectedSize('REGULAR')}
                   className="rounded-xl border px-3 py-2 text-sm font-medium"
                   style={{
-                    borderColor: selectedSize === 'REGULAR' ? 'var(--color-primary)' : 'var(--color-border)',
-                    backgroundColor: selectedSize === 'REGULAR' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
+                    borderColor: effectiveSize === 'REGULAR' ? 'var(--color-primary)' : 'var(--color-border)',
+                    backgroundColor: effectiveSize === 'REGULAR' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
                     color: 'var(--color-text-primary)',
                   }}
                 >
@@ -579,13 +624,13 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
                 </button>
                 <button
                   type="button"
-                  aria-pressed={selectedSize === 'JUMBO'}
+                  aria-pressed={effectiveSize === 'JUMBO'}
                   disabled={selectedVariant?.jumboPrice === null || selectedVariant?.jumboPrice === undefined}
                   onClick={() => setSelectedSize('JUMBO')}
                   className="rounded-xl border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
-                    borderColor: selectedSize === 'JUMBO' ? 'var(--color-primary)' : 'var(--color-border)',
-                    backgroundColor: selectedSize === 'JUMBO' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
+                    borderColor: effectiveSize === 'JUMBO' ? 'var(--color-primary)' : 'var(--color-border)',
+                    backgroundColor: effectiveSize === 'JUMBO' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
                     color: 'var(--color-text-primary)',
                   }}
                 >
@@ -594,6 +639,8 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
               </div>
             </div>
           )}
+
+          <ExtrasPicker extras={offeredExtras} value={chosenExtras} onChange={setSelectedExtras} />
 
           <div className="rounded-xl border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)' }}>
             <div className="flex items-center justify-between gap-3">
@@ -606,7 +653,7 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
                 </p>
               </div>
               <div className="text-right text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                <div>{selectedVariant?.name ?? 'Sin selección'}{selectedSize === 'JUMBO' ? ' Jumbo' : ''}</div>
+                <div>{selectedVariant?.name ?? 'Sin selección'}{effectiveSize === 'JUMBO' ? ' Jumbo' : ''}</div>
                 {!isChilaquiles && (
                   <div>{selectedVariant ? formatTemperature(selectedTemperature) : 'Sin temperatura'}</div>
                 )}
@@ -628,7 +675,8 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
           <button
             type="button"
             onClick={handleConfirm}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            disabled={!canConfirm}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             Agregar al pedido
@@ -641,10 +689,12 @@ function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModa
 
 interface ProductCardProps {
   product: MenuItem
-  onAddToOrder?: (product: MenuItem, quantity: number) => void
+  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
+  /** Called instead of adding right away when the product offers extras. */
+  onChooseExtras?: (product: MenuItem) => void
 }
 
-function ProductCard({ product, onAddToOrder }: ProductCardProps) {
+function ProductCard({ product, onAddToOrder, onChooseExtras }: ProductCardProps) {
   const imageUrl = product.imageUrl
     ? getSupabaseImageUrl(product.imageUrl, 'Img', 'public')
     : undefined
@@ -652,7 +702,7 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
   return (
     <button
       type="button"
-      onClick={() => onAddToOrder?.(product, 1)}
+      onClick={() => (product.extras?.length && onChooseExtras ? onChooseExtras(product) : onAddToOrder?.(product, 1))}
       className="group block overflow-hidden rounded-xl border text-left transition-shadow hover:shadow-lg"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
@@ -668,5 +718,55 @@ function ProductCard({ product, onAddToOrder }: ProductCardProps) {
         </div>
       </div>
     </button>
+  )
+}
+
+interface ProductExtrasModalProps {
+  product: MenuItem
+  onClose: () => void
+  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
+}
+
+/** Extras for a product that isn't part of a family (e.g. a bagel with extra cheese). */
+function ProductExtrasModal({ product, onClose, onAddToOrder }: ProductExtrasModalProps) {
+  const [extras, setExtras] = React.useState<SelectedExtra[]>([])
+  const total = product.price + extrasUnitPrice(extras)
+
+  return (
+    <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{product.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 py-4">
+          <ExtrasPicker extras={product.extras ?? []} value={extras} onChange={setExtras} />
+          <div className="flex items-center justify-between rounded-xl border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)' }}>
+            <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Precio total</span>
+            <span className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>${total.toFixed(2)}</span>
+          </div>
+        </div>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 text-sm font-medium"
+            style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onAddToOrder?.(product, 1, extras)
+              onClose()
+            }}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Agregar al pedido
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

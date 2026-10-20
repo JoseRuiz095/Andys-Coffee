@@ -4,7 +4,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 
 interface CashPaymentDialogProps {
   open: boolean
-  total: number
+  /** Sale amount paid in cash (0 if the sale is paid otherwise); null while it is being priced. */
+  saleAmount: number | null
+  /** Mandadito paid to Andy's in cash, charged in the same handover. */
+  deliveryAmount?: number
   isLoading?: boolean
   onClose: () => void
   onConfirm: (cashReceived: number) => void
@@ -12,16 +15,19 @@ interface CashPaymentDialogProps {
 
 export function CashPaymentDialog({
   open,
-  total,
+  saleAmount,
+  deliveryAmount = 0,
   isLoading = false,
   onClose,
   onConfirm,
 }: CashPaymentDialogProps) {
   const [cashReceived, setCashReceived] = useState('')
 
+  const isPricing = saleAmount === null
+  const total = (saleAmount ?? 0) + deliveryAmount
   const received = Number(cashReceived)
   const change = Number.isFinite(received) ? received - total : 0
-  const canConfirm = Number.isFinite(received) && received >= total
+  const canConfirm = !isPricing && (cashReceived !== '' || total === 0) && Number.isFinite(received) && received >= total
 
   const appendDigit = (digit: string) => {
     setCashReceived((current) => (current === '0' ? digit : `${current}${digit}`))
@@ -37,9 +43,25 @@ export function CashPaymentDialog({
           <DialogTitle>Calcula el cambio</DialogTitle>
         </DialogHeader>
         <div className="space-y-5 p-4 sm:p-6">
-          <div className="flex items-end justify-between rounded-xl p-4" style={{ backgroundColor: 'var(--color-background)' }}>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Total a cobrar</span>
-            <span className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>${total.toFixed(2)}</span>
+          <div className="space-y-2 rounded-xl p-4" style={{ backgroundColor: 'var(--color-background)' }}>
+            {deliveryAmount > 0 && (
+              <>
+                <div className="flex justify-between text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  <span>Venta</span>
+                  <span>{isPricing ? 'Calculando…' : `$${(saleAmount ?? 0).toFixed(2)}`}</span>
+                </div>
+                <div className="flex justify-between text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  <span>Mandadito</span>
+                  <span>${deliveryAmount.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex items-end justify-between">
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Total a cobrar en efectivo</span>
+              <span className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                {isPricing ? 'Calculando…' : `$${total.toFixed(2)}`}
+              </span>
+            </div>
           </div>
           <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
             Monto recibido
@@ -66,7 +88,11 @@ export function CashPaymentDialog({
                 ${Math.max(0, change).toFixed(2)}
               </span>
             </div>
-            {!canConfirm && <p className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>El monto recibido debe cubrir el total.</p>}
+            {!canConfirm && (
+              <p className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                {isPricing ? 'Esperando el total del servidor…' : 'El monto recibido debe cubrir el total.'}
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-2">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].map((digit) => (

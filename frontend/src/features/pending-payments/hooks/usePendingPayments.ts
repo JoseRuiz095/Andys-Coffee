@@ -17,8 +17,8 @@ export function useSettlePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ paymentId, method }: { paymentId: string; method: SettleMethod }) =>
-      PendingPaymentsAPI.settlePayment(paymentId, method),
+    mutationFn: ({ paymentId, method, cashReceived }: { paymentId: string; method: SettleMethod; cashReceived?: number }) =>
+      PendingPaymentsAPI.settlePayment(paymentId, method, cashReceived),
     onSuccess: () => {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Pago liquidado', description: 'El pago pendiente se marcó como cobrado.' });

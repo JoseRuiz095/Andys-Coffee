@@ -18,7 +18,8 @@ export function useCancelDailyOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (orderId: string) => updateOrderStatus(orderId, 'cancelled'),
+    mutationFn: ({ orderId, reason }: { orderId: string; reason?: string }) =>
+      updateOrderStatus(orderId, 'cancelled', reason),
     onSuccess: () => {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({

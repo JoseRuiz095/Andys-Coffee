@@ -10,6 +10,14 @@ import { useOrders } from '../hooks/useOrders';
 import { TableSkeleton } from '../../../shared/components/TableSkeleton';
 import { authStore } from '../../auth/store/auth.store';
 import type { AuthUser } from '../../auth/types/auth.types';
+import { CancelOrderDialog } from '../components/CancelOrderDialog';
+import { CancellationRequestsPanel } from '../components/CancellationRequestsPanel';
+import {
+  usePendingCancellationRequests,
+  useRequestOrderCancellation,
+  useReviewOrderCancellation,
+} from '../hooks/useCancellationRequests';
+import { hasPermission } from '../../auth/utils/permissions';
 
 type ViewMode = 'grid' | 'list';
 
@@ -35,6 +43,12 @@ export function OrdersPage() {
   }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  // Order waiting for the cashier to confirm its cancellation.
+  const [orderToCancel, setOrderToCancel] = useState<{ id: string; orderNumber: number | string; completed: boolean } | null>(null);
+  const canApproveCancellation = hasPermission(currentUser, 'sales.approve_cancellation');
+  const { data: pendingCancellations = [] } = usePendingCancellationRequests(canApproveCancellation);
+  const requestCancellation = useRequestOrderCancellation();
+  const reviewCancellation = useReviewOrderCancellation();
   const [isFullScreen, setIsFullScreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -49,9 +63,27 @@ export function OrdersPage() {
     };
 
     const backendStatus = statusMap[newStatus];
-    if (backendStatus) {
-      updateStatus(orderId, backendStatus);
+    if (!backendStatus) return;
+
+    // Cancelling reverses cash and inventory and can't be undone: confirm first.
+    if (backendStatus === 'cancelled') {
+      const order = orders.find((candidate) => candidate.id === orderId);
+      setOrderToCancel({ id: orderId, orderNumber: order?.orderNumber ?? '', completed: order?.status === 'completed' });
+      return;
     }
+
+    updateStatus(orderId, backendStatus);
+  };
+
+  const handleConfirmCancel = (reason: string | undefined) => {
+    if (!orderToCancel) return;
+    // A completed sale goes through an approval request (approved at once for an approver).
+    if (orderToCancel.completed) {
+      if (!reason || requestCancellation.isPending) return;
+      requestCancellation.mutate({ orderId: orderToCancel.id, reason }, { onSuccess: () => setOrderToCancel(null) });
+      return;
+    }
+    updateStatus(orderToCancel.id, 'cancelled', { reason, onSuccess: () => setOrderToCancel(null) });
   };
 
   const toggleFullScreen = () => {
@@ -88,6 +120,17 @@ export function OrdersPage() {
       }}
     >
       <OrdersHeader pendingOrders={pendingOrders} />
+
+      {canApproveCancellation && (
+        <CancellationRequestsPanel
+          requests={pendingCancellations}
+          reviewingId={reviewCancellation.isPending ? reviewCancellation.variables?.requestId ?? null : null}
+          onReview={(request, decision, comment) => {
+            if (reviewCancellation.isPending) return;
+            reviewCancellation.mutate({ requestId: request.id, decision, comment });
+          }}
+        />
+      )}
 
       <OrdersFilters
         onSearchChange={setSearch}
@@ -141,6 +184,16 @@ export function OrdersPage() {
       ) : (
         <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} updatingOrderId={updatingOrderId} />
       )}
+
+      <CancelOrderDialog
+        key={orderToCancel?.id ?? 'none'}
+        isOpen={Boolean(orderToCancel)}
+        orderNumber={orderToCancel?.orderNumber ?? null}
+        mode={orderToCancel?.completed ? (canApproveCancellation ? 'approve-own' : 'request') : 'cancel'}
+        isLoading={Boolean(orderToCancel) && (updatingOrderId === orderToCancel?.id || requestCancellation.isPending)}
+        onConfirm={handleConfirmCancel}
+        onCancel={() => setOrderToCancel(null)}
+      />
     </div>
   );
 }

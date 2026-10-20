@@ -15,6 +15,7 @@ interface SettlePaymentModalProps {
 export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentModalProps) {
   const { mutate: settlePayment, isPending } = useSettlePayment();
   const [method, setMethod] = React.useState<SettleMethod>('cash');
+  const [cashReceived, setCashReceived] = React.useState('');
   useBodyScrollLock(isOpen);
   useOverlayEscape(isOpen, () => {
     if (!isPending) onClose();
@@ -24,15 +25,25 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   const [wasOpen, setWasOpen] = React.useState(false);
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (isOpen) setMethod('cash');
+    if (isOpen) {
+      setMethod('cash');
+      setCashReceived('');
+    }
   }
 
   if (!isOpen || !payment) return null;
 
+  const amount = Number(payment.amount);
+  const received = Number(cashReceived);
+  const hasReceived = method === 'cash' && cashReceived !== '';
+  const change = hasReceived ? received - amount : null;
+  // In cash the received amount is required, so the change handed back is recorded.
+  const canConfirm = method !== 'cash' || (hasReceived && Number.isFinite(received) && received >= amount);
+
   const handleConfirm = () => {
-    if (isPending) return;
+    if (isPending || !canConfirm) return;
     settlePayment(
-      { paymentId: payment.id, method },
+      { paymentId: payment.id, method, cashReceived: method === 'cash' ? received : undefined },
       { onSuccess: () => onClose() },
     );
   };
@@ -84,6 +95,34 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
           <option value="card">Tarjeta</option>
         </select>
 
+        {method === 'cash' && (
+          <div className="mb-4 space-y-2">
+            <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+              Monto recibido
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={cashReceived}
+                onChange={(event) => setCashReceived(event.target.value)}
+                disabled={isPending}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm font-normal"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+              />
+            </label>
+            <p className="flex justify-between text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+              <span>Cambio</span>
+              <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                {change !== null && change >= 0 ? formatCurrency(change) : '—'}
+              </span>
+            </p>
+            {change !== null && change < 0 && (
+              <p className="text-xs" style={{ color: 'var(--color-danger)' }}>El monto recibido debe cubrir el pago.</p>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
@@ -95,7 +134,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
           </button>
           <button
             onClick={handleConfirm}
-            disabled={isPending}
+            disabled={isPending || !canConfirm}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >

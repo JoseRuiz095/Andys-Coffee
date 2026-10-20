@@ -185,8 +185,9 @@ test("C-02: cancelar una venta de una caja cerrada no altera ese corte; la devol
   assert.equal(reversal.cashSessionId, sessionB.id);
   assert.equal(reversal.amount.toNumber(), -PRODUCT_PRICE);
 
+  // C-07: the sale consumed nothing, so cancelling it doesn't touch stock either.
   const stockAfter = (await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).currentStock.toNumber();
-  assert.equal(stockAfter, stockBefore + 1, "inventory is restored");
+  assert.equal(stockAfter, stockBefore, "a sale without inventory consumption is not reversed in stock");
 });
 
 test("H-02: dos liquidaciones simultáneas del mismo pago pendiente solo registran el efectivo una vez", { skip: !integrationEnabled }, async () => {
@@ -225,6 +226,75 @@ test("H-03: cancelar un pedido con pago pendiente cancela el pago y ya no se pue
     OrderService.settlePayment(payment.id, "cash", admin),
     (error: Error) => error.name === "BusinessRuleError",
   );
+});
+
+test("H-03b: cancelar un pago pendiente liquidado en efectivo en otra caja devuelve ese efectivo", { skip: !integrationEnabled }, async () => {
+  const sessionA = await CashService.getActiveSession();
+  assert.ok(sessionA);
+  const order = await createOrder("pending", { customerName: "Paga mañana" });
+  await CashService.closeSession(admin.id, { closingAmount: sessionA!.expectedAmount.toNumber() });
+
+  // Settled in cash in a later session: the `sale` movement lands in session B, not in the
+  // session the order was created in.
+  const sessionB = await openSession(300);
+  const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: order.id } });
+  await OrderService.settlePayment(payment.id, "cash", admin);
+  const settledB = await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionB.id } });
+  assert.equal(settledB.expectedAmount.toNumber(), 300 + PRODUCT_PRICE);
+
+  await OrderService.updateStatus(order.id, { status: "cancelled" }, admin);
+
+  const reversal = await prisma.cashMovement.findFirstOrThrow({
+    where: { referenceId: order.id, type: "sale_reversal" },
+  });
+  assert.equal(reversal.cashSessionId, sessionB.id);
+  assert.equal(reversal.amount.toNumber(), -PRODUCT_PRICE);
+
+  const afterB = await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionB.id } });
+  assert.equal(afterB.expectedAmount.toNumber(), 300, "the settled cash leaves the drawer again");
+
+  const afterA = await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionA!.id } });
+  assert.equal(afterA.expectedAmount.toNumber(), sessionA!.expectedAmount.toNumber(), "closed cut must not change");
+});
+
+test("C-12: liquidar en efectivo registra lo recibido y el cambio; recibir menos se rechaza", { skip: !integrationEnabled }, async () => {
+  const order = await createOrder("pending", { customerName: "Paga con billete" });
+  const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: order.id } });
+
+  await assert.rejects(
+    OrderService.settlePayment(payment.id, "cash", admin, PRODUCT_PRICE - 1),
+    (error: Error) => error.name === "BusinessRuleError",
+  );
+  assert.equal((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status, "pending", "nothing settled");
+
+  await OrderService.settlePayment(payment.id, "cash", admin, PRODUCT_PRICE + 50);
+  const movement = await prisma.cashMovement.findFirstOrThrow({ where: { referenceId: order.id, type: "sale" } });
+  assert.equal(movement.amount.toNumber(), PRODUCT_PRICE);
+  assert.equal(movement.receivedAmount?.toNumber(), PRODUCT_PRICE + 50);
+  assert.equal(movement.changeAmount?.toNumber(), 50);
+});
+
+test("C-07: cancelar una venta antigua que sí consumió insumos los devuelve; la caja se revierte igual", { skip: !integrationEnabled }, async () => {
+  const session = await CashService.getActiveSession();
+  assert.ok(session);
+  const order = await createOrder("cash");
+  // Simulate a sale from before 2026-10-20, when sales consumed the recipe.
+  await prisma.ingredient.update({ where: { id: ingredientId }, data: { currentStock: { decrement: 1 } } });
+  await prisma.inventoryMovement.create({
+    data: { ingredientId, type: "sale", quantity: -1, referenceType: "order", referenceId: order.id, createdById: admin.id },
+  });
+  await prisma.order.update({ where: { id: order.id }, data: { inventoryProcessed: true } });
+  const stockBefore = (await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).currentStock.toNumber();
+  const expectedBefore = (await prisma.cashSession.findUniqueOrThrow({ where: { id: session!.id } })).expectedAmount.toNumber();
+
+  await OrderService.updateStatus(order.id, { status: "cancelled" }, admin);
+
+  const stockAfter = (await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).currentStock.toNumber();
+  assert.equal(stockAfter, stockBefore + 1, "legacy consumption is given back");
+  const expectedAfter = (await prisma.cashSession.findUniqueOrThrow({ where: { id: session!.id } })).expectedAmount.toNumber();
+  assert.equal(expectedAfter, expectedBefore - PRODUCT_PRICE, "the cash refund doesn't depend on inventory");
+  const cancelled = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+  assert.equal(cancelled.inventoryProcessed, false);
 });
 
 test("R-02/H-04: un pedido pagado cuenta como ingreso aunque no esté completado; cancelarlo recalcula su día", { skip: !integrationEnabled }, async () => {

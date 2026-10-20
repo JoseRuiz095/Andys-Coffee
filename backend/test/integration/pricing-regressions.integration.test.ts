@@ -134,3 +134,52 @@ test("N-01: la promoción solo descuenta a los productos (o categorías) vincula
   assert.equal(byCategory.discount.toNumber(), 5);
 });
 
+
+test("C-04: la cotización del POS coincide con lo que cobra la venta (promoción, combo y extras)", { skip: !integrationEnabled }, async () => {
+  // Promotion from L-07 (10% on product B) still active.
+  const items = [
+    { productId: productIds[1], quantity: 3 },
+    { comboId, quantity: 1 },
+    { productId: productIds[0], quantity: 1, extras: [{ extraId, quantity: 2 }] },
+  ];
+  const quote = await OrderService.quote({ items } as Parameters<typeof OrderService.quote>[0]);
+  const created = await order(items);
+
+  assert.equal(quote.total, created.total.toFixed(2));
+  assert.equal(quote.subtotal, created.subtotal.toFixed(2));
+  assert.equal(quote.discount, created.discount.toFixed(2));
+  assert.deepEqual(quote.items.map((item) => item.net), ["135.00", "100.00", "66.00"]);
+});
+
+test("C-05: en efectivo, el monto recibido debe cubrir venta + mandadito y el cambio se calcula sobre ambos", { skip: !integrationEnabled }, async () => {
+  const sale = {
+    items: [{ productId: productIds[0], quantity: 1 }],
+    paymentMethod: "cash",
+    hasDelivery: true,
+    deliveryAmount: 30,
+    deliveryResponsible: "customer_to_business",
+    deliveryPaymentMethod: "cash",
+  };
+
+  seq += 1;
+  await assert.rejects(
+    OrderService.create({ ...sale, cashReceived: 60 } as Parameters<typeof OrderService.create>[0], userId, `pricing-${testId}-${seq}`),
+    (error: Error) => error.name === "BusinessRuleError",
+    "covering only the food is not enough",
+  );
+
+  seq += 1;
+  const created = await OrderService.create(
+    { ...sale, cashReceived: 100 } as Parameters<typeof OrderService.create>[0],
+    userId,
+    `pricing-${testId}-${seq}`,
+  );
+  orderIds.push(created.id);
+
+  const saleMovement = await prisma.cashMovement.findFirstOrThrow({ where: { referenceId: created.id, type: "sale" } });
+  assert.equal(saleMovement.amount.toNumber(), 50, "only the sale is revenue");
+  assert.equal(saleMovement.receivedAmount?.toNumber(), 100);
+  assert.equal(saleMovement.changeAmount?.toNumber(), 20, "100 − (50 + 30)");
+  const collected = await prisma.cashMovement.findFirstOrThrow({ where: { referenceId: created.id, type: "delivery_collected" } });
+  assert.equal(collected.amount.toNumber(), 30);
+});

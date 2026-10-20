@@ -11,6 +11,7 @@ import { XIcon } from '../../../components/ui/XIcon'
 import { Button } from '../../../shared/components/Button'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import type { OrderItem } from '../types/order.types'
+import { extrasUnitPrice } from '../../menu/utils/extras'
 import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
 
 type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
@@ -21,8 +22,19 @@ interface OrderDetailsPanelProps {
   customerName?: string
   items?: OrderItem[]
   subtotal?: number
+  /** Promotion discount priced by the server. */
+  discount?: number
   total?: number
+  /** Server amounts per cart line (same order as `items`), when available. */
+  lineTotals?: { gross: number; net: number }[]
+  /** True while the server price of the current cart is on its way. */
+  isPricing?: boolean
+  pricingError?: string | null
+  /** Mandadito the customer pays to Andy's, charged on top of the sale (not revenue). */
+  deliveryCharge?: number
   isLoading?: boolean
+  /** The sale is being sent: the order stays visible but can't be edited or sent again. */
+  isProcessing?: boolean
   orderNotes?: string
   paymentMethod?: PaymentMethod
   hasDelivery?: boolean
@@ -31,7 +43,11 @@ interface OrderDetailsPanelProps {
   deliveryPaymentMethod?: DeliveryPaymentMethod
   scheduledFor?: string | null
   onClearOrder?: () => void
+  /** Takes one unit off the line (removes it at 1). */
   onRemoveItem?: (itemId: string) => void
+  onIncrementItem?: (itemId: string) => void
+  /** Removes the whole line. */
+  onDeleteItem?: (itemId: string) => void
   onUpdateItemNote?: (itemId: string, note: string) => void
   onProcessTransaction?: () => void
   onScheduleOrder?: () => void
@@ -48,8 +64,14 @@ export function OrderDetailsPanel({
   customerName,
   items,
   subtotal = 0,
+  discount = 0,
   total = 0,
+  lineTotals,
+  isPricing = false,
+  pricingError = null,
+  deliveryCharge = 0,
   isLoading = true,
+  isProcessing = false,
   orderNotes,
   paymentMethod,
   hasDelivery = false,
@@ -58,6 +80,8 @@ export function OrderDetailsPanel({
   deliveryPaymentMethod,
   scheduledFor,
   onRemoveItem,
+  onIncrementItem,
+  onDeleteItem,
   onUpdateItemNote,
   onProcessTransaction,
   onScheduleOrder,
@@ -300,7 +324,11 @@ export function OrderDetailsPanel({
 
           {items && items.length > 0 ? (
             <div className="space-y-3">
-              {items.map((item) => (
+              {items.map((item, index) => {
+                const line = lineTotals?.length === items.length ? lineTotals[index] : undefined
+                const lineAmount = line ? line.net : item.quantity * (item.unitPrice + extrasUnitPrice(item.extras))
+                const hasLineDiscount = line ? line.gross > line.net : false
+                return (
                 <div
                   key={item.id}
                   className="flex items-start gap-3 rounded-xl p-3"
@@ -325,12 +353,20 @@ export function OrderDetailsPanel({
                       )}
                       <button
                         onClick={() => handleOpenNoteModal(item)}
-                        className="p-1 transition-colors"
+                        disabled={isProcessing}
+                        aria-label={`Nota para ${item.productName}`}
+                        className="p-1 transition-colors disabled:opacity-40"
                         style={{ color: 'var(--color-text-secondary)' }}
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
                     </div>
+                    {item.extras && item.extras.length > 0 && (
+                      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                        {item.extras.map((extra) => `+ ${extra.name}${extra.quantity > 1 ? ` ×${extra.quantity}` : ''}`).join(', ')}
+                        {item.quantity > 1 ? ' (c/u)' : ''}
+                      </p>
+                    )}
                     {item.note && (
                       <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Nota: {item.note}</p>
                     )}
@@ -338,20 +374,55 @@ export function OrderDetailsPanel({
                       {item.quantity} × ${item.unitPrice.toFixed(2)}
                     </div>
                   </div>
-                  <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    ${(item.quantity * item.unitPrice).toFixed(2)}
+                  <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    {hasLineDiscount && line && (
+                      <div className="text-xs font-normal line-through" style={{ color: 'var(--color-text-secondary)' }}>
+                        ${line.gross.toFixed(2)}
+                      </div>
+                    )}
+                    ${lineAmount.toFixed(2)}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onRemoveItem?.(item.id)}
+                        disabled={isProcessing}
+                        aria-label={`Quitar una unidad de ${item.productName}`}
+                        className="h-7 w-7 rounded-lg border text-base leading-none disabled:opacity-40"
+                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onIncrementItem?.(item.id)}
+                        disabled={isProcessing || item.quantity >= 99}
+                        aria-label={`Agregar una unidad de ${item.productName}`}
+                        className="h-7 w-7 rounded-lg border text-base leading-none disabled:opacity-40"
+                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                      >
+                        +
+                      </button>
+                    </div>
                     <button
-                      onClick={() => onRemoveItem?.(item.id)}
-                      className="p-1 transition-colors"
+                      type="button"
+                      onClick={() => onDeleteItem?.(item.id)}
+                      disabled={isProcessing}
+                      aria-label={`Eliminar ${item.productName} de la orden`}
+                      title="Eliminar línea"
+                      className="flex items-center gap-1 p-1 text-xs transition-colors disabled:opacity-40"
                       style={{ color: 'var(--color-danger)' }}
                     >
-                      <XIcon size={18} />
+                      <XIcon size={14} /> Eliminar
                     </button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="py-8 text-center text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -369,11 +440,34 @@ export function OrderDetailsPanel({
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-sm" style={{ color: 'var(--color-success)' }}>
+                <span>Promociones</span>
+                <span>−${discount.toFixed(2)}</span>
+              </div>
+            )}
             <div className="my-3 border-t" style={{ borderColor: 'var(--color-border)' }} />
             <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{isPricing && !pricingError ? 'Calculando…' : `$${total.toFixed(2)}`}</span>
             </div>
+            {deliveryCharge > 0 && (
+              <>
+                <div className="flex justify-between text-sm" style={{ color: 'var(--color-ghost-text)' }}>
+                  <span>Mandadito (aparte de la venta)</span>
+                  <span>${deliveryCharge.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <span>Total con mandadito</span>
+                  <span>{isPricing && !pricingError ? 'Calculando…' : `$${(total + deliveryCharge).toFixed(2)}`}</span>
+                </div>
+              </>
+            )}
+            {pricingError && (
+              <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                {pricingError} El total mostrado es aproximado; el servidor lo confirmará al procesar.
+              </p>
+            )}
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -382,7 +476,7 @@ export function OrderDetailsPanel({
               onClick={onScheduleOrder}
               className="rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50"
               style={{ border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
-              disabled={isLoading || !items || items.length === 0}
+              disabled={isProcessing || !items || items.length === 0}
             >
               {scheduledFor ? 'Reprogramar' : 'Programar pedido'}
             </button>
@@ -392,9 +486,9 @@ export function OrderDetailsPanel({
               style={{ backgroundColor: 'var(--color-primary)' }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
-              disabled={isLoading || !items || items.length === 0}
+              disabled={isProcessing || !items || items.length === 0}
             >
-              {isLoading ? 'Procesando...' : 'Procesar orden'}
+              {isProcessing ? 'Procesando...' : 'Procesar orden'}
             </button>
           </div>
           {scheduledFor && (
@@ -410,7 +504,7 @@ export function OrderDetailsPanel({
             <DialogTitle>Añadir nota para {editingItem?.productName}</DialogTitle>
           </DialogHeader>
           <textarea
-            placeholder="Escriba una nota para el producto..."
+            placeholder={editingItem && editingItem.quantity > 1 ? `Aplica a las ${editingItem.quantity} unidades. Ej. 1 deslactosado, 1 sin azúcar` : "Ej. deslactosado, sin azúcar"}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             className="my-4 w-full rounded-xl border px-3 py-2"

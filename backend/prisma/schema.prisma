@@ -32,6 +32,8 @@ model User {
   auditLogs                AuditLog[]
   inventoryCountsCreated   InventoryCount[]        @relation("InventoryCountCreatedBy")
   inventoryCountsCompleted InventoryCount[]        @relation("InventoryCountCompletedBy")
+  cancellationRequests     OrderCancellationRequest[] @relation("CancellationRequestedBy")
+  cancellationReviews      OrderCancellationRequest[] @relation("CancellationReviewedBy")
 
   @@index([roleId])
   @@index([isActive])
@@ -473,6 +475,7 @@ model Order {
   createdBy             User?                @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   payments              Payment[]
   derivedExpenses       Expense[]
+  cancellationRequests  OrderCancellationRequest[]
 
   @@unique([createdById, idempotencyKey], map: "orders_createdBy_idempotencyKey_unique")
   @@index([status])
@@ -481,6 +484,38 @@ model Order {
   @@index([cashSessionId], map: "orders_cashSession_idx")
   // @@index([createdAt], map: "orders_completed_date_idx", where: raw("(status = 'completed'::\"OrderStatus\")"))
   @@map("orders")
+}
+
+enum CancellationRequestStatus {
+  pending
+  approved
+  rejected
+}
+
+/// Request to cancel a sale that is already completed. Completed sales can only be cancelled
+/// with admin approval (business decision 2026-10-20): approving runs the same cancellation as
+/// any other sale (cash refund, payments, mandadito, income-statement invalidation).
+model OrderCancellationRequest {
+  id            String                    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  orderId       String
+  requestedById String
+  reason        String
+  status        CancellationRequestStatus @default(pending)
+  reviewedById  String?
+  reviewedAt    DateTime?                 @db.Timestamptz(6)
+  reviewComment String?
+  createdAt     DateTime                  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime                  @default(now()) @updatedAt @db.Timestamptz(6)
+  order         Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requestedBy   User                      @relation("CancellationRequestedBy", fields: [requestedById], references: [id], onUpdate: NoAction)
+  reviewedBy    User?                     @relation("CancellationReviewedBy", fields: [reviewedById], references: [id], onUpdate: NoAction)
+
+  @@index([orderId], map: "orderCancellationRequests_order_idx")
+  @@index([status, createdAt], map: "orderCancellationRequests_status_idx")
+  // Partial unique index kept in raw SQL (Prisma can't declare WHERE): at most one pending
+  // request per order.
+  //   orderCancellationRequests_one_pending ON order_cancellation_requests("orderId") WHERE status = 'pending'
+  @@map("order_cancellation_requests")
 }
 
 model OrderItem {

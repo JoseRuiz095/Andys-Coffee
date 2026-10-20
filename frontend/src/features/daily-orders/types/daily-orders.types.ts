@@ -1,3 +1,4 @@
+import type { CancellationRequestSummary } from '../../orders/types/orders.types';
 import type { OrderTemperature } from '../../../shared/utils/productTemperature'
 
 export interface DailyOrderItemExtra {
@@ -54,4 +55,6 @@ export interface DailyOrder {
   createdBy: { id: string; name: string } | null;
   items: DailyOrderItem[];
   payments: DailyOrderPayment[];
+  /** Latest cancellation request (at most one entry). */
+  cancellationRequests?: CancellationRequestSummary[];
 }

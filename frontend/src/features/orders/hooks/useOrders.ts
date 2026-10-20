@@ -5,6 +5,7 @@ import { getOrders, updateOrderStatus } from '../services/order.service';
 import { OrderStatus } from '../types/backend.types';
 import { sileo } from 'sileo';
 import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
+import { getErrorMessage } from '../../../shared/utils/errors';
 
 export function useOrders() {
   const [page, setPage] = useState(1);
@@ -24,13 +25,15 @@ export function useOrders() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, newStatus }: { id: string; newStatus: OrderStatus }) => updateOrderStatus(id, newStatus),
+    mutationFn: ({ id, newStatus, reason }: { id: string; newStatus: OrderStatus; reason?: string }) =>
+      updateOrderStatus(id, newStatus, reason),
     onSuccess: () => {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Estatus de orden actualizada correctamente' });
     },
-    onError: () => {
-      sileo.error({ title: 'Error', description: 'Error al actualizar el estatus de la orden' });
+    onError: (error: unknown) => {
+      // The server explains why (invalid transition, cash closed, missing permission...).
+      sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al actualizar el estatus de la orden') });
     },
   });
 
@@ -42,11 +45,11 @@ export function useOrders() {
     setPage,
     setStatus,
     setSearch,
-    updateStatus: (id: string, newStatus: OrderStatus) => {
+    updateStatus: (id: string, newStatus: OrderStatus, options?: { reason?: string; onSuccess?: () => void }) => {
       // One request at a time: a second click while the first is in flight would be rejected
       // by the server anyway (the transition is no longer valid).
       if (statusMutation.isPending) return;
-      statusMutation.mutate({ id, newStatus });
+      statusMutation.mutate({ id, newStatus, reason: options?.reason }, { onSuccess: options?.onSuccess });
     },
     /** Order whose status change is in flight (its buttons are disabled meanwhile). */
     updatingOrderId: statusMutation.isPending ? statusMutation.variables?.id ?? null : null,

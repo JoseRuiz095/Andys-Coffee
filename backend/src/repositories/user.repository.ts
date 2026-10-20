@@ -213,6 +213,14 @@ export const UserRepository = {
     });
   },
 
+  /** Active users whose role holds `permissionName`. */
+  async findActiveWithPermission(permissionName: string) {
+    return prisma.user.findMany({
+      where: { isActive: true, role: { permissions: { some: { permission: { name: permissionName } } } } },
+      select: { id: true },
+    });
+  },
+
   async countActiveAdmins(adminRoleId: string) {
     return prisma.user.count({
       where: {

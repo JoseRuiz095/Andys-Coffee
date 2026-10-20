@@ -5,6 +5,8 @@ import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
 import { createProductSchema, updateProductSchema, setActiveSchema } from '../validators/product.validator';
+import { setProductExtrasSchema } from '../validators/extra.validator';
+import { ExtraController } from '../controllers/extra.controller';
 
 const router = Router();
 
@@ -63,6 +65,15 @@ router.patch(
   checkPermission('products.update'),
   validate(setActiveSchema),
   ProductController.setActive
+);
+
+// Which extras the POS offers with this product.
+router.patch(
+  '/:id/extras',
+  requireAuth,
+  checkPermission('products.update'),
+  validate(setProductExtrasSchema),
+  ExtraController.setProductExtras
 );
 
 router.delete(

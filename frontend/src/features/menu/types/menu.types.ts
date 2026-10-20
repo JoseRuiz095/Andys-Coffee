@@ -13,6 +13,22 @@ export interface MenuItem {
   temperature?: ProductTemperature | null;
   jumboPrice?: number | null;
   size?: 'JUMBO';
+  /** Extras offered with a product (charged per unit of the product). */
+  extras?: MenuExtra[];
+}
+
+export interface MenuExtra {
+  id: string;
+  name: string;
+  price: number;
+}
+
+/** Extras chosen for a cart line: `quantity` is per unit of the product. */
+export interface SelectedExtra {
+  extraId: string;
+  name: string;
+  price: number;
+  quantity: number;
 }
 
 /**

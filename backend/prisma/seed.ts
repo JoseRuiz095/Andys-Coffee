@@ -509,6 +509,7 @@ const permissions = [
   { name: "sales.create", description: "Crear ventas" },
   { name: "sales.update", description: "Editar datos informativos de ventas" },
   { name: "sales.cancel", description: "Cancelar ventas" },
+  { name: "sales.approve_cancellation", description: "Aprobar cancelaciones de ventas completadas" },
   { name: "cash.open", description: "Abrir caja" },
   { name: "cash.close", description: "Cerrar caja" },
   { name: "cash.correct", description: "Corregir un cierre de caja" },

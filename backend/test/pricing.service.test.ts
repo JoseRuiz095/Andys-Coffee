@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Prisma, PromotionType } from '@prisma/client';
-import { calculateBestPromotion } from '../src/services/pricing.service';
+import { calculateBestPromotion, calculateCartPromotions } from '../src/services/pricing.service';
 
 const money = (value: number) => new Prisma.Decimal(value);
 const promotion = (type: PromotionType, discountValue: number, options: { buyQuantity?: number; getQuantity?: number } = {}) => ({
@@ -59,4 +59,49 @@ test('N-01: una promoción solo aplica a sus productos o a los de sus categoría
   assert.deepEqual(promotionsForProduct(all, { id: 'bagel-1', categoryId: 'bagels' }).map((p) => p.id), ['p2']);
   assert.deepEqual(promotionsForProduct(all, { id: 'americano', categoryId: 'bebidas' }), []);
   assert.deepEqual(promotionsForProduct(all, { id: 'sin-categoria', categoryId: null }), []);
+});
+
+
+const scoped = (base: ReturnType<typeof promotion>, productIds: string[]) => ({
+  ...base,
+  products: productIds.map((productId) => ({ productId })),
+  categories: [],
+});
+const cartLine = (productId: string, unitPrice: number, quantity: number) => ({
+  unitPrice: money(unitPrice),
+  quantity,
+  product: { id: productId, categoryId: null },
+});
+
+test('un 2x1 junta unidades de distintas líneas y regala la más barata de cada par', () => {
+  const twoForOne = scoped(promotion(PromotionType.BOGO, 100, { buyQuantity: 1, getQuantity: 1 }), ['latte']);
+  // Hot and cold captured on separate lines.
+  const sameProduct = calculateCartPromotions([cartLine('latte', 65, 1), cartLine('latte', 65, 1)], [twoForOne]);
+  assert.deepEqual(sameProduct.map((d) => d.toNumber()), [0, 65]);
+
+  // Jumbo (98) + regular (65): the regular one is free.
+  const mixedSizes = calculateCartPromotions([cartLine('latte', 98, 1), cartLine('latte', 65, 1)], [twoForOne]);
+  assert.deepEqual(mixedSizes.map((d) => d.toNumber()), [0, 65]);
+
+  // Three units: one pair, the third pays.
+  const three = calculateCartPromotions([cartLine('latte', 65, 2), cartLine('latte', 65, 1)], [twoForOne]);
+  assert.equal(three.reduce((sum, d) => sum + d.toNumber(), 0), 65);
+});
+
+test('"2 por $99" mezcla productos de la promoción y reparte el descuento en centavos exactos', () => {
+  const twoFor99 = scoped(promotion(PromotionType.MULTIBUY_FIXED_PRICE, 99, { buyQuantity: 2 }), ['vainilla', 'biscoff']);
+  const discounts = calculateCartPromotions([cartLine('vainilla', 65, 1), cartLine('biscoff', 70, 1)], [twoFor99]);
+  assert.equal(Math.round(discounts.reduce((sum, d) => sum + d.toNumber(), 0) * 100), 3600); // 135 − 99
+  assert.ok(discounts.every((d) => d.toNumber() > 0), 'both lines carry part of the discount');
+});
+
+test('las promociones no se acumulan sobre la misma línea y solo cubren sus productos', () => {
+  const tenPercent = scoped(promotion(PromotionType.PERCENTAGE, 10), ['latte', 'bagel']);
+  const twoForOne = scoped(promotion(PromotionType.BOGO, 100, { buyQuantity: 1, getQuantity: 1 }), ['latte']);
+  const discounts = calculateCartPromotions(
+    [cartLine('latte', 50, 2), cartLine('bagel', 80, 1), cartLine('other', 40, 1)],
+    [tenPercent, twoForOne],
+  );
+  // The 2x1 saves more on the lattes (50); the bagel still gets the 10% (8); "other" nothing.
+  assert.deepEqual(discounts.map((d) => d.toNumber()), [50, 8, 0]);
 });

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Drawer } from '../../../shared/components/Drawer';
 import { Card } from '../../../shared/components/Card';
-import { ConfirmDialog } from '../../../shared/components/ConfirmDialog';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { hasPermission } from '../../auth/utils/permissions';
 import type { AuthUser } from '../../auth/types/auth.types';
 import type { DailyOrder, DailyOrderStatus } from '../types/daily-orders.types';
 import { useCancelDailyOrder } from '../hooks/useDailyOrders';
+import { CancelOrderDialog } from '../../orders/components/CancelOrderDialog';
+import { useRequestOrderCancellation } from '../../orders/hooks/useCancellationRequests';
 import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
 
 interface DailyOrderDetailDrawerProps {
@@ -66,22 +67,39 @@ export function DailyOrderDetailDrawer({
   onClose,
 }: DailyOrderDetailDrawerProps) {
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-  const { mutate: cancelOrder, isPending: isCancelling } = useCancelDailyOrder();
+  const { mutate: cancelOrder, isPending: isCancellingDirectly } = useCancelDailyOrder();
+  const { mutate: requestCancellation, isPending: isRequesting } = useRequestOrderCancellation();
+  const isCancelling = isCancellingDirectly || isRequesting;
 
   if (!order) return null;
 
-  const canCancel = hasPermission(currentUser, 'sales.cancel') &&
-    order.status !== 'completed' &&
-    order.status !== 'cancelled';
+  const isCompleted = order.status === 'completed';
+  const canApproveCancellation = hasPermission(currentUser, 'sales.approve_cancellation');
+  const latestCancellationRequest = order.cancellationRequests?.[0];
+  const hasPendingRequest = latestCancellationRequest?.status === 'pending';
+  // A completed sale is only cancelled through an approval request (approvers approve their own).
+  const canCancel = isCompleted
+    ? !hasPendingRequest && (hasPermission(currentUser, 'sales.create') || canApproveCancellation)
+    : hasPermission(currentUser, 'sales.cancel') && order.status !== 'cancelled';
 
   const handleCancelClick = () => {
     setConfirmCancelOpen(true);
   };
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = (reason: string | undefined) => {
     // The drawer shows a snapshot of the order: close it once cancelled, so it does not keep
     // offering "Cancelar Orden" as if nothing had happened.
-    cancelOrder(order.id, { onSuccess: onClose });
+    const done = {
+      onSuccess: () => {
+        setConfirmCancelOpen(false);
+        onClose();
+      },
+    };
+    if (isCompleted) {
+      if (reason) requestCancellation({ orderId: order.id, reason }, done);
+      return;
+    }
+    cancelOrder({ orderId: order.id, reason }, done);
   };
 
   return (
@@ -254,6 +272,20 @@ export function DailyOrderDetailDrawer({
             </div>
           </Card>
 
+          {/* Solicitud de cancelación de una venta completada */}
+          {latestCancellationRequest && latestCancellationRequest.status !== 'approved' && (
+            <Card variant="inset">
+              <p className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                {hasPendingRequest
+                  ? `Cancelación pendiente de aprobación (solicitada por ${latestCancellationRequest.requestedBy.name}).`
+                  : `Cancelación rechazada por ${latestCancellationRequest.reviewedBy?.name ?? 'un administrador'}${latestCancellationRequest.reviewComment ? `: ${latestCancellationRequest.reviewComment}` : '.'}`}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Motivo: {latestCancellationRequest.reason}
+              </p>
+            </Card>
+          )}
+
           {/* Acción: Cancelar */}
           {canCancel && (
             <button
@@ -262,19 +294,19 @@ export function DailyOrderDetailDrawer({
               className="w-full px-4 py-3 rounded-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-danger)' }}
             >
-              {isCancelling ? 'Cancelando...' : 'Cancelar Orden'}
+              {isCancelling
+                ? 'Procesando...'
+                : isCompleted && !canApproveCancellation ? 'Solicitar cancelación' : 'Cancelar Orden'}
             </button>
           )}
         </div>
       </Drawer>
 
-      <ConfirmDialog
+      <CancelOrderDialog
+        key={order.id}
         isOpen={confirmCancelOpen}
-        title="Cancelar Orden"
-        message={`¿Estás seguro de que deseas cancelar la orden #${order.orderNumber}? Esta acción no se puede deshacer.`}
-        confirmText="Cancelar Orden"
-        cancelText="Mantener Orden"
-        isDangerous
+        orderNumber={order.orderNumber}
+        mode={isCompleted ? (canApproveCancellation ? 'approve-own' : 'request') : 'cancel'}
         isLoading={isCancelling}
         onConfirm={handleConfirmCancel}
         onCancel={() => setConfirmCancelOpen(false)}

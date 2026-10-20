@@ -104,7 +104,7 @@ after(async () => {
 });
 
 test(
-  "OrderService.create calcula el total, descuenta inventario y registra el movimiento de caja",
+  "OrderService.create calcula el total, no toca el inventario y registra el movimiento de caja",
   { skip: !integrationEnabled },
   async () => {
     const quantity = 2;
@@ -123,11 +123,11 @@ test(
     assert.equal(order.items.length, 1);
     assert.equal(order.items[0].quantity.toNumber(), quantity);
 
+    // C-07: recipe-based inventory is outside the MVP, so a sale leaves stock untouched.
     const ingredient = await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
-    assert.equal(
-      ingredient.currentStock.toNumber(),
-      INITIAL_STOCK - RECIPE_QUANTITY_PER_UNIT * quantity,
-    );
+    assert.equal(ingredient.currentStock.toNumber(), INITIAL_STOCK);
+    assert.equal(await prisma.inventoryMovement.count({ where: { referenceId: order.id } }), 0);
+    assert.equal(order.inventoryProcessed, false);
 
     const session = await prisma.cashSession.findUniqueOrThrow({ where: { id: cashSessionId } });
     assert.equal(session.expectedAmount.toNumber(), PRODUCT_PRICE * quantity);
@@ -163,21 +163,22 @@ test(
 );
 
 test(
-  "OrderService.create rechaza la venta si no hay stock suficiente",
+  "C-07: OrderService.create vende aunque el stock registrado no alcance",
   { skip: !integrationEnabled },
   async () => {
-    await assert.rejects(
-      OrderService.create(
-        {
-          items: [{ productId, quantity: 999 }],
-          paymentMethod: "cash",
-          cashReceived: PRODUCT_PRICE * 999,
-          cashSessionId,
-        },
-        userId,
-        `idem-${testId}-3`,
-      ),
-      (error: Error) => error.name === "BusinessRuleError",
+    // The recipe needs 99 × 2 units and only INITIAL_STOCK exist: the sale goes through anyway.
+    const order = await OrderService.create(
+      {
+        items: [{ productId, quantity: 99 }],
+        paymentMethod: "cash",
+        cashReceived: PRODUCT_PRICE * 99,
+        cashSessionId,
+      },
+      userId,
+      `idem-${testId}-3`,
     );
+    assert.equal(order.total.toNumber(), PRODUCT_PRICE * 99);
+    const ingredient = await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
+    assert.equal(ingredient.currentStock.toNumber(), INITIAL_STOCK);
   },
 );

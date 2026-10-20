@@ -37,6 +37,10 @@ const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disa
 export function OrderActions({ order, onStatusChange, currentUser, isUpdating = false }: OrderActionsProps) {
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
+  // A completed sale is only cancelled with an admin's approval (approvers cancel it directly).
+  const canRequestCancellation = hasPermission(currentUser, 'sales.create');
+  const canApproveCancellation = hasPermission(currentUser, 'sales.approve_cancellation');
+  const latestCancellationRequest = order.cancellationRequests?.[0];
   const isScheduled = Boolean(order.scheduledFor) && order.status === 'pending';
   const [currentTime, setCurrentTime] = useState<number | null>(null);
   useEffect(() => {
@@ -111,6 +115,32 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
             </Button>
           )}
         </>
+      )}
+
+      {frontendStatus === 'COMPLETED' && (
+        latestCancellationRequest?.status === 'pending' ? (
+          <p className="w-full rounded-lg px-3 py-2 text-center text-xs font-medium" style={{ backgroundColor: 'color-mix(in srgb, var(--color-warning) 14%, var(--color-surface))', color: 'var(--color-text-primary)' }}>
+            Cancelación pendiente de aprobación
+          </p>
+        ) : (canRequestCancellation || canApproveCancellation) && (
+          <div className="w-full space-y-1">
+            {latestCancellationRequest?.status === 'rejected' && (
+              <p className="text-center text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Cancelación rechazada{latestCancellationRequest.reviewComment ? `: ${latestCancellationRequest.reviewComment}` : ''}
+              </p>
+            )}
+            <Button
+              onClick={() => onStatusChange('CANCELLED')}
+              className="text-xs px-2 py-1"
+              disabled={isUpdating}
+              bgVar="--color-danger"
+              hoverVar="--color-danger-hover"
+              ariaLabel={`${canApproveCancellation ? 'Cancelar' : 'Solicitar cancelación de'} la orden #${order.orderNumber}`}
+            >
+              {canApproveCancellation ? 'Cancelar venta' : 'Solicitar cancelación'}
+            </Button>
+          </div>
+        )
       )}
 
       {frontendStatus === 'READY' && (

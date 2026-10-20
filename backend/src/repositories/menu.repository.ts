@@ -52,6 +52,12 @@ export const MenuRepository = {
             price: true,
             imageUrl: true,
             displayOrder: true,
+            // Extras the POS offers with the product (only active ones can be sold).
+            extras: {
+              where: { extra: { isActive: true } },
+              select: { extra: { select: { id: true, name: true, price: true } } },
+              orderBy: { extra: { name: 'asc' } },
+            },
           },
           orderBy: { displayOrder: 'asc' },
         },

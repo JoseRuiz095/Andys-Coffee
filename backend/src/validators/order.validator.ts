@@ -1,13 +1,17 @@
 import { z } from 'zod';
 import { OrderStatus } from '@prisma/client';
 import { normalizedSearchSchema, paginationFields } from './pagination.validator';
+import { queryBoolean } from './common.validator';
 
 export const filterQuerySchema = z.strictObject({
   ...paginationFields,
   status: z.nativeEnum(OrderStatus).optional(),
   search: normalizedSearchSchema.optional(),
+  /** Orders board: open orders of any day plus everything created today (business day). */
+  board: queryBoolean.optional(),
 });
 
+/** `quantity` is per unit of the product line (2 lattes with quantity 1 = 2 extras). */
 export const orderItemExtraSchema = z.strictObject({
   extraId: z.string().uuid(),
   quantity: z.number().positive().max(20),
@@ -29,6 +33,13 @@ export const orderItemSchema = z.strictObject({
   message: 'Los combos no pueden tener una temperatura individual.',
 }).refine((item) => !item.comboId || item.size === undefined, {
   message: 'Los combos no pueden tener un tamaño individual.',
+});
+
+const orderItemsSchema = z.array(orderItemSchema).min(1, 'El pedido debe tener al menos un producto.').max(100);
+
+/** POS price preview: the same items a sale sends, priced without creating anything. */
+export const quoteOrderSchema = z.strictObject({
+  items: orderItemsSchema,
 });
 
 const paymentMethodSchema = z.enum([
@@ -53,6 +64,11 @@ const paymentMethodSchema = z.enum([
 
 export const settlePaymentSchema = z.strictObject({
   method: z.enum(['cash', 'transfer', 'card']),
+  /** Cash handed over when settling in cash (optional; records the change given). */
+  cashReceived: z.number().finite().nonnegative().max(999999999.99).optional(),
+}).refine((data) => data.cashReceived === undefined || data.method === 'cash', {
+  message: 'El monto recibido solo aplica a pagos en efectivo.',
+  path: ['cashReceived'],
 });
 
 export const deliveryResponsibleSchema = z.enum(['customer_to_courier', 'customer_to_business', 'business_absorbs']);
@@ -64,7 +80,7 @@ export const createOrderSchema = z.strictObject({
   notes: z.string().trim().max(1000).optional().nullable(),
   cashSessionId: z.string().uuid().optional(),
   cashReceived: z.number().finite().nonnegative().max(999999999.99).optional(),
-  items: z.array(orderItemSchema).min(1, 'El pedido debe tener al menos un producto.').max(100),
+  items: orderItemsSchema,
   paymentMethod: paymentMethodSchema,
   hasDelivery: z.boolean().optional(),
   deliveryAmount: z.number().finite().nonnegative().max(999999.99).optional(),
@@ -89,7 +105,7 @@ export const createOrderSchema = z.strictObject({
   path: ['deliveryPaymentMethod'],
 });
 
-export const updateOrderStatusSchema = z.object({
+export const updateOrderStatusSchema = z.strictObject({
   status: z.nativeEnum(OrderStatus),
   reason: z.string().trim().min(1).max(500).optional(),
 });
@@ -103,4 +119,12 @@ export const updateOrderSchema = z.strictObject({
 
 export const orderByDateQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD).'),
+});
+
+export const requestCancellationSchema = z.strictObject({
+  reason: z.string().trim().min(3, 'Explica por qué se cancela la venta.').max(500),
+});
+
+export const reviewCancellationSchema = z.strictObject({
+  comment: z.string().trim().max(500).optional(),
 });

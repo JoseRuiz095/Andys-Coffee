@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { getSupabaseImageUrl } from '../../../shared/utils/imageUtils'
-import { getDrinkTemperature } from '../../../shared/utils/productTemperature'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { getErrorMessage } from '../../../shared/utils/errors'
 import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
 import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
@@ -20,10 +21,13 @@ import { CoffeeIcon } from '../../../components/ui/coffee'
 import type { CoffeeIconHandle } from '../../../components/ui/coffee'
 import { SettingsIcon } from '../../../components/ui/settings'
 import { APP_ROUTES } from '../../../shared/constants/routes'
-import type { OrderItem } from '../types/order.types'
-import type { MenuItem } from '../../menu/types/menu.types'
+import type { CreateOrderItem, CreateOrderPayload, OrderItem } from '../types/order.types'
+import type { MenuItem, SelectedExtra } from '../../menu/types/menu.types'
+import { extrasKey, extrasUnitPrice } from '../../menu/utils/extras'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
+import { useOrderQuote } from '../hooks/useOrderQuote'
+import { sessionEntry, useSessionState } from '../../../shared/hooks/useSessionState'
 import { useNotifications } from '../hooks/useNotifications'
 import { LazyView } from '../../../shared/components/LazyView'
 import { NotificationCenter } from '../components/NotificationCenter'
@@ -32,19 +36,6 @@ import { CashPaymentDialog } from '../components/CashPaymentDialog'
 import { CashClosingDialog } from '../components/CashClosingDialog'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { useCashSession } from '../hooks/useCashSession'
-import axios from 'axios'
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (axios.isAxiosError<{ message?: string; errors?: unknown }>(error)) {
-    const data = error.response?.data
-    if (data?.errors) {
-      const details = typeof data.errors === 'string' ? data.errors : JSON.stringify(data.errors)
-      return `${data.message ?? 'Error de validación.'}: ${details}`
-    }
-    return data?.message ?? error.message
-  }
-  return error instanceof Error ? error.message : fallback
-}
 
 function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -61,28 +52,43 @@ function usePrevious<T>(value: T) {
   return ref.current
 }
 
-function getLocalDateTimeValue(date: Date = new Date(Date.now() + 60 * 60 * 1000)) {
-  const timezoneOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
-}
+/**
+ * Idempotency key of the current sale attempt. It is kept while the cart (and everything else
+ * that defines the sale) stays the same, so a retry after a lost response — timeout, network
+ * drop — reuses it and the server returns the order it already created. Any change to the sale
+ * starts a new attempt. The cash received is left out: retyping it must not create a second sale.
+ */
+function useSaleAttemptKey(storageKey: string) {
+  // Kept in sessionStorage too: reloading the tab after a lost response must not start a new
+  // attempt for the same cart (the persisted cart would otherwise be charged twice).
+  const readStored = () => {
+    try {
+      const raw = sessionEntry.get(storageKey)
+      return raw ? (JSON.parse(raw) as { fingerprint: string; key: string }) : null
+    } catch {
+      return null
+    }
+  }
 
-function getScheduleReminderMinutes(scheduledFor: string | null) {
-  if (!scheduledFor) return null
-  const diffMs = new Date(scheduledFor).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diffMs / 60000))
-}
-
-function readAlertedScheduledOrders() {
-  try {
-    const raw = localStorage.getItem('andy-scheduled-order-alerts')
-    return raw ? (JSON.parse(raw) as string[]) : []
-  } catch {
-    return []
+  return {
+    keyFor(payload: CreateOrderPayload) {
+      const fingerprint = JSON.stringify({ ...payload, cashReceived: undefined })
+      const stored = readStored()
+      if (stored?.fingerprint === fingerprint) return stored.key
+      const attempt = { fingerprint, key: crypto.randomUUID() }
+      sessionEntry.set(storageKey, JSON.stringify(attempt))
+      return attempt.key
+    },
+    /** The sale went through: the next one is a new attempt. */
+    reset() {
+      sessionEntry.set(storageKey, null)
+    },
   }
 }
 
-function saveAlertedScheduledOrders(orderIds: string[]) {
-  localStorage.setItem('andy-scheduled-order-alerts', JSON.stringify(orderIds))
+function getLocalDateTimeValue(date: Date = new Date(Date.now() + 60 * 60 * 1000)) {
+  const timezoneOffset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
 }
 
 export function DashboardPage() {
@@ -95,23 +101,26 @@ export function DashboardPage() {
   const [activeView, setActiveView] = React.useState('Venta')
   const prevActiveView = usePrevious(activeView)
 
-  const [orderItems, setOrderItems] = React.useState<OrderItem[]>([])
-  const [orderNotes, setOrderNotes] = React.useState('')
-  const [customerName, setCustomerName] = React.useState('')
-  const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'transfer' | 'card' | 'pending'>()
-  const [hasDelivery, setHasDelivery] = React.useState(false)
-  const [deliveryAmount, setDeliveryAmount] = React.useState('')
-  const [deliveryResponsible, setDeliveryResponsible] = React.useState<
+  // The sale being captured survives a reload of the tab (per user), so a refresh in the
+  // middle of a rush doesn't lose the order.
+  const draftKey = (field: string) => `andy-pos-draft:${currentUser?.id ?? 'anon'}:${field}`
+  const [orderItems, setOrderItems] = useSessionState<OrderItem[]>(draftKey('items'), [])
+  const [orderNotes, setOrderNotes] = useSessionState(draftKey('notes'), '')
+  const [customerName, setCustomerName] = useSessionState(draftKey('customer'), '')
+  // Cash is the most common payment: selected by default to save a step per sale.
+  const [paymentMethod, setPaymentMethod] = useSessionState<'cash' | 'transfer' | 'card' | 'pending' | undefined>(draftKey('payment'), 'cash')
+  const [hasDelivery, setHasDelivery] = useSessionState(draftKey('hasDelivery'), false)
+  const [deliveryAmount, setDeliveryAmount] = useSessionState(draftKey('deliveryAmount'), '')
+  const [deliveryResponsible, setDeliveryResponsible] = useSessionState<
     'customer_to_courier' | 'customer_to_business' | 'business_absorbs' | undefined
-  >()
-  const [deliveryPaymentMethod, setDeliveryPaymentMethod] = React.useState<'cash' | 'transfer' | undefined>()
-  const [scheduledFor, setScheduledFor] = React.useState<string | null>(null)
+  >(draftKey('deliveryResponsible'), undefined)
+  const [deliveryPaymentMethod, setDeliveryPaymentMethod] = useSessionState<'cash' | 'transfer' | undefined>(draftKey('deliveryPayment'), undefined)
+  const [scheduledFor, setScheduledFor] = useSessionState<string | null>(draftKey('scheduledFor'), null)
   const [scheduleInputValue, setScheduleInputValue] = React.useState('')
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = React.useState(false)
   const [isCashPaymentOpen, setIsCashPaymentOpen] = React.useState(false)
   const [isCashClosingOpen, setIsCashClosingOpen] = React.useState(false)
   const [closingExpectedAmount, setClosingExpectedAmount] = React.useState(0)
-  const [scheduleAlert, setScheduleAlert] = React.useState<{ orderId: string; scheduledFor: string } | null>(null)
   const [selectedCategory, setSelectedCategory] = React.useState<
     string | undefined
   >()
@@ -142,6 +151,34 @@ export function DashboardPage() {
     error,
   } = useMenu()
   const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
+  const saleAttempt = useSaleAttemptKey(draftKey('attempt'))
+
+  // Cart lines exactly as the API receives them: the quote and the sale send the same items.
+  const saleItems = React.useMemo<CreateOrderItem[]>(
+    () =>
+      orderItems.map(({ productId, comboId, quantity, note, type, temperature, size, extras }) => ({
+        productId: type === 'product' ? productId : undefined,
+        comboId: type === 'combo' ? comboId : undefined,
+        quantity,
+        note,
+        temperature: type === 'product' ? temperature ?? undefined : undefined,
+        size: type === 'product' ? size : undefined,
+        // Per unit of the line: the server multiplies them by the line quantity.
+        extras: type === 'product' && extras?.length
+          ? extras.map(({ extraId, quantity: perUnit }) => ({ extraId, quantity: perUnit }))
+          : undefined,
+      })),
+    [orderItems],
+  )
+  const { quote, lastQuote, error: quoteError } = useOrderQuote(saleItems)
+
+  // Mandadito the customer pays to Andy's in cash: not revenue, but it goes into the drawer
+  // together with the sale, so the cash dialog charges both.
+  const deliveryCashAmount =
+    hasDelivery && deliveryResponsible === 'customer_to_business' && deliveryPaymentMethod === 'cash'
+      ? Number(deliveryAmount) || 0
+      : 0
+  const takesCash = paymentMethod === 'cash' || deliveryCashAmount > 0
   const {
     data: cashSession,
     isLoading: isCashSessionLoading,
@@ -156,7 +193,7 @@ export function DashboardPage() {
   const submitOrder = (cashReceived?: number) => {
     if (isCreatingOrder) return
 
-    const orderPayload = {
+    const orderPayload: CreateOrderPayload = {
       customerName: customerName || 'Cliente',
       notes: orderNotes,
       cashSessionId: cashSession?.id,
@@ -167,45 +204,33 @@ export function DashboardPage() {
       deliveryResponsible: hasDelivery ? deliveryResponsible : undefined,
       deliveryPaymentMethod: hasDelivery && deliveryResponsible === 'customer_to_business' ? deliveryPaymentMethod : undefined,
       scheduledFor: scheduledFor ?? undefined,
-      items: orderItems.map(
-        ({ productId, comboId, quantity, note, type, temperature, size }) => ({
-          productId: type === 'product' ? productId : undefined,
-          comboId: type === 'combo' ? comboId : undefined,
-          quantity,
-          note,
-          temperature: type === 'product' ? temperature ?? undefined : undefined,
-          size: type === 'product' ? size : undefined,
-        }),
-      ),
+      items: saleItems,
     }
 
-    createOrder(orderPayload, {
+    createOrder({ order: orderPayload, idempotencyKey: saleAttempt.keyFor(orderPayload) }, {
       onSuccess: (createdOrder) => {
+        saleAttempt.reset()
         setIsCashPaymentOpen(false)
         setIsScheduleDialogOpen(false)
-        const alertOrderId = createdOrder?.id
-        if (orderPayload.scheduledFor && alertOrderId) {
-          const hasBeenAlerted = readAlertedScheduledOrders().includes(alertOrderId)
-          if (!hasBeenAlerted) {
-            const minutesLeft = getScheduleReminderMinutes(orderPayload.scheduledFor)
-            if (minutesLeft !== null && minutesLeft <= 20) {
-              setScheduleAlert({ orderId: alertOrderId, scheduledFor: orderPayload.scheduledFor })
-              const nextAlertedIds = [...readAlertedScheduledOrders(), alertOrderId]
-              saveAlertedScheduledOrders(nextAlertedIds)
-            }
-          }
-        }
         handleClearOrder()
         if (orderPayload.scheduledFor) {
           sileo.success({ title: 'Pedido programado.', description: `Se activará el ${new Date(orderPayload.scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 4000 })
           return
         }
-        sileo.success({ title: 'Orden creada exitosamente.', duration: 3000 })
+        // Confirm with the server's numbers: they are the ones recorded.
+        const chargedTotal = Number(createdOrder.total)
+        const cashDue = (orderPayload.paymentMethod === 'cash' ? chargedTotal : 0) + deliveryCashAmount
+        const change = cashReceived !== undefined ? cashReceived - cashDue : null
+        sileo.success({
+          title: 'Orden creada exitosamente.',
+          description: `Total: ${formatCurrency(chargedTotal)}${change !== null ? ` · Cambio: ${formatCurrency(Math.max(0, change))}` : ''}`,
+          duration: 5000,
+        })
       },
       onError: (error) => {
         sileo.error({
-          title: 'Algo salio mal',
-          description: getApiErrorMessage(error, 'No se pudo registrar la venta.'),
+          title: 'No se pudo registrar la venta',
+          description: getErrorMessage(error, 'Revisa tu conexión e intenta de nuevo: la orden sigue en pantalla.'),
         })
       },
     })
@@ -216,23 +241,23 @@ export function DashboardPage() {
 
     if (orderItems.length === 0) {
       sileo.error({
-        title: 'Algo salio mal',
-        description: 'Intentalo mas tarde.',
+        title: 'La orden está vacía',
+        description: 'Agrega al menos un producto.',
       })
       return
     }
 
     if (!paymentMethod) {
       sileo.error({
-        title: 'Algo salio mal',
-        description: 'Por favor, seleccione un método de pago.',
+        title: 'Falta el método de pago',
+        description: 'Selecciona cómo paga el cliente.',
       })
       return
     }
 
     if (paymentMethod === 'pending' && !customerName.trim()) {
       sileo.error({
-        title: 'Algo salio mal',
+        title: 'Revisa la orden',
         description: 'Debes ingresar el nombre del cliente para registrar un pago pendiente.',
       })
       return
@@ -241,28 +266,28 @@ export function DashboardPage() {
     if (hasDelivery) {
       if (!deliveryAmount || Number(deliveryAmount) <= 0) {
         sileo.error({
-          title: 'Algo salio mal',
+          title: 'Revisa la orden',
           description: 'Ingresa el costo del mandadito.',
         })
         return
       }
       if (!deliveryResponsible) {
         sileo.error({
-          title: 'Algo salio mal',
+          title: 'Revisa la orden',
           description: 'Indica quién recibe/paga el mandadito.',
         })
         return
       }
       if (deliveryResponsible === 'customer_to_business' && !deliveryPaymentMethod) {
         sileo.error({
-          title: 'Algo salio mal',
+          title: 'Revisa la orden',
           description: 'Indica el método de pago del mandadito.',
         })
         return
       }
     }
 
-    if (paymentMethod === 'cash') {
+    if (takesCash) {
       setIsCashPaymentOpen(true)
       return
     }
@@ -315,11 +340,17 @@ export function DashboardPage() {
     return () => document.removeEventListener('pointerdown', handleOutsidePointerDown)
   }, [isNotificationCenterOpen])
 
-  const handleAddToOrder = (menuItem: MenuItem, quantity: number) => {
+  const handleAddToOrder = (menuItem: MenuItem, quantity: number, extras: SelectedExtra[] = []) => {
     setOrderItems((prevItems) => {
       const key = menuItem.type === 'product' ? 'productId' : 'comboId'
+      // Same product, temperature, size and extras, without a note: one more unit of that line.
       const existingItemWithoutNote = prevItems.find(
-        (item) => item[key] === menuItem.id && item.temperature === menuItem.temperature && item.size === menuItem.size && !item.note,
+        (item) =>
+          item[key] === menuItem.id &&
+          item.temperature === menuItem.temperature &&
+          item.size === menuItem.size &&
+          extrasKey(item.extras) === extrasKey(extras) &&
+          !item.note,
       )
 
       if (existingItemWithoutNote) {
@@ -334,14 +365,15 @@ export function DashboardPage() {
         id: crypto.randomUUID(),
         productName: menuItem.name,
         size: menuItem.size,
-        temperature: menuItem.temperature === 'BOTH'
-          ? null
-          : menuItem.temperature ?? getDrinkTemperature(menuItem.name),
+        // The menu resolves the temperature on the server; 'BOTH' drinks come with a concrete one
+        // chosen in the customization dialog.
+        temperature: menuItem.temperature === 'BOTH' ? null : menuItem.temperature ?? null,
         quantity,
         unitPrice: menuItem.price,
         // Resolved once here (Supabase path -> URL); the app logo is the fallback image.
         image: (menuItem.imageUrl && getSupabaseImageUrl(menuItem.imageUrl, 'Img', 'public')) || brandLogo,
         type: menuItem.type,
+        ...(extras.length > 0 && { extras }),
       }
 
       if (menuItem.type === 'product') {
@@ -352,6 +384,16 @@ export function DashboardPage() {
 
       return [...prevItems, newOrderItem]
     })
+  }
+
+  const handleIncrementItem = (itemId: string) => {
+    setOrderItems((prevItems) =>
+      prevItems.map((item) => (item.id === itemId && item.quantity < 99 ? { ...item, quantity: item.quantity + 1 } : item)),
+    )
+  }
+
+  const handleDeleteItem = (itemId: string) => {
+    setOrderItems((prevItems) => prevItems.filter((item) => item.id !== itemId))
   }
 
   const handleRemoveItem = (itemId: string) => {
@@ -370,62 +412,13 @@ export function DashboardPage() {
     })
   }
 
+  // The note describes the whole line (e.g. "1 deslactosado, 1 sin azúcar"): it doesn't split
+  // it, and promotions count every unit anyway (business rule 2026-10-20).
   const handleUpdateItemNote = (itemId: string, note: string) => {
-    setOrderItems((prevItems) => {
-      const itemIndex = prevItems.findIndex((item) => item.id === itemId)
-      if (itemIndex === -1) return prevItems
-
-      const itemToUpdate = prevItems[itemIndex]
-
-      // If quantity is 1, just update the note.
-      if (itemToUpdate.quantity === 1) {
-        return prevItems.map((item) =>
-          item.id === itemId ? { ...item, note } : item,
-        )
-      }
-
-      // If item already has the same note, do nothing to prevent splitting again.
-      if (itemToUpdate.note === note) {
-        return prevItems
-      }
-
-      // If quantity > 1, split the item.
-      const updatedItems = [...prevItems]
-      // Decrease quantity of the original item
-      updatedItems[itemIndex] = {
-        ...itemToUpdate,
-        quantity: itemToUpdate.quantity - 1,
-      }
-
-      // Add a new item with the note
-      const newItemWithNote: OrderItem = {
-        ...itemToUpdate,
-        id: crypto.randomUUID(), // New unique ID
-        quantity: 1,
-        note,
-      }
-
-      // Check if an item with the same note already exists
-      const existingItemWithSameNote = prevItems.find(
-        (item) =>
-          item.productId === newItemWithNote.productId &&
-          item.temperature === newItemWithNote.temperature &&
-          item.size === newItemWithNote.size &&
-          item.note === note,
-      )
-
-      if (existingItemWithSameNote) {
-        // If it exists, just increase its quantity
-        return updatedItems.map((item) =>
-          item.id === existingItemWithSameNote.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        )
-      } else {
-        // Otherwise, add the new item
-        return [...updatedItems, newItemWithNote]
-      }
-    })
+    const trimmed = note.trim()
+    setOrderItems((prevItems) =>
+      prevItems.map((item) => (item.id === itemId ? { ...item, note: trimmed || undefined } : item)),
+    )
   }
 
   const handleNotesChange = (notes: string) => {
@@ -444,7 +437,7 @@ export function DashboardPage() {
     setOrderItems([])
     setOrderNotes('')
     setCustomerName('')
-    setPaymentMethod(undefined)
+    setPaymentMethod('cash')
     setHasDelivery(false)
     setDeliveryAmount('')
     setDeliveryResponsible(undefined)
@@ -475,12 +468,13 @@ export function DashboardPage() {
     sileo.success({ title: 'Pedido programado', description: `Se activará el ${selectedDate.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 3000 })
   }
 
-  const subtotal = React.useMemo(
-    () =>
-      orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
-    [orderItems],
-  )
-  const total = subtotal
+  // Server pricing when available (the last one while a new quote is on its way); the menu
+  // prices are only a rough fallback, e.g. if the quote request failed.
+  const localSubtotal = orderItems.reduce((sum, item) => sum + (item.unitPrice + extrasUnitPrice(item.extras)) * item.quantity, 0)
+  const subtotal = lastQuote ? Number(lastQuote.subtotal) : localSubtotal
+  const discount = lastQuote ? Number(lastQuote.discount) : 0
+  const total = lastQuote ? Number(lastQuote.total) : localSubtotal
+  const lineTotals = lastQuote?.items.map((line) => ({ gross: Number(line.gross), net: Number(line.net) }))
 
   const displayName = currentUser?.name ?? 'Usuario'
   const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
@@ -557,7 +551,7 @@ export function DashboardPage() {
                     onError: (error) => {
                       sileo.error({
                         title: 'No se pudo abrir la caja',
-                        description: getApiErrorMessage(error, 'Inténtalo de nuevo.'),
+                        description: getErrorMessage(error, 'Inténtalo de nuevo.'),
                       })
                     },
                   })
@@ -591,10 +585,16 @@ export function DashboardPage() {
                 />
               )}
               <OrderDetailsPanel
-                isLoading={isCreatingOrder}
+                isLoading={false}
+                isProcessing={isCreatingOrder}
                 items={orderItems}
                 subtotal={subtotal}
+                discount={discount}
                 total={total}
+                lineTotals={lineTotals}
+                isPricing={orderItems.length > 0 && !quote}
+                pricingError={quoteError ? getErrorMessage(quoteError, 'No se pudo calcular el total con el servidor.') : null}
+                deliveryCharge={hasDelivery && deliveryResponsible === 'customer_to_business' ? Number(deliveryAmount) || 0 : 0}
                 orderNotes={orderNotes}
                 customerName={customerName}
                 paymentMethod={paymentMethod}
@@ -611,6 +611,8 @@ export function DashboardPage() {
                 onDeliveryResponsibleChange={setDeliveryResponsible}
                 onDeliveryPaymentMethodChange={setDeliveryPaymentMethod}
                 onRemoveItem={handleRemoveItem}
+                onIncrementItem={handleIncrementItem}
+                onDeleteItem={handleDeleteItem}
                 onClearOrder={handleClearOrder}
                 onUpdateItemNote={handleUpdateItemNote}
                 onProcessTransaction={handleProcessOrder}
@@ -653,29 +655,12 @@ export function DashboardPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Dialog open={Boolean(scheduleAlert)} onOpenChange={(open) => !open && setScheduleAlert(null)}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Pedido próximo a preparación</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-3 py-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                    <p>
-                      La orden <strong>#{scheduleAlert?.orderId.slice(0, 8)}</strong> está programada para{' '}
-                      {scheduleAlert ? new Date(scheduleAlert.scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : ''}.
-                    </p>
-                    <p style={{ color: 'var(--color-text-secondary)' }}>Faltan menos de 20 minutos para iniciar su preparación.</p>
-                  </div>
-                  <DialogFooter>
-                    <button type="button" className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }} onClick={() => setScheduleAlert(null)}>
-                      Entendido
-                    </button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
               <CashPaymentDialog
                 key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
                 open={isCashPaymentOpen}
-                total={total}
+                // null while the server price of the current cart is on its way.
+                saleAmount={paymentMethod === 'cash' ? (quote ? Number(quote.total) : null) : 0}
+                deliveryAmount={deliveryCashAmount}
                 isLoading={isCreatingOrder}
                 onClose={() => setIsCashPaymentOpen(false)}
                 onConfirm={(cashReceived) => submitOrder(cashReceived)}
@@ -941,7 +926,7 @@ export function DashboardPage() {
               setIsCashClosingOpen(false)
               sileo.success({ title: 'Caja cerrada correctamente.', duration: 3000 })
             },
-            onError: (error) => sileo.error({ title: 'No se pudo cerrar la caja', description: getApiErrorMessage(error, 'Inténtalo de nuevo.') }),
+            onError: (error) => sileo.error({ title: 'No se pudo cerrar la caja', description: getErrorMessage(error, 'Inténtalo de nuevo.') }),
           })
         }}
       />

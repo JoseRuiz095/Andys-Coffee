@@ -62,6 +62,7 @@ before(async () => {
     ["/api/menu", import("../src/routes/menu.routes")],
     ["/api/categories", import("../src/routes/category.routes")],
     ["/api/products", import("../src/routes/product.routes")],
+    ["/api/extras", import("../src/routes/extra.routes")],
     ["/api/orders", import("../src/routes/order.routes")],
     ["/api/notifications", import("../src/routes/notification.routes")],
     ["/api/cash-register", import("../src/routes/cash.routes")],

@@ -1,8 +1,11 @@
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus, Prisma, type Order } from '@prisma/client';
 import { z } from 'zod';
 import {
   createOrderSchema,
   filterQuerySchema,
+  quoteOrderSchema,
+  requestCancellationSchema,
+  reviewCancellationSchema,
   updateOrderStatusSchema,
   updateOrderSchema,
 } from '../validators/order.validator';
@@ -17,11 +20,10 @@ import { runInTransaction, type Tx } from '../repositories/transaction';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { auditLog, logger } from '../utils/logger';
-import { calculateBestPromotion, promotionsForProduct, type PricingPromotion, type PromotionScope } from './pricing.service';
-import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
+import { priceSale } from './sale-pricing.service';
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate, getCalendarDateAsUtc } from '../utils/businessDate';
-import { getDrinkTemperature, isJumboLatteProduct } from '../utils/productTemperature';
 
 // --- Custom Errors for Service Layer ---
 
@@ -40,6 +42,9 @@ function businessRuleError(message: string) {
 
 const ZERO = new Prisma.Decimal(0);
 
+/** Permission to approve cancelling a completed sale (ADMIN). */
+export const APPROVE_CANCELLATION_PERMISSION = 'sales.approve_cancellation';
+
 /**
  * Cash session that should receive a reversal for money originally recorded in
  * `originalSessionId`. A closed session is a finished cash cut and must not change, so
@@ -57,22 +62,163 @@ async function resolveReversalSessionId(tx: Tx, originalSessionId: string): Prom
   return openSession.id;
 }
 
-async function applyPromotions(
-  orderItems: (Prisma.OrderItemGetPayload<{ include: { product: true } }>)[],
-  promotions: (PricingPromotion & PromotionScope)[],
-) {
-  return orderItems.flatMap((item) => {
-    if (item.sourceComboId) return [];
-    // Only the promotions linked to this product (or its category) apply — N-01.
-    const applicable = promotionsForProduct(promotions, item.product);
-    const pricing = calculateBestPromotion(item.unitPrice, item.quantity.toNumber(), applicable);
-    return pricing.discount.gt(0) ? [{ orderItemId: item.id, amount: pricing.discount }] : [];
+/**
+ * Everything a cancelled sale must undo, inside the caller's transaction: legacy inventory
+ * consumption, the cash it brought in (to the open drawer if its session is already closed),
+ * its payments and its mandadito. Shared by a direct cancellation and an approved cancellation
+ * request, so both reverse exactly the same things.
+ */
+async function reverseSaleForCancellation(tx: Tx, order: Order, user: AuthUser) {
+  let deletedExpenseDate: Date | null = null;
+  // Inventory reversal only for sales that consumed ingredients (sales made before ingredient
+  // consumption left the MVP, 2026-10-20). Cash, payments and mandaditos are reversed for
+  // every cancelled sale, independently of that flag.
+  let inventoryReversed = false;
+  if (order.inventoryProcessed) {
+    // Give back the ingredients the sale consumed.
+    const inventoryMovements = await InventoryRepository.findSaleMovementsForOrder(tx, order.id);
+    for (const movement of inventoryMovements) {
+      await InventoryRepository.updateStock(movement.ingredientId, movement.quantity.negated(), tx);
+      await InventoryRepository.createMovement({
+        ingredientId: movement.ingredientId,
+        type: 'sale_reversal',
+        quantity: movement.quantity.negated(),
+        referenceType: 'order_cancellation',
+        referenceId: order.id,
+        createdById: user.id,
+      }, tx);
+    }
+    inventoryReversed = true;
+  }
+
+  // Refund the cash sale (money leaves the drawer). Not filtered by the order's session:
+  // a pay-later order settled in cash records its `sale` in the session open at settlement
+  // time, which can be a later one.
+  const saleMovements = await CashRepository.findMovements(tx, {
+    referenceType: 'order',
+    referenceId: order.id,
+    type: 'sale',
   });
+  for (const movement of saleMovements) {
+    await CashRepository.recordMovement(tx, {
+      cashSessionId: await resolveReversalSessionId(tx, movement.cashSessionId),
+      type: 'sale_reversal',
+      amount: movement.amount.negated(),
+      referenceType: 'order_cancellation',
+      referenceId: order.id,
+      description: `Cancelación de venta #${order.orderNumber.toString()}`,
+      createdById: user.id,
+    });
+  }
+
+  // Pending (pay-later) payments are cancelled too, so they leave the pending list
+  // and can no longer be settled for a sale that no longer exists.
+  await OrderRepository.cancelPayments(tx, order.id);
+
+  // Mandadito reversal — a cancelled sale can't leave third-party delivery cash or an
+  // auto-generated delivery expense still affecting the drawer / Gastos Variables.
+  if (order.hasDelivery && order.deliveryResponsible === 'customer_to_business' && !order.deliveryHandedOff) {
+    const collectedMovement = await CashRepository.findFirstMovement(tx, {
+      referenceType: 'order',
+      referenceId: order.id,
+      type: 'delivery_collected',
+    });
+    if (collectedMovement) {
+      await CashRepository.recordMovement(tx, {
+        cashSessionId: await resolveReversalSessionId(tx, collectedMovement.cashSessionId),
+        type: 'delivery_collected_reversal',
+        amount: collectedMovement.amount.negated(),
+        referenceType: 'order_cancellation',
+        referenceId: order.id,
+        description: `Cancelación de mandadito — Venta #${order.orderNumber.toString()}`,
+        createdById: user.id,
+      });
+    }
+  }
+
+  if (order.hasDelivery && order.deliveryResponsible === 'business_absorbs') {
+    const deliveryExpense = await ExpenseRepository.findBySourceOrder(tx, order.id);
+    if (deliveryExpense) {
+      const expenseMovement = await CashRepository.findFirstMovement(tx, {
+        referenceType: 'expense',
+        referenceId: deliveryExpense.id,
+        type: 'expense',
+      });
+      if (expenseMovement) {
+        // The courier's cash comes back into the drawer.
+        await CashRepository.recordMovement(tx, {
+          cashSessionId: await resolveReversalSessionId(tx, expenseMovement.cashSessionId),
+          type: 'expense_reversal',
+          amount: expenseMovement.amount.negated(),
+          referenceType: 'order_cancellation',
+          referenceId: order.id,
+          description: `Cancelación de mandadito absorbido — Venta #${order.orderNumber.toString()}`,
+          createdById: user.id,
+        });
+      }
+      // The expense was auto-generated by this sale — remove it so it stops
+      // counting in Gastos Variables now that the sale no longer exists.
+      await ExpenseRepository.delete(tx, deliveryExpense.id);
+      deletedExpenseDate = deliveryExpense.expenseDate;
+    }
+  }
+
+  return { inventoryReversed, deletedExpenseDate };
 }
 
-/** Adds `quantity` to the running total of `key` in `map`. */
-function accumulate(map: Map<string, Prisma.Decimal>, key: string, quantity: Prisma.Decimal) {
-  map.set(key, (map.get(key) ?? ZERO).add(quantity));
+/**
+ * Paid sales count as revenue whatever their kitchen status (utils/revenueRecognition.ts), so
+ * a cancellation changes the income statement of the day the order was created (and of its
+ * mandadito expense): drop those days' frozen snapshots so they are recomputed on next read.
+ */
+async function invalidateCancelledSaleSnapshots(order: Order, deletedExpenseDate: Date | null) {
+  const affectedDates = new Set([getZonedCalendarDate(order.createdAt)]);
+  if (deletedExpenseDate) affectedDates.add(getZonedCalendarDate(deletedExpenseDate));
+  for (const dateStr of affectedDates) {
+    await incomeStatementRepository.invalidateSnapshot(dateStr);
+  }
+}
+
+/**
+ * Marks the request approved (only if still pending) and cancels its completed sale with the
+ * same reversals as a direct cancellation. Returns the date of a deleted mandadito expense.
+ */
+async function approveCancellationInTransaction(tx: Tx, requestId: string, order: Order, user: AuthUser, comment: string | null) {
+  if (!(await OrderRepository.claimCancellationRequest(tx, requestId, { status: 'approved', reviewedById: user.id, reviewComment: comment }))) {
+    throw businessRuleError('Esta solicitud ya fue revisada.');
+  }
+  const current = await OrderRepository.findStatus(tx, order.id);
+  if (current?.status !== OrderStatus.completed) {
+    throw new StateTransitionError('La venta ya no está completada; recarga e intenta de nuevo.');
+  }
+
+  const reversal = await reverseSaleForCancellation(tx, order, user);
+  await OrderRepository.update(tx, order.id, {
+    status: OrderStatus.cancelled,
+    ...(reversal.inventoryReversed && { inventoryProcessed: false }),
+  });
+  await AuditLogRepository.create({
+    userId: user.id,
+    action: 'ORDER_STATUS_CHANGED',
+    metadata: {
+      orderId: order.id,
+      previousStatus: OrderStatus.completed,
+      newStatus: OrderStatus.cancelled,
+      cancellationRequestId: requestId,
+      ...(comment && { comment }),
+    },
+  }, tx);
+  return reversal.deletedExpenseDate;
+}
+
+/** Notifications are best effort: the operation already committed, so a failure is only logged. */
+async function notifySafely(recipients: () => Promise<{ id: string }[]>, data: { title: string; message: string; referenceId: string }) {
+  try {
+    const users = await recipients();
+    await NotificationService.createNotification({ ...data, type: 'GENERAL' }, users.map(({ id }) => id));
+  } catch (error) {
+    logger.error({ err: error, referenceId: data.referenceId }, 'Cancellation request notification failed');
+  }
 }
 
 export function shouldActivateScheduledOrder(referenceTime: Date, scheduledFor: Date | null | undefined) {
@@ -167,8 +313,8 @@ export const OrderService = {
     const { page, limit } = query;
     const skip = paginationOffset(page, limit);
 
-    await OrderService.activateDueScheduledOrders();
-
+    // Scheduled orders are activated by the cron job every minute (jobs/orderScheduled.job.ts),
+    // not on every read.
     const where: Prisma.OrderWhereInput = {
       ...(query.status && { status: query.status }),
       ...(query.search && {
@@ -178,6 +324,17 @@ export const OrderService = {
         ],
       }),
     };
+
+    // The board shows what still needs work (any day: e.g. an order scheduled days ago) and
+    // today's orders, so completed ones can still be found (and their cancellation requested).
+    if (query.board) {
+      where.AND = [{
+        OR: [
+          { status: { in: [OrderStatus.pending, OrderStatus.preparing, OrderStatus.ready] } },
+          { createdAt: { gte: getZonedDayBoundaries(getTodayInZone()).start } },
+        ],
+      }];
+    }
 
     // Authorization Check: Admins/Cashiers can see all orders, others only their own.
     if (!user.permissions?.includes('sales.read')) {
@@ -193,7 +350,6 @@ export const OrderService = {
   },
 
   async findOne(id: string, user: AuthUser) {
-    await OrderService.activateDueScheduledOrders();
     const order = await OrderRepository.findById(id);
 
     if (!order) {
@@ -264,93 +420,10 @@ export const OrderService = {
         throw new StateTransitionError('El pedido cambió de estado mientras se procesaba. Recarga e intenta de nuevo.');
       }
 
-      if (status === OrderStatus.cancelled && order.inventoryProcessed) {
-        // Give back the ingredients the sale consumed.
-        const inventoryMovements = await InventoryRepository.findSaleMovementsForOrder(tx, order.id);
-        for (const movement of inventoryMovements) {
-          await InventoryRepository.updateStock(movement.ingredientId, movement.quantity.negated(), tx);
-          await InventoryRepository.createMovement({
-            ingredientId: movement.ingredientId,
-            type: 'sale_reversal',
-            quantity: movement.quantity.negated(),
-            referenceType: 'order_cancellation',
-            referenceId: order.id,
-            createdById: user.id,
-          }, tx);
-        }
-
-        // Refund the cash sale (money leaves the drawer).
-        const saleMovements = await CashRepository.findMovements(tx, {
-          ...(order.cashSessionId && { cashSessionId: order.cashSessionId }),
-          referenceType: 'order',
-          referenceId: order.id,
-          type: 'sale',
-        });
-        for (const movement of saleMovements) {
-          await CashRepository.recordMovement(tx, {
-            cashSessionId: await resolveReversalSessionId(tx, movement.cashSessionId),
-            type: 'sale_reversal',
-            amount: movement.amount.negated(),
-            referenceType: 'order_cancellation',
-            referenceId: order.id,
-            description: `Cancelación de venta #${order.orderNumber.toString()}`,
-            createdById: user.id,
-          });
-        }
-
-        // Pending (pay-later) payments are cancelled too, so they leave the pending list
-        // and can no longer be settled for a sale that no longer exists.
-        await OrderRepository.cancelPayments(tx, order.id);
-
-        // Mandadito reversal — a cancelled sale can't leave third-party delivery cash or an
-        // auto-generated delivery expense still affecting the drawer / Gastos Variables.
-        if (order.hasDelivery && order.deliveryResponsible === 'customer_to_business' && !order.deliveryHandedOff) {
-          const collectedMovement = await CashRepository.findFirstMovement(tx, {
-            referenceType: 'order',
-            referenceId: order.id,
-            type: 'delivery_collected',
-          });
-          if (collectedMovement) {
-            await CashRepository.recordMovement(tx, {
-              cashSessionId: await resolveReversalSessionId(tx, collectedMovement.cashSessionId),
-              type: 'delivery_collected_reversal',
-              amount: collectedMovement.amount.negated(),
-              referenceType: 'order_cancellation',
-              referenceId: order.id,
-              description: `Cancelación de mandadito — Venta #${order.orderNumber.toString()}`,
-              createdById: user.id,
-            });
-          }
-        }
-
-        if (order.hasDelivery && order.deliveryResponsible === 'business_absorbs') {
-          const deliveryExpense = await ExpenseRepository.findBySourceOrder(tx, order.id);
-          if (deliveryExpense) {
-            const expenseMovement = await CashRepository.findFirstMovement(tx, {
-              referenceType: 'expense',
-              referenceId: deliveryExpense.id,
-              type: 'expense',
-            });
-            if (expenseMovement) {
-              // The courier's cash comes back into the drawer.
-              await CashRepository.recordMovement(tx, {
-                cashSessionId: await resolveReversalSessionId(tx, expenseMovement.cashSessionId),
-                type: 'expense_reversal',
-                amount: expenseMovement.amount.negated(),
-                referenceType: 'order_cancellation',
-                referenceId: order.id,
-                description: `Cancelación de mandadito absorbido — Venta #${order.orderNumber.toString()}`,
-                createdById: user.id,
-              });
-            }
-            // The expense was auto-generated by this sale — remove it so it stops
-            // counting in Gastos Variables now that the sale no longer exists.
-            await ExpenseRepository.delete(tx, deliveryExpense.id);
-            deletedExpenseDate = deliveryExpense.expenseDate;
-          }
-        }
-
-        updateData.inventoryProcessed = false;
+      if (status === OrderStatus.cancelled) {
+        const reversal = await reverseSaleForCancellation(tx, order, user);
+        if (reversal.inventoryReversed) updateData.inventoryProcessed = false;
+        deletedExpenseDate = reversal.deletedExpenseDate;
       }
 
       const updatedOrder = await OrderRepository.update(tx, id, updateData);
@@ -364,29 +437,23 @@ export const OrderService = {
           ...(reason && { reason }),
         },
       }, tx);
-      auditLog({
-        requestId,
-        actor: { id: user.id, name: user.name },
-        action: 'ORDER_STATUS_CHANGED',
-        entity: 'order',
-        entityId: id,
-        previousState: order.status,
-        newState: status,
-      }, 'Order status changed');
       return updatedOrder;
     }, { serializable: true });
 
-    // Paid sales count as revenue whatever their kitchen status (utils/revenueRecognition.ts),
-    // so only a cancellation changes the income statement of the day the order was created:
-    // drop that day's frozen (final) snapshot so it is recomputed on the next read.
+    // Logged after the commit, so a transaction that rolls back leaves no "changed" line.
+    auditLog({
+      requestId,
+      actor: { id: user.id, name: user.name },
+      action: 'ORDER_STATUS_CHANGED',
+      entity: 'order',
+      entityId: id,
+      previousState: order.status,
+      newState: status,
+    }, 'Order status changed');
+
     if (status === OrderStatus.cancelled) {
-      const affectedDates = new Set([getZonedCalendarDate(order.createdAt)]);
       // Assigned inside the transaction callback, which TS flow analysis doesn't track.
-      const expenseDate = deletedExpenseDate as Date | null;
-      if (expenseDate) affectedDates.add(getZonedCalendarDate(expenseDate));
-      for (const dateStr of affectedDates) {
-        await incomeStatementRepository.invalidateSnapshot(dateStr);
-      }
+      await invalidateCancelledSaleSnapshots(order, deletedExpenseDate as Date | null);
     }
 
     return result;
@@ -418,38 +485,15 @@ export const OrderService = {
         // so Serializable isolation covers price/isActive against concurrent changes: a price
         // update or deactivation committed after this point conflicts here instead of silently
         // producing an order built from stale data.
-        const catalog = await OrderRepository.loadSaleCatalog(tx, { productIds, comboIds, extraIds, businessDate, weekday });
-
-        const productsMap = new Map(catalog.products.map(p => [p.id, p]));
-        const combosMap = new Map(catalog.combos.map(c => [c.id, c]));
-        const extrasMap = new Map(catalog.extras.map(e => [e.id, e]));
-
-        if (productIds.some((id) => !productsMap.has(id))) {
-          throw new ValidationError('Uno o más productos no existen o están inactivos.');
-        }
-        if (comboIds.some((id) => !combosMap.has(id))) {
-          throw new ValidationError('Uno o más combos no existen, están inactivos o no están disponibles hoy.');
-        }
-        if (extraIds.some((id) => !extrasMap.has(id))) {
-          throw new ValidationError('Uno o más extras no existen o están inactivos.');
-        }
-        const validProductExtras = new Set(catalog.productExtras.map(({ productId, extraId }) => `${productId}:${extraId}`));
-        for (const item of items) {
-          if (!item.productId) continue;
-          for (const extra of item.extras ?? []) {
-            if (!validProductExtras.has(`${item.productId}:${extra.extraId}`)) {
-              throw new ValidationError(`El extra ${extra.extraId} no pertenece al producto ${item.productId}.`);
-            }
-          }
-        }
+        const catalog = await OrderRepository.loadSaleCatalog({ productIds, comboIds, extraIds, businessDate, weekday }, tx);
+        // Validates the cart against the catalog and prices it with the same function the POS
+        // quote uses (sale-pricing.service.ts), so what the cashier saw is what gets charged.
+        const pricing = priceSale(items, catalog);
 
         const openCashSession = await CashRepository.findOpenSession(tx, cashSessionId);
         if (!openCashSession) {
           throw businessRuleError('No hay una caja abierta para registrar la venta.');
         }
-
-        let totalOrderCost = ZERO;
-        let subtotal = ZERO;
 
         // Handle customer name generation
         let finalCustomerName = restOfOrder.customerName;
@@ -468,147 +512,62 @@ export const OrderService = {
           idempotencyKey,
         });
 
-        const createdOrderItems: Prisma.OrderItemGetPayload<{ include: { product: true } }>[] = [];
-
-        for (const item of items) {
-          if (item.productId) {
-            const product = productsMap.get(item.productId);
-            if (!product) throw new ValidationError(`Producto con ID ${item.productId} no encontrado o inactivo.`);
-            const availableTemperature = product.temperature ?? getDrinkTemperature(product.name, product.category?.name);
-            if (item.size === 'JUMBO' && (!product.jumboPrice || !isJumboLatteProduct(product.name, product.category?.name))) {
-              throw new ValidationError(`El tamaño Jumbo no está disponible para ${product.name}.`);
-            }
-            if (availableTemperature === 'BOTH' && !item.temperature) {
-              throw new ValidationError(`Selecciona caliente o frío para ${product.name}.`);
-            }
-            if (item.temperature && item.temperature !== availableTemperature) {
-              throw new ValidationError(`La temperatura seleccionada no está disponible para ${product.name}.`);
-            }
-            const orderTemperature = availableTemperature === 'BOTH' ? item.temperature ?? null : availableTemperature;
-            const unitPrice = item.size === 'JUMBO' ? product.jumboPrice! : product.price;
-            const itemSubtotal = unitPrice.mul(item.quantity);
-            const itemCost = product.cost.mul(item.quantity);
-            subtotal = subtotal.add(itemSubtotal);
-            totalOrderCost = totalOrderCost.add(itemCost);
-            const orderItem = await OrderRepository.createItem(tx, {
+        for (const pricedItem of pricing.items) {
+          for (const line of pricedItem.lines) {
+            await OrderRepository.createItem(tx, {
               orderId: order.id,
-              productId: product.id,
-              productName: item.size === 'JUMBO' ? `${product.name} Jumbo` : product.name,
-              temperature: orderTemperature,
-              quantity: item.quantity,
-              unitPrice,
-              subtotal: itemSubtotal,
-              costSnapshot: itemCost,
-              notes: item.note,
+              productId: line.productId,
+              productName: line.productName,
+              temperature: line.temperature,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              discount: line.discount,
+              subtotal: line.subtotal,
+              costSnapshot: line.costSnapshot,
+              notes: line.notes,
+              sourceComboId: line.sourceComboId,
               extras: {
-                create: (item.extras ?? []).map((extraData) => {
-                  const extra = extrasMap.get(extraData.extraId);
-                  if (!extra) throw new ValidationError(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
-                  return {
-                    extraId: extra.id,
-                    extraName: extra.name,
-                    quantity: extraData.quantity,
-                    unitPrice: extra.price,
-                    subtotal: extra.price.mul(extraData.quantity),
-                    // L-06: total cost of the extra line (like OrderItem.costSnapshot), not unit cost.
-                    costSnapshot: extra.cost.mul(extraData.quantity),
-                  };
-                }),
+                create: line.extras.map((extra) => ({
+                  extraId: extra.extraId,
+                  extraName: extra.extraName,
+                  quantity: extra.quantity,
+                  unitPrice: extra.unitPrice,
+                  subtotal: extra.subtotal,
+                  costSnapshot: extra.costSnapshot,
+                })),
               },
             });
-            createdOrderItems.push(orderItem);
-            for (const extraData of item.extras ?? []) {
-              const extra = extrasMap.get(extraData.extraId);
-              if (!extra) throw new ValidationError(`Extra con ID ${extraData.extraId} no encontrado o inactivo.`);
-              subtotal = subtotal.add(extra.price.mul(extraData.quantity));
-              totalOrderCost = totalOrderCost.add(extra.cost.mul(extraData.quantity));
-            }
-          } else if (item.comboId) {
-            const combo = combosMap.get(item.comboId);
-            if (!combo) throw new ValidationError(`Combo con ID ${item.comboId} no encontrado o no está activo para hoy.`);
-            const comboTotalPrice = combo.price.mul(item.quantity);
-            subtotal = subtotal.add(comboTotalPrice);
-
-            // L-05: split the combo price evenly across its products in whole cents; the last
-            // product absorbs the rounding remainder, so the lines always add up to the combo price.
-            const comboItemCount = combo.items.length || 1;
-            const evenShare = comboTotalPrice.div(comboItemCount).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN);
-
-            for (const [index, comboItem] of combo.items.entries()) {
-              const quantity = comboItem.quantity.mul(item.quantity);
-              const itemCost = comboItem.product.cost.mul(quantity);
-              totalOrderCost = totalOrderCost.add(itemCost);
-              const isLast = index === combo.items.length - 1;
-              const lineSubtotal = isLast ? comboTotalPrice.sub(evenShare.mul(comboItemCount - 1)) : evenShare;
-
-              createdOrderItems.push(await OrderRepository.createItem(tx, {
-                orderId: order.id,
-                productId: comboItem.productId,
-                productName: `${comboItem.product.name} (Combo: ${combo.name})`,
-                quantity,
-                unitPrice: lineSubtotal.div(quantity).toDecimalPlaces(2),
-                subtotal: lineSubtotal,
-                costSnapshot: itemCost,
-                sourceComboId: combo.id,
-                notes: item.note,
-              }));
-            }
           }
         }
 
-        const itemDiscounts = await applyPromotions(createdOrderItems, catalog.promotions);
-        let totalDiscount = ZERO;
-        for (const discount of itemDiscounts) {
-          totalDiscount = totalDiscount.add(discount.amount);
-          await OrderRepository.applyItemDiscount(tx, discount.orderItemId, discount.amount);
-        }
-        const finalTotal = Prisma.Decimal.max(ZERO, subtotal.sub(totalDiscount));
+        const finalTotal = pricing.total;
         const isCashPayment = paymentMethod === 'cash';
-        const receivedAmount = isCashPayment ? new Prisma.Decimal(cashReceived ?? 0) : null;
-        if (isCashPayment && (!receivedAmount || receivedAmount.lt(finalTotal))) {
-          throw businessRuleError('El monto recibido debe cubrir el total de la venta.');
+        // Cash the customer hands over right now: the sale (if paid in cash) plus a mandadito
+        // they pay to Andy's in cash. The mandadito is never revenue, but it is in the drawer.
+        const deliveryCash = hasDelivery && deliveryAmount && deliveryResponsible === 'customer_to_business' && deliveryPaymentMethod === 'cash'
+          ? new Prisma.Decimal(deliveryAmount)
+          : ZERO;
+        const cashDue = (isCashPayment ? finalTotal : ZERO).add(deliveryCash);
+        const takesCash = isCashPayment || deliveryCash.gt(ZERO);
+        const receivedAmount = takesCash && cashReceived !== undefined ? new Prisma.Decimal(cashReceived) : null;
+        // A cash sale must say how much was received; a mandadito-only cash handover may omit it.
+        const coversCashDue = receivedAmount ? receivedAmount.gte(cashDue) : !isCashPayment || cashDue.isZero();
+        if (!coversCashDue) {
+          throw businessRuleError(deliveryCash.gt(ZERO)
+            ? 'El monto recibido debe cubrir el total a cobrar en efectivo (venta + mandadito).'
+            : 'El monto recibido debe cubrir el total de la venta.');
         }
-        const changeAmount = receivedAmount ? receivedAmount.sub(finalTotal) : null;
+        const changeAmount = receivedAmount ? receivedAmount.sub(cashDue) : null;
 
-        // Ingredients consumed by the products (recipes) and the extras (extra recipes).
-        const productQuantities = new Map<string, Prisma.Decimal>();
-        for (const item of createdOrderItems) {
-          accumulate(productQuantities, item.productId, item.quantity);
-        }
-        const { recipes, extraRecipes } = await OrderRepository.findRecipes(tx, Array.from(productQuantities.keys()), extraIds);
-        const ingredientRequirements = new Map<string, Prisma.Decimal>();
-        for (const recipe of recipes) {
-          accumulate(ingredientRequirements, recipe.ingredientId, recipe.quantity.mul(productQuantities.get(recipe.productId) ?? ZERO));
-        }
-        for (const item of items) {
-          for (const extra of item.extras ?? []) {
-            for (const recipe of extraRecipes.filter((entry) => entry.extraId === extra.extraId)) {
-              accumulate(ingredientRequirements, recipe.ingredientId, recipe.quantity.mul(extra.quantity));
-            }
-          }
-        }
-        const inventoryMovements: Prisma.InventoryMovementCreateManyInput[] = [];
-        for (const [ingredientId, quantity] of ingredientRequirements) {
-          if (!(await InventoryRepository.decrementStockIfAvailable(tx, ingredientId, quantity))) {
-            throw businessRuleError('Stock insuficiente para completar la venta.');
-          }
-          inventoryMovements.push({
-            ingredientId,
-            type: 'sale',
-            quantity: quantity.negated(),
-            referenceType: 'order',
-            referenceId: order.id,
-            createdById: userId,
-          });
-        }
-        await InventoryRepository.createMovements(inventoryMovements, tx);
+        // Sales don't consume ingredients: recipe-based inventory is outside the MVP (business
+        // decision 2026-10-20), so a sale never fails for lack of stock and leaves no inventory
+        // movements. `inventoryProcessed` stays false.
 
         const updatedOrder = await OrderRepository.updateWithItems(tx, order.id, {
-          subtotal,
-          discount: totalDiscount,
+          subtotal: pricing.subtotal,
+          discount: pricing.discount,
           total: finalTotal,
-          totalCost: totalOrderCost,
-          inventoryProcessed: true,
+          totalCost: pricing.totalCost,
         });
         await OrderRepository.createPayment(tx, {
           orderId: order.id,
@@ -618,6 +577,8 @@ export const OrderService = {
           createdById: userId,
         });
         if (isCashPayment) {
+          // receivedAmount/changeAmount describe the whole cash handover (sale + mandadito in
+          // cash), so they are informational: `amount` is the sale's effect on the drawer.
           await CashRepository.recordMovement(tx, {
             cashSessionId: openCashSession.id,
             type: 'sale',
@@ -651,6 +612,8 @@ export const OrderService = {
               cashSessionId: openCashSession.id,
               type: 'delivery_collected',
               amount: deliveryAmountDecimal,
+              // When the sale itself isn't paid in cash, the tender belongs to the mandadito.
+              ...(!isCashPayment && { receivedAmount, changeAmount }),
               referenceType: 'order',
               referenceId: order.id,
               description: `Mandadito recibido — Venta #${order.orderNumber.toString()}`,
@@ -686,17 +649,20 @@ export const OrderService = {
           // 'customer_to_courier': purely informational fields on the Order, no financial movement.
         }
 
+        return { order: updatedOrder, wasCreated: true as const };
+      }, { serializable: true });
+
+      // Logged after the commit: a serialization retry (P2034) must not log a sale twice.
+      if (result.wasCreated) {
         auditLog({
           requestId,
           actor: { id: userId },
           action: 'ORDER_CREATED',
           entity: 'order',
-          entityId: updatedOrder.id,
-          amount: finalTotal.toFixed(2),
+          entityId: result.order.id,
+          amount: result.order.total.toFixed(2),
         }, 'Order created');
-
-        return { order: updatedOrder, wasCreated: true as const };
-      }, { serializable: true });
+      }
 
       // Notifications are dispatched after the transaction commits (not inside it) so
       // that writing to an unrelated NotificationRecipient row can't contribute to a
@@ -705,7 +671,8 @@ export const OrderService = {
       if (result.wasCreated) {
         // The sale is already committed: a notification failure must not turn it into a 500.
         try {
-          const usersToNotify = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
+          const usersToNotify = (await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']))
+            .filter((user) => user.id !== userId);
 
           if (usersToNotify.length > 0) {
             await NotificationService.createNotification(
@@ -738,6 +705,148 @@ export const OrderService = {
     }
   },
 
+  /**
+   * Prices a cart without creating anything, with the same function and catalog rules as
+   * `create`, so the POS shows the total that will be charged (promotions included). Money is
+   * returned as fixed two-decimal strings, like every Decimal in the API.
+   */
+  async quote({ items }: z.infer<typeof quoteOrderSchema>) {
+    const { date: businessDate, weekday } = getCalendarDateAsUtc(getTodayInZone());
+    const catalog = await OrderRepository.loadSaleCatalog({
+      productIds: items.map((item) => item.productId).filter(Boolean) as string[],
+      comboIds: items.map((item) => item.comboId).filter(Boolean) as string[],
+      extraIds: items.flatMap((item) => item.extras?.map((extra) => extra.extraId) ?? []),
+      businessDate,
+      weekday,
+    });
+    const pricing = priceSale(items, catalog);
+    const money = (value: Prisma.Decimal) => value.toFixed(2);
+
+    return {
+      items: pricing.items.map((item) => ({ gross: money(item.gross), discount: money(item.discount), net: money(item.net) })),
+      subtotal: money(pricing.subtotal),
+      discount: money(pricing.discount),
+      total: money(pricing.total),
+    };
+  },
+
+  /**
+   * Asks to cancel a completed sale. Completed sales can't be cancelled directly: an admin
+   * approves the request (business decision 2026-10-20). When the requester can approve, the
+   * request is approved at once (same transaction), so an admin doesn't wait on themselves.
+   */
+  async requestCancellation(orderId: string, { reason }: z.infer<typeof requestCancellationSchema>, user: AuthUser, requestId?: string) {
+    if (!user.permissions?.includes('sales.create')) {
+      throw new AuthorizationError('No tienes permiso para solicitar cancelaciones.');
+    }
+    const order = await OrderRepository.findPlain(orderId);
+    if (!order) throw new NotFoundError('Pedido no encontrado.');
+    if (order.status !== OrderStatus.completed) {
+      throw businessRuleError(order.status === OrderStatus.cancelled
+        ? 'Esta venta ya está cancelada.'
+        : 'Solo las ventas completadas requieren aprobación; esta orden se puede cancelar directamente.');
+    }
+    const approvesItself = user.permissions.includes(APPROVE_CANCELLATION_PERMISSION);
+
+    let deletedExpenseDate: Date | null = null;
+    let request;
+    try {
+      request = await runInTransaction(async (tx) => {
+        const current = await OrderRepository.findStatus(tx, orderId);
+        if (current?.status !== OrderStatus.completed) {
+          throw new StateTransitionError('El pedido cambió de estado mientras se procesaba. Recarga e intenta de nuevo.');
+        }
+        const created = await OrderRepository.createCancellationRequest(tx, { orderId, requestedById: user.id, reason });
+        await AuditLogRepository.create({
+          userId: user.id,
+          action: 'ORDER_CANCELLATION_REQUESTED',
+          metadata: { orderId, requestId: created.id, reason },
+        }, tx);
+        if (approvesItself) {
+          deletedExpenseDate = await approveCancellationInTransaction(tx, created.id, order, user, null);
+        }
+        return created;
+      }, { serializable: true });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictError('Ya hay una solicitud de cancelación pendiente para esta venta.');
+      }
+      throw error;
+    }
+
+    auditLog({ requestId, actor: { id: user.id, name: user.name }, action: 'ORDER_CANCELLATION_REQUESTED', entity: 'order', entityId: orderId }, 'Order cancellation requested');
+    if (approvesItself) {
+      // Assigned inside the transaction callback, which TS flow analysis doesn't track.
+      await invalidateCancelledSaleSnapshots(order, deletedExpenseDate as Date | null);
+    } else {
+      await notifySafely(
+        () => UserRepository.findActiveWithPermission(APPROVE_CANCELLATION_PERMISSION),
+        {
+          title: 'Cancelación por aprobar',
+          message: `${user.name} pide cancelar la venta #${order.orderNumber.toString()} (completada). Motivo: ${reason}`,
+          referenceId: orderId,
+        },
+      );
+    }
+    return OrderRepository.findCancellationRequestSummary(request.id);
+  },
+
+  async getPendingCancellationRequests(user: AuthUser) {
+    if (!user.permissions?.includes(APPROVE_CANCELLATION_PERMISSION)) {
+      throw new AuthorizationError('No tienes permiso para revisar cancelaciones.');
+    }
+    return OrderRepository.findPendingCancellationRequests();
+  },
+
+  /** Approves (cancelling the sale with all its reversals) or rejects a pending request. */
+  async reviewCancellation(
+    requestId: string,
+    decision: 'approve' | 'reject',
+    { comment }: z.infer<typeof reviewCancellationSchema>,
+    user: AuthUser,
+    httpRequestId?: string,
+  ) {
+    if (!user.permissions?.includes(APPROVE_CANCELLATION_PERMISSION)) {
+      throw new AuthorizationError('No tienes permiso para revisar cancelaciones.');
+    }
+    const request = await OrderRepository.findCancellationRequest(requestId);
+    if (!request) throw new NotFoundError('Solicitud de cancelación no encontrada.');
+    if (request.status !== 'pending') throw businessRuleError('Esta solicitud ya fue revisada.');
+
+    let deletedExpenseDate: Date | null = null;
+    await runInTransaction(async (tx) => {
+      if (decision === 'approve') {
+        deletedExpenseDate = await approveCancellationInTransaction(tx, requestId, request.order, user, comment ?? null);
+        return;
+      }
+      if (!(await OrderRepository.claimCancellationRequest(tx, requestId, { status: 'rejected', reviewedById: user.id, reviewComment: comment ?? null }))) {
+        throw businessRuleError('Esta solicitud ya fue revisada.');
+      }
+      await AuditLogRepository.create({
+        userId: user.id,
+        action: 'ORDER_CANCELLATION_REJECTED',
+        metadata: { orderId: request.orderId, requestId, ...(comment && { comment }) },
+      }, tx);
+    }, { serializable: true });
+
+    const approved = decision === 'approve';
+    auditLog({
+      requestId: httpRequestId,
+      actor: { id: user.id, name: user.name },
+      action: approved ? 'ORDER_CANCELLATION_APPROVED' : 'ORDER_CANCELLATION_REJECTED',
+      entity: 'order',
+      entityId: request.orderId,
+    }, approved ? 'Order cancellation approved' : 'Order cancellation rejected');
+    // Assigned inside the transaction callback, which TS flow analysis doesn't track.
+    if (approved) await invalidateCancelledSaleSnapshots(request.order, deletedExpenseDate as Date | null);
+    await notifySafely(async () => [{ id: request.requestedById }], {
+      title: approved ? 'Cancelación aprobada' : 'Cancelación rechazada',
+      message: `La cancelación de la venta #${request.order.orderNumber.toString()} fue ${approved ? 'aprobada' : 'rechazada'} por ${user.name}.${comment ? ` Comentario: ${comment}` : ''}`,
+      referenceId: request.orderId,
+    });
+    return OrderRepository.findCancellationRequestSummary(requestId);
+  },
+
   async getPendingPayments(user: AuthUser) {
     if (!user.permissions?.includes('sales.read')) {
       throw new AuthorizationError('No tienes permiso para consultar pagos pendientes.');
@@ -746,7 +855,7 @@ export const OrderService = {
     return OrderRepository.findPendingPayments();
   },
 
-  async settlePayment(paymentId: string, settleMethod: 'cash' | 'transfer' | 'card', user: AuthUser) {
+  async settlePayment(paymentId: string, settleMethod: 'cash' | 'transfer' | 'card', user: AuthUser, cashReceived?: number) {
     if (!user.permissions?.includes('sales.create')) {
       throw new AuthorizationError('No tienes permiso para liquidar pagos pendientes.');
     }
@@ -760,6 +869,10 @@ export const OrderService = {
     }
     if (payment.order.status === OrderStatus.cancelled) {
       throw businessRuleError('No se puede liquidar el pago de un pedido cancelado.');
+    }
+    const receivedAmount = settleMethod === 'cash' && cashReceived !== undefined ? new Prisma.Decimal(cashReceived) : null;
+    if (receivedAmount && receivedAmount.lt(payment.amount)) {
+      throw businessRuleError('El monto recibido debe cubrir el pago pendiente.');
     }
 
     const updatedPayment = await runInTransaction(async (tx) => {
@@ -779,6 +892,8 @@ export const OrderService = {
           cashSessionId: openCashSession.id,
           type: 'sale',
           amount: payment.amount,
+          receivedAmount,
+          changeAmount: receivedAmount ? receivedAmount.sub(payment.amount) : null,
           referenceType: 'order',
           referenceId: payment.orderId,
           description: `Liquidación de pago pendiente — Venta #${payment.order.orderNumber.toString()}`,
@@ -858,6 +973,9 @@ export const OrderService = {
     const order = await OrderRepository.findPlain(id);
     if (!order) {
       throw new NotFoundError('Pedido no encontrado.');
+    }
+    if (order.status === OrderStatus.cancelled) {
+      throw businessRuleError('No se puede editar una venta cancelada.');
     }
 
     const previousValues = {

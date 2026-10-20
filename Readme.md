@@ -1,136 +1,53 @@
 # Andy's Coffee POS ☕
 
-Punto de venta de Andy's Coffee: ventas, pedidos, caja, inventario, compras, gastos y estado de resultados. Es una aplicación web pensada para usarse desde el mostrador.
+Punto de venta web de Andy's Coffee para usarse desde el mostrador: ventas, pedidos, caja, inventario, compras, gastos y estado de resultados.
 
-El repositorio contiene dos aplicaciones independientes que se comunican por una API REST:
+Monorepo con dos aplicaciones independientes que se comunican por una API REST:
 
-| Carpeta | Qué es | Guía |
-| ------- | ------ | ---- |
-| [`backend/`](backend/Readme.md) | API en Node.js + Express + Prisma sobre PostgreSQL (Supabase) | [backend/Readme.md](backend/Readme.md) |
-| [`frontend/`](frontend/README.md) | SPA en React + Vite + TanStack Query | [frontend/README.md](frontend/README.md) |
-| [`docs/`](docs/) | Documentación de ingeniería (`GPS/`) y técnica (`Project/`) | [Documentación](#documentación) |
-| [`todo.md`](todo.md) | Seguimiento del trabajo y pendientes | — |
+| Carpeta | Qué es |
+| ------- | ------ |
+| [`backend/`](backend/Readme.md) | API en Node.js + Express + Prisma sobre PostgreSQL (Supabase) |
+| [`frontend/`](frontend/README.md) | SPA en React + Vite + TanStack Query |
+| [`docs/`](docs/) | Documentación de ingeniería (`GPS/`) y técnica (`Project/`) |
 
----
+## Funciones
 
-## Qué hace el sistema
-
-- **Venta (POS):** pedidos con extras, combos y promociones; pago en efectivo, transferencia o tarjeta; pagos pendientes y "mandaditos" (entregas).
-- **Pedidos del día:** estados `pendiente → en preparación → lista → completada`, cancelación con reversa de caja e inventario.
-- **Caja:** apertura, cierre con conteo, corrección de cortes, reapertura auditada y cierre automático al terminar el día de negocio.
-- **Inventario:** ingredientes, recetas por producto y extra, compras a proveedores, salidas manuales (merma, muestras, consumo), conteos físicos y costo promedio.
-- **Finanzas:** gastos, gastos fijos diarios y estado de resultados por día, semana, mes o rango.
-- **Administración:** usuarios, roles y permisos granulares; preferencias del negocio (nombre, moneda, horario); tema claro/oscuro.
-
----
+- **Venta (POS):** productos, combos, extras y promociones; efectivo, transferencia o tarjeta; pagos pendientes y mandaditos.
+- **Pedidos:** `pendiente → en preparación → lista → completada`; cancelación con reversa de caja (las ventas completadas, con aprobación del admin).
+- **Caja:** apertura, cierre con conteo, corrección, reapertura auditada y cierre automático.
+- **Inventario:** ingredientes, recetas, compras, salidas manuales, conteos físicos y costo promedio.
+- **Finanzas:** gastos, gastos fijos y estado de resultados.
+- **Administración:** usuarios, roles y permisos, preferencias del negocio y tema claro/oscuro.
 
 ## Stack
 
-| Capa | Tecnologías |
-| ---- | ----------- |
-| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4, TanStack Query 5, Axios, framer-motion, recharts, sileo (toasts) |
-| Backend | Node.js, Express 5, TypeScript, Prisma 6 (`@prisma/adapter-pg`), Zod 4, Pino, JWT en cookie HttpOnly, CSRF (`tiny-csrf`), Helmet, rate limiting |
-| Datos | PostgreSQL en Supabase (TLS verificado); Supabase Storage para imágenes de productos |
-| Pruebas | `node:test` + `tsx` (unitarias e integración), Playwright (E2E), PostgreSQL en Docker |
-
----
-
-## Requisitos
-
-- **Node.js 22 LTS o superior** (el proyecto se desarrolla con Node 24; Vite 8 requiere ≥ 20.19).
-- **npm** (cada app tiene su propio `package-lock.json`).
-- **Docker Desktop**, solo para las pruebas de integración y E2E.
-- Acceso al proyecto de **Supabase** (cadena de conexión, certificado CA y llaves), que te comparte el responsable del proyecto.
-
----
+React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query — Node.js · Express 5 · Prisma 6 · Zod · Pino — PostgreSQL y Storage en Supabase — `node:test`, Playwright y Docker para pruebas.
 
 ## Puesta en marcha
 
+Requisitos: Node.js 22 o superior, npm y, para las pruebas, Docker Desktop.
+
 ```bash
-# 1. Dependencias de ambas apps
 npm run install:all
-
-# 2. Variables de entorno
-cp backend/.env.example backend/.env.development    # y completar los valores
-cp backend/.env.example backend/.env.production     # solo donde se corre producción
-cp frontend/.env.example frontend/.env              # opcional
-
-# 3. Certificado CA de Supabase (Project Settings → Database → SSL)
-#    uno por proyecto: backend/certs/dev/ y backend/certs/prod/ (la carpeta está en .gitignore)
-
-# 4. Cliente de Prisma
+cp backend/.env.example backend/.env.development   # completar los valores
 cd backend && npm run prisma:generate && cd ..
-
-# 5. Levantar cada app en su propia terminal
-npm run dev:backend      # API en http://127.0.0.1:4000
-npm run dev:frontend     # App en http://127.0.0.1:5173 (redirige /api al backend)
+npm run dev:backend    # API en http://127.0.0.1:4000
+npm run dev:frontend   # App en http://127.0.0.1:5173
 ```
 
-Abre `http://127.0.0.1:5173` e inicia sesión. En una base de datos recién creada, el seed crea `admin@andyscoffee.local` con la contraseña de `ADMIN_SEED_PASSWORD`.
-
----
-
-## Scripts de la raíz
-
-El `package.json` de la raíz solo delega en cada app:
-
-| Script | Qué hace |
-| ------ | -------- |
-| `npm run install:all` | Instala dependencias de backend y frontend |
-| `npm run dev:backend` / `npm run dev:frontend` | Servidores de desarrollo (cada uno en su terminal) |
-| `npm run lint` | ESLint en frontend y backend |
-| `npm run typecheck` | TypeScript en backend y frontend |
-| `npm run build` | Build de producción del frontend |
-| `npm test` | Pruebas unitarias del backend |
-| `npm run test:db:up` / `test:db:prepare` / `test:db:down` | BD de pruebas en Docker |
-| `npm run test:critical` | Unitarias + integración + E2E (requiere la BD de pruebas) |
-
----
-
-## Arquitectura en una página
-
-```
-Navegador (React)
-   │  Axios + cookie de sesión + token CSRF
-   ▼
-Express ──► requireAuth → checkPermission → validate(Zod) → Controller
-                                                              │
-                                                              ▼
-                                            Service (reglas de negocio)
-                                                              │
-                                                              ▼
-                                            Repository (Prisma) ──► PostgreSQL (Supabase)
-```
-
-- **Backend:** Controller → Service → Repository → Prisma. Los services nunca usan Prisma directamente (ESLint lo impide) y las operaciones de varios pasos corren en transacciones.
-- **Frontend:** Pages → Hooks (TanStack Query) → `features/*/api` → `apiClient`. Los componentes son presentacionales.
-- **Permisos:** el backend es quien decide; el frontend solo oculta lo que el usuario no puede usar.
-
-### Reglas de negocio que conviene conocer
-
-- **Día de negocio** en la zona `CASH_TIMEZONE` (por defecto `America/Mexico_City`); el horario (apertura/cierre) se configura en Preferencias del Sistema.
-- **Ingreso reconocido** = pedido pagado y no cancelado (`backend/src/utils/revenueRecognition.ts`).
-- **Movimientos de caja:** `amount` es el efecto en el cajón con signo (+ entra, − sale); los movimientos de una sesión (sin `CLOSING`) suman su `expectedAmount`.
-- **Costos históricos:** cada venta guarda el costo del momento (`costSnapshot`); los días cerrados del estado de resultados quedan congelados.
-
----
+El detalle de variables de entorno, certificados de Supabase, migraciones y pruebas está en [backend/Readme.md](backend/Readme.md) y [frontend/README.md](frontend/README.md).
 
 ## Pruebas
 
 ```bash
-npm run test:db:up        # PostgreSQL con TLS en Docker (puerto 55432)
-npm run test:db:prepare   # migraciones + seed
-npm run test:critical     # unitarias + integración + E2E
-npm run test:db:down
+npm run lint && npm run typecheck   # ambas apps
+npm test                            # unitarias del backend
+npm run test:critical               # unitarias + integración + E2E (BD de pruebas en Docker)
 ```
-
-Las pruebas de integración y E2E se niegan a correr contra cualquier host que no sea `localhost`. Detalles en [backend/Readme.md](backend/Readme.md#pruebas).
-
----
 
 ## Flujo de trabajo con Git
 
-- La rama principal es `master`; no se trabaja directo sobre ella. Crea una rama por tarea (`feature/…`, `fix/…`, `test/…`).
+- La rama principal es `master`; trabaja en una rama por tarea (`feature/…`, `fix/…`, `docs/…`).
 - Antes de abrir un PR: `npm run lint`, `npm run typecheck` y, si tocaste backend, `npm run test:critical`.
 - Commits pequeños con [Conventional Commits](https://www.conventionalcommits.org/es/):
 
@@ -147,37 +64,11 @@ Las pruebas de integración y E2E se niegan a correr contra cualquier host que n
 
 Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 
----
-
-## Estado del proyecto
-
-El MVP está terminado y desplegado (fases 1–12 en [`todo.md`](todo.md)). Siguientes funcionalidades, fuera del MVP: módulo de reportes, edición de compras en borrador, proyecciones de stock y administración de promociones desde la interfaz.
-
-El documento de alcance ([`docs/GPS/Ingenieria del proyecto.docx`](docs/GPS/)) describe además módulos que **no están implementados**: facturación CFDI, modo offline, impresoras de tickets y gavetas, respaldos automáticos, exportación de reportes a PDF/Excel y el rol de Barista (hoy solo existen `ADMIN` y `CAJERO`). También planteaba Flutter y MySQL; la implementación real usa React y PostgreSQL.
-
----
-
 ## Documentación
 
-```
-docs/
-├── GPS/        Entregables de ingeniería del proyecto (Word)
-└── Project/    Documentación técnica para desarrolladores (Markdown)
-```
+- [`docs/GPS/`](docs/GPS/): entregables de ingeniería del proyecto (alcance, EDT, casos de uso).
+- [`docs/Project/AUDIT/`](docs/Project/AUDIT/): auditorías técnicas.
+- [`docs/Project/FIXED/`](docs/Project/FIXED/): hallazgos resueltos y cambios realizados (p. ej. la auditoría del flujo de ventas del 20/10/2026).
+- [`todo.md`](todo.md): estado del proyecto y pendientes.
 
-| Documento | Contenido |
-| --------- | --------- |
-| [`docs/GPS/Ingenieria del proyecto.docx`](docs/GPS/) | Alcance, objetivos, actores y matriz de permisos, módulos, plataformas, restricciones y casos de uso (UML) |
-| [`docs/GPS/3.1a Enunciado del alcance y EDT.docx`](docs/GPS/) | Enunciado del alcance, entregables, EDT, fases, cronograma, ruta crítica, presupuesto y ROI estimados |
-| [`docs/GPS/3.1b Casos de uso e historias de usuario.docx`](docs/GPS/) | Casos de uso e historias de usuario del sistema |
-| [`docs/Project/deployment.md`](docs/Project/deployment.md) | Despliegue (Vercel + Docker en Render + Supabase), variables de entorno, CI/CD, migraciones en producción y rollback |
-| [`docs/Project/auditoria-mvp-2026-09-22.md`](docs/Project/auditoria-mvp-2026-09-22.md) | Auditoría integral del MVP: hallazgos (C/A/M/B), correcciones y decisiones de negocio (R-02, R-03…) |
-| [`docs/Project/plan-test.md`](docs/Project/plan-test.md) | Plan de estabilización y pruebas |
-| [`docs/Project/auditoria-estado-resultados.md`](docs/Project/auditoria-estado-resultados.md) | Auditoría del estado de resultados |
-| [`docs/Project/auditoria-logica-delete-deactivate.md`](docs/Project/auditoria-logica-delete-deactivate.md) | Auditoría de la lógica de eliminar vs. desactivar |
-| [`docs/Project/[FIXED] todo-list 08-09-26.md`](<docs/Project/[FIXED] todo-list 08-09-26.md>) | Lista de pendientes del 8 de septiembre (histórico, ya resuelta) |
-| [`backend/Readme.md`](backend/Readme.md) · [`frontend/README.md`](frontend/README.md) | Guías de cada aplicación |
-| [`CLAUDE.md`](CLAUDE.md) | Convenciones detalladas de arquitectura, temas, seguridad y documentación |
-| [`todo.md`](todo.md) | Estado del proyecto y pendientes |
-
-La documentación se escribe en español. Al agregar, mover o eliminar un archivo en `docs/`, actualiza esta tabla.
+La documentación se escribe en español.

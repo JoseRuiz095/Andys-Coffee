@@ -10,6 +10,7 @@ import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInp
 import { paginationMeta } from '../utils/pagination';
 import { getZonedCalendarDate } from '../utils/businessDate';
 import { NotificationService } from './notification.service';
+import { logger } from '../utils/logger';
 
 export class CashBusinessRuleError extends Error {
   constructor(message: string) {
@@ -207,13 +208,21 @@ function prismaTransaction<T>(callback: (tx: Tx) => Promise<T>) {
   return runInTransaction(callback, { serializable: true });
 }
 
+/**
+ * Best effort: callers dispatch it after their transaction committed, so a notification failure
+ * is logged instead of turning an operation that already happened into a 500 (the cashier would
+ * retry opening or closing a drawer that is already open or closed).
+ */
 async function createCashNotification(
   data: { title: string; message: string; referenceId: string },
 ) {
-  const recipients = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
-
-  await NotificationService.createNotification(
-    { ...data, type: NotificationType.GENERAL },
-    recipients.map(({ id }) => id),
+  try {
+    const recipients = await UserRepository.findActiveByRoleNames(['ADMIN', 'CAJERO']);
+    await NotificationService.createNotification(
+      { ...data, type: NotificationType.GENERAL },
+      recipients.map(({ id }) => id),
     );
+  } catch (error) {
+    logger.error({ err: error, referenceId: data.referenceId }, 'Cash notification failed');
+  }
 }

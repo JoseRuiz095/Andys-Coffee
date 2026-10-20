@@ -3,6 +3,17 @@ import { Prisma } from '@prisma/client';
 import { promotionScopeSelect } from './menu.repository';
 import type { DbClient, Tx } from './transaction';
 
+const cancellationRequestSummarySelect = {
+  id: true,
+  status: true,
+  reason: true,
+  reviewComment: true,
+  createdAt: true,
+  reviewedAt: true,
+  requestedBy: { select: { id: true, name: true } },
+  reviewedBy: { select: { id: true, name: true } },
+} satisfies Prisma.OrderCancellationRequestSelect;
+
 const orderWithItemsInclude = { items: { include: { extras: true } }, payments: true } satisfies Prisma.OrderInclude;
 
 export const OrderRepository = {
@@ -22,6 +33,8 @@ export const OrderRepository = {
             }
           },
           payments: true,
+          // Latest cancellation request, so the board shows a pending approval.
+          cancellationRequests: { orderBy: { createdAt: 'desc' }, take: 1, select: cancellationRequestSummarySelect },
         },
       }),
       prisma.order.count({ where }),
@@ -93,12 +106,13 @@ export const OrderRepository = {
   },
 
   /**
-   * Everything a sale needs to be priced, read inside the sale's transaction so Serializable
-   * isolation covers prices, availability and promotions against concurrent changes.
+   * Everything a sale needs to be priced. A sale reads it inside its transaction (pass `tx`) so
+   * Serializable isolation covers prices, availability and promotions against concurrent
+   * changes; a quote reads it with the root client.
    */
   async loadSaleCatalog(
-    tx: Tx,
     params: { productIds: string[]; comboIds: string[]; extraIds: string[]; businessDate: Date; weekday: number },
+    tx: DbClient = prisma,
   ) {
     const { productIds, comboIds, extraIds, businessDate, weekday } = params;
     const activeToday = [{ activeOnDays: { isEmpty: true } }, { activeOnDays: { has: weekday } }];
@@ -151,14 +165,6 @@ export const OrderRepository = {
       }),
     ]);
     return { products, combos, extras, productExtras, promotions };
-  },
-
-  async findRecipes(tx: Tx, productIds: string[], extraIds: string[]) {
-    const [recipes, extraRecipes] = await Promise.all([
-      tx.recipe.findMany({ where: { productId: { in: productIds } } }),
-      tx.extraRecipe.findMany({ where: { extraId: { in: extraIds } } }),
-    ]);
-    return { recipes, extraRecipes };
   },
 
   /** Next "Cliente N" name from the database sequence (unique under concurrency). */
@@ -218,6 +224,8 @@ export const OrderRepository = {
         items: { include: { extras: true } },
         payments: true,
         createdBy: { select: { id: true, name: true } },
+        // Latest cancellation request, so the day view shows whether one is pending or rejected.
+        cancellationRequests: { orderBy: { createdAt: 'desc' }, take: 1, select: cancellationRequestSummarySelect },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -262,5 +270,44 @@ export const OrderRepository = {
       where: { orderId, status: { in: ['paid', 'pending'] } },
       data: { status: 'cancelled' },
     });
+  },
+
+  // --- Cancellation requests (completed sales, approved by an admin) ---
+
+  async createCancellationRequest(tx: Tx, data: { orderId: string; requestedById: string; reason: string }) {
+    return tx.orderCancellationRequest.create({ data, select: cancellationRequestSummarySelect });
+  },
+
+  async findCancellationRequest(id: string) {
+    return prisma.orderCancellationRequest.findUnique({ where: { id }, include: { order: true } });
+  },
+
+  /** Pending requests, oldest first, with what the approver needs to decide. */
+  async findPendingCancellationRequests() {
+    return prisma.orderCancellationRequest.findMany({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        ...cancellationRequestSummarySelect,
+        order: { select: { id: true, orderNumber: true, customerName: true, total: true, createdAt: true, completedAt: true } },
+      },
+    });
+  },
+
+  /** Records the decision only if the request is still pending (two reviewers can't both win). */
+  async claimCancellationRequest(
+    tx: Tx,
+    id: string,
+    decision: { status: 'approved' | 'rejected'; reviewedById: string; reviewComment?: string | null },
+  ): Promise<boolean> {
+    const claimed = await tx.orderCancellationRequest.updateMany({
+      where: { id, status: 'pending' },
+      data: { ...decision, reviewedAt: new Date() },
+    });
+    return claimed.count === 1;
+  },
+
+  async findCancellationRequestSummary(id: string) {
+    return prisma.orderCancellationRequest.findUniqueOrThrow({ where: { id }, select: cancellationRequestSummarySelect });
   },
 };

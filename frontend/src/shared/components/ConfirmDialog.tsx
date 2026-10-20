@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useOverlayEscape } from '../hooks/useOverlayEscape'
@@ -13,6 +13,10 @@ interface ConfirmDialogProps {
   onCancel: () => void
   isDangerous?: boolean
   isLoading?: boolean
+  /** Keeps the confirm button disabled (e.g. a required field is empty). */
+  confirmDisabled?: boolean
+  /** Extra content below the message (e.g. a reason field). */
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -25,6 +29,8 @@ export function ConfirmDialog({
   onCancel,
   isDangerous = false,
   isLoading = false,
+  confirmDisabled = false,
+  children,
 }: ConfirmDialogProps) {
   const titleId = useId()
   useBodyScrollLock(isOpen)
@@ -66,6 +72,7 @@ export function ConfirmDialog({
         >
           {message}
         </p>
+        {children}
         <div className="mt-6 flex gap-3 justify-end">
           <button
             onClick={() => {
@@ -89,7 +96,7 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
             className="px-4 py-2 rounded-lg text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               backgroundColor: isDangerous ? 'var(--color-danger)' : 'var(--color-primary)',

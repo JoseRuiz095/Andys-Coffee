@@ -1,4 +1,5 @@
 import type { OrderTemperature } from '../../../shared/utils/productTemperature'
+import type { SelectedExtra } from '../../menu/types/menu.types'
 
 export interface OrderItemExtra {
   extraId: string;
@@ -29,32 +30,16 @@ export interface CreateOrderPayload {
   scheduledFor?: string | null;
 }
 
-export interface Order {
-  id: string;
-  orderNumber: number;
-  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
-  customerName: string | null;
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total: number;
-  notes: string | null;
-  createdAt: string;
-  items: FullOrderItem[];
+/** Server pricing of a cart (POST /orders/quote). Money comes as two-decimal strings. */
+export interface OrderQuote {
+  /** One entry per cart line, in the order they were sent. */
+  items: { gross: string; discount: string; net: string }[];
+  subtotal: string;
+  discount: string;
+  total: string;
 }
 
-export interface FullOrderItem {
-  id: string;
-  productName: string;
-  temperature: OrderTemperature | null;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-  notes: string | null;
-  extras: OrderItemExtra[];
-}
-
-// This seems to be for UI display, might need to be adjusted
+/** A line of the POS cart (client-side state; the server prices it). */
 export interface OrderItem {
   id: string // Unique identifier for the order item instance
   productId?: string // Corresponds to Product ID
@@ -67,10 +52,7 @@ export interface OrderItem {
   image: string // ready-to-use URL (product image or the app logo)
   note?: string
   type: 'product' | 'combo'
-  modifications?: {
-    name: string
-    price: number
-  }[]
+  /** Extras of each unit of the line (2 lattes with 1 shot = 2 shots). */
+  extras?: SelectedExtra[]
   }
 
-  export const _ = {};

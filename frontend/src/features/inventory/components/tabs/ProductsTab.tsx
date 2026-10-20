@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProducts, useCategories, useProductDetail } from '../../../products/hooks/useProducts'
+import { useExtras, useSetProductExtras } from '../../../extras/hooks/useExtras'
 import { authStore } from '../../../auth/store/auth.store'
 import { hasPermission } from '../../../auth/utils/permissions'
 import { Card } from '../../../../shared/components/Card'
@@ -49,6 +50,20 @@ export function ProductsTab() {
     editingDetail?.suggestedCost !== null && editingDetail?.suggestedCost !== undefined
       ? Number(editingDetail.suggestedCost)
       : null
+  // Extras offered with the product in the POS (saved with their own endpoint after the product).
+  const { data: allExtras = [] } = useExtras(isCreateModalOpen)
+  const setProductExtras = useSetProductExtras()
+  const [selectedExtraIds, setSelectedExtraIds] = useState<string[]>([])
+  const [extrasLoadedFor, setExtrasLoadedFor] = useState<string | null>(null)
+  if (editingDetail && editingDetail.id === editingProduct?.id && extrasLoadedFor !== editingDetail.id) {
+    setExtrasLoadedFor(editingDetail.id)
+    setSelectedExtraIds((editingDetail.extras ?? []).map(({ extraId }) => extraId))
+  }
+  const savedExtraIds = (editingDetail?.extras ?? []).map(({ extraId }) => extraId)
+  const extrasChanged =
+    selectedExtraIds.length !== savedExtraIds.length || selectedExtraIds.some((id) => !savedExtraIds.includes(id))
+  const toggleExtra = (extraId: string) =>
+    setSelectedExtraIds((current) => (current.includes(extraId) ? current.filter((id) => id !== extraId) : [...current, extraId]))
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
 
@@ -70,6 +85,9 @@ export function ProductsTab() {
   const [formProduct, setFormProduct] = useState<Product | null>(null)
   if (editingProduct !== formProduct) {
     setFormProduct(editingProduct)
+    // Another product (or a new one): its extras are loaded from its detail, not carried over.
+    setSelectedExtraIds([])
+    setExtrasLoadedFor(null)
     if (editingProduct) {
       setFormData({
         name: editingProduct.name,
@@ -126,11 +144,19 @@ export function ProductsTab() {
           } as UpdateProductInput,
           imageFile: imageFile || undefined,
         })
+        if (extrasChanged) {
+          await setProductExtras.mutateAsync({ productId: editingProduct.id, extraIds: selectedExtraIds })
+        }
         sileo.success({ title: 'Éxito', description: 'Producto actualizado correctamente' })
       } else {
-        await createAsync({ input: formData, imageFile: imageFile || undefined })
+        const created = await createAsync({ input: formData, imageFile: imageFile || undefined })
+        if (selectedExtraIds.length > 0 && created?.id) {
+          await setProductExtras.mutateAsync({ productId: created.id, extraIds: selectedExtraIds })
+        }
         sileo.success({ title: 'Éxito', description: 'Producto creado correctamente' })
       }
+      setSelectedExtraIds([])
+      setExtrasLoadedFor(null)
 
       setIsCreateModalOpen(false)
       setEditingProduct(null)
@@ -661,6 +687,31 @@ export function ProductsTab() {
                       step="0.01"
                     />
                   </div>
+                )}
+
+                {allExtras.length > 0 && (
+                  <fieldset>
+                    <legend className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      Extras que se ofrecen en el POS
+                    </legend>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {allExtras.map((extra) => (
+                        <label
+                          key={extra.id}
+                          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                          style={{ borderColor: 'var(--color-border)', color: extra.isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedExtraIds.includes(extra.id)}
+                            onChange={() => toggleExtra(extra.id)}
+                          />
+                          <span className="flex-1">{extra.name}{extra.isActive ? '' : ' (inactivo)'}</span>
+                          <span style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(Number(extra.price))}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                 )}
 
                 <div className="flex gap-3 pt-4">

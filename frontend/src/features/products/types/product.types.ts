@@ -20,6 +20,8 @@ export interface Product {
 /** GET /products/:id: the product plus the cost suggested by its recipe (null = no recipe). */
 export interface ProductDetail extends Product {
   suggestedCost: number | string | null
+  /** Extras the POS offers with the product. */
+  extras?: { extraId: string; extra: { id: string; name: string } }[]
 }
 
 export interface CreateProductInput {
