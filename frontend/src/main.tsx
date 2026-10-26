@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppRouter } from './app/router';
 import { Providers } from './app/providers';
 import './index.css';
@@ -16,5 +18,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AppRouter />
       </Providers>
     </QueryClientProvider>
+    {/* Vercel Analytics y Speed Insights: solo envían datos en el despliegue de Vercel */}
+    <Analytics />
+    <SpeedInsights />
   </React.StrictMode>
 );
