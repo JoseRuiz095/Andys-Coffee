@@ -20,6 +20,8 @@ export type ThemePalette = {
   border: string
   inputBg: string
   inputText: string
+  /** White tile behind product photos in both themes: cut-outs on white and on transparent look alike. */
+  imageTile: string
   placeholder: string
   ghostText: string
   danger: string
@@ -55,6 +57,7 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
     border: '#E7E3DC',
     inputBg: '#F2EFE8',
     inputText: '#1F2937',
+    imageTile: '#FFFFFF',
     placeholder: '#9CA3AF',
     ghostText: '#4B5563',
     danger: '#DC2626',
@@ -81,6 +84,7 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
     border: '#2E3936',
     inputBg: '#111715',
     inputText: '#E5E7EB',
+    imageTile: '#FFFFFF',
     placeholder: '#7B8481',
     ghostText: '#D1D5DB',
     danger: '#EF4444',
@@ -114,6 +118,7 @@ export const THEME_CSS_VARIABLES = {
   '--color-border': 'border',
   '--color-input-bg': 'inputBg',
   '--color-input-text': 'inputText',
+  '--color-image-tile': 'imageTile',
   '--color-placeholder': 'placeholder',
   '--color-ghost-text': 'ghostText',
   '--color-danger': 'danger',

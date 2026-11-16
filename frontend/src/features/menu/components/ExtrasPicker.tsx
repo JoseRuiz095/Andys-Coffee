@@ -21,7 +21,7 @@ export function ExtrasPicker({ extras, value, onChange }: ExtrasPickerProps) {
 
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
         Extras
       </h3>
       <ul className="space-y-2">
@@ -37,24 +37,24 @@ export function ExtrasPicker({ extras, value, onChange }: ExtrasPickerProps) {
                 {extra.name}
                 <span className="ml-2" style={{ color: 'var(--color-text-secondary)' }}>+{formatCurrency(extra.price)}</span>
               </span>
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-lg">
                 <button
                   type="button"
                   aria-label={`Quitar ${extra.name}`}
                   disabled={quantity === 0}
                   onClick={() => setQuantity(extra, quantity - 1)}
-                  className="h-8 w-8 rounded-lg border text-lg leading-none disabled:opacity-40"
+                  className="h-10 w-10 rounded-lg border text-lg leading-none disabled:opacity-40 pointer-coarse:h-11 pointer-coarse:w-11"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
                 >
                   −
                 </button>
-                <span className="w-5 text-center text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{quantity}</span>
+                <span className="w-6 text-center text-sm font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{quantity}</span>
                 <button
                   type="button"
                   aria-label={`Agregar ${extra.name}`}
                   disabled={quantity >= MAX_PER_UNIT}
                   onClick={() => setQuantity(extra, quantity + 1)}
-                  className="h-8 w-8 rounded-lg border text-lg leading-none disabled:opacity-40"
+                  className="h-10 w-10 rounded-lg border text-lg leading-none disabled:opacity-40 pointer-coarse:h-11 pointer-coarse:w-11"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
                 >
                   +

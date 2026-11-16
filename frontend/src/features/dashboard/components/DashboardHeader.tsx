@@ -24,6 +24,8 @@ interface DashboardHeaderProps<T extends string> {
   showCloseCash: boolean
   isClosingCash: boolean
   onCloseCash: () => void
+  /** Width of the content below (the sales screen uses a wider one). */
+  maxWidthClassName?: string
 }
 
 /** Top bar of the dashboard: user, main navigation, cash cut, notifications and settings. */
@@ -36,12 +38,16 @@ export function DashboardHeader<T extends string>({
   showCloseCash,
   isClosingCash,
   onCloseCash,
+  maxWidthClassName = 'max-w-7xl',
 }: DashboardHeaderProps<T>) {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = React.useState(false)
   const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
   const notificationContainerRef = React.useRef<HTMLDivElement>(null)
   const { unreadCount } = useNotifications()
   const hasUnreadNotifications = unreadCount > 0
+  // Four sections don't fit beside the user and the actions below 1024px (tablet in portrait):
+  // there they get a row of their own instead of wrapping unpredictably.
+  const navOwnRow = items.length >= 4
 
   React.useEffect(() => {
     if (hasUnreadNotifications) {
@@ -67,25 +73,25 @@ export function DashboardHeader<T extends string>({
 
   return (
     <header
-      className="relative z-50 border-b px-4 py-4 shadow-[var(--shadow-header)] backdrop-blur sm:px-6"
+      className="relative z-50 border-b px-3 py-2 shadow-[var(--shadow-header)] backdrop-blur lg:px-4"
       style={{
         borderColor: 'var(--color-border)',
         backgroundColor: 'color-mix(in srgb, var(--color-surface) 96%, transparent)',
       }}
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className={`mx-auto flex ${maxWidthClassName} flex-wrap items-center justify-between gap-x-4 gap-y-2`}>
+        <div className="flex min-w-0 items-center gap-3">
           <div
-            className="flex h-15 w-15 items-center justify-center rounded-2xl border p-2 shadow-sm"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border p-1.5 shadow-sm"
             style={{
               borderColor: 'var(--color-border)',
               backgroundColor: 'var(--color-background)',
             }}
           >
-            <img src={brandLogo} alt="Andys Coffee" className="h-8 w-auto object-contain" />
+            <img src={brandLogo} alt="Andys Coffee" className="h-6 w-auto object-contain" />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            <div className="max-w-[14rem] truncate text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               {displayName}
             </div>
             <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{roleLabel}</div>
@@ -94,7 +100,7 @@ export function DashboardHeader<T extends string>({
 
         <nav
           aria-label="Secciones"
-          className="flex flex-wrap items-center gap-2 rounded-full border px-3 py-2 shadow-sm sm:gap-3"
+          className={`flex items-center gap-1 overflow-x-auto rounded-full border p-1 text-base font-medium shadow-sm ${navOwnRow ? 'order-last w-full justify-center-safe lg:order-none lg:w-auto' : ''}`}
           style={{
             borderColor: 'var(--color-border)',
             backgroundColor: 'color-mix(in srgb, var(--color-surface) 80%, transparent)',
@@ -106,7 +112,7 @@ export function DashboardHeader<T extends string>({
               type="button"
               onClick={() => onSelectView(item.id)}
               aria-current={currentView === item.id ? 'page' : undefined}
-              className="min-h-9 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+              className="min-h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] pointer-coarse:min-h-11"
               style={{
                 backgroundColor: currentView === item.id ? 'var(--color-primary)' : 'transparent',
                 color: currentView === item.id ? 'var(--color-button-text)' : 'var(--color-text-primary)',
@@ -117,13 +123,13 @@ export function DashboardHeader<T extends string>({
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
           {showCloseCash && (
             <button
               type="button"
               onClick={onCloseCash}
               disabled={isClosingCash}
-              className="rounded-full bg-[color-mix(in_srgb,var(--color-danger)_10%,var(--color-surface))] px-4 py-2 text-sm font-semibold shadow-sm transition hover:bg-[color-mix(in_srgb,var(--color-danger)_15%,var(--color-surface))] disabled:opacity-60"
+              className="min-h-10 rounded-full bg-[color-mix(in_srgb,var(--color-danger)_10%,var(--color-surface))] px-4 text-sm font-semibold pointer-coarse:min-h-11 shadow-sm transition hover:bg-[color-mix(in_srgb,var(--color-danger)_15%,var(--color-surface))] disabled:opacity-60"
               style={{
                 color: 'var(--color-danger)',
                 border: '1px solid var(--color-danger)',
@@ -140,7 +146,7 @@ export function DashboardHeader<T extends string>({
               }
               aria-expanded={isNotificationCenterOpen}
               onClick={() => setIsNotificationCenterOpen((isOpen) => !isOpen)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2 pointer-coarse:h-11 pointer-coarse:w-11"
               style={
                 hasUnreadNotifications
                   ? ({
@@ -165,7 +171,7 @@ export function DashboardHeader<T extends string>({
                   <span className="absolute -inset-1.5 rounded-full border" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 30%, transparent)' }} />
                 </>
               )}
-              <CoffeeIcon ref={coffeeIconRef} className="relative z-10" size={23} aria-hidden="true" />
+              <CoffeeIcon ref={coffeeIconRef} className="relative z-10" size={21} aria-hidden="true" />
               {hasUnreadNotifications && (
                 <span
                   aria-hidden="true"
@@ -190,14 +196,14 @@ export function DashboardHeader<T extends string>({
             aria-label="Configuración: mi cuenta, usuarios y datos del negocio"
             title="Configuración"
             onClick={() => navigateTo(APP_ROUTES.settings)}
-            className="flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-surface)] shadow-sm transition hover:bg-[var(--color-surface-hover)] focus:outline-none focus:ring-2"
+            className="flex h-10 w-10 items-center justify-center rounded-full border bg-[var(--color-surface)] shadow-sm pointer-coarse:h-11 pointer-coarse:w-11 transition hover:bg-[var(--color-surface-hover)] focus:outline-none focus:ring-2"
             style={{
               borderColor: 'var(--color-border)',
               color: 'var(--color-primary)',
               '--tw-ring-color': 'var(--color-primary)',
             } as React.CSSProperties}
           >
-            <SettingsIcon size={22} aria-hidden="true" />
+            <SettingsIcon size={20} aria-hidden="true" />
           </button>
         </div>
       </div>

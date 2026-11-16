@@ -18,6 +18,8 @@ const MetricsPage = lazyWithReload(() => import('../pages/MetricsPage').then((m)
 import type { CreateOrderItem, CreateOrderPayload, OrderItem } from '../types/order.types'
 import type { MenuItem, SelectedExtra } from '../../menu/types/menu.types'
 import { extrasKey, extrasUnitPrice } from '../../menu/utils/extras'
+import { menuItemKey } from '../../menu/utils/menuSearch'
+import { QueryErrorState } from '../../../shared/components/QueryErrorState'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useOrderQuote } from '../hooks/useOrderQuote'
@@ -89,6 +91,8 @@ export function DashboardPage() {
     isLoading: isMenuLoading,
     isError,
     error,
+    refetch: refetchMenu,
+    isRefetching: isRefetchingMenu,
   } = useMenu()
   const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder()
   const saleAttempt = useSaleAttemptKey(draftKey('attempt'))
@@ -215,6 +219,16 @@ export function DashboardPage() {
 
     submitOrder()
   }
+
+  // Units of each menu item already in the order: the menu cards show them.
+  const orderQuantities = React.useMemo(() => {
+    const quantities = new Map<string, number>()
+    for (const item of orderItems) {
+      const key = menuItemKey(item.type, item.type === 'product' ? item.productId : item.comboId)
+      quantities.set(key, (quantities.get(key) ?? 0) + item.quantity)
+    }
+    return quantities
+  }, [orderItems])
 
   // The category names for the tabs can be derived from the fetched data
   const categoryNames = React.useMemo(
@@ -436,16 +450,16 @@ export function DashboardPage() {
               animate="center"
               exit="exit"
               transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,56fr)_minmax(0,44fr)]"
+              // Menu (flexible) and order (fixed width per breakpoint): 2 product columns beside
+              // the order on a tablet in portrait, 3–4 in landscape, more on a desktop.
+              className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_22.5rem] xl:grid-cols-[minmax(0,1fr)_25rem] pos-fit:min-h-0 pos-fit:flex-1 pos-fit:grid-rows-[minmax(0,1fr)]"
             >
               {isError ? (
                 <div
-                  role="alert"
-                  className="rounded-lg border p-8 text-center"
-                  style={{ borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', color: 'var(--color-danger)' }}
+                  className="self-start rounded-[1.25rem] border shadow-[var(--shadow-card)]"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
                 >
-                  <p className="font-bold">¡Error al cargar el menú!</p>
-                  <p>{getErrorMessage(error, 'Revisa tu conexión e inténtalo de nuevo.')}</p>
+                  <QueryErrorState error={error} subject="el menú" onRetry={() => void refetchMenu()} isRetrying={isRefetchingMenu} />
                 </div>
               ) : (
                 <MenuSection
@@ -455,6 +469,7 @@ export function DashboardPage() {
                   onAddToOrder={handleAddToOrder}
                   selectedCategory={selectedCategory}
                   onSelectCategory={setSelectedCategory}
+                  quantities={orderQuantities}
                 />
               )}
               <OrderDetailsPanel
@@ -568,9 +583,13 @@ export function DashboardPage() {
     )
   }
 
+  // Selling: the screen fits the window (menu and order scroll inside their panels), wider.
+  const isSelling = currentView === 'venta' && cashSession?.status === 'open'
+  const contentWidth = isSelling ? 'max-w-[1600px]' : 'max-w-7xl'
+
   return (
     <div
-      className="min-h-screen"
+      className={isSelling ? 'min-h-screen pos-fit:flex pos-fit:h-svh pos-fit:min-h-0 pos-fit:flex-col pos-fit:overflow-hidden' : 'min-h-screen'}
       style={{
         background: 'radial-gradient(circle at top, var(--color-surface) 0%, var(--color-background) 100%)',
       }}
@@ -584,9 +603,14 @@ export function DashboardPage() {
         showCloseCash={cashSession?.status === 'open' && canCloseCash}
         isClosingCash={closeSession.isPending}
         onCloseCash={handleCloseCashSession}
+        maxWidthClassName={contentWidth}
       />
 
-      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <div
+        className={isSelling
+          ? `mx-auto w-full ${contentWidth} p-3 lg:px-4 pos-fit:flex pos-fit:min-h-0 pos-fit:flex-1 pos-fit:flex-col`
+          : `mx-auto ${contentWidth} p-4 sm:p-6`}
+      >
         {renderContent()}
       </div>
       <CashClosingDialog

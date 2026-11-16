@@ -9,6 +9,8 @@ interface ProductImageProps {
   className?: string
   /** Load right away (e.g. an open dialog) instead of when scrolled into view. */
   eager?: boolean
+  /** `cover` fills the box (may crop); `contain` shows the whole photo inside it. */
+  fit?: 'cover' | 'contain'
 }
 
 /**
@@ -16,7 +18,7 @@ interface ProductImageProps {
  * load, show the Andy's logo instead of a broken icon. The parent sets the box size, so the
  * layout does not shift while the image loads.
  */
-export function ProductImage({ src, alt, className = '', eager = false }: ProductImageProps) {
+export function ProductImage({ src, alt, className = '', eager = false, fit = 'cover' }: ProductImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const showFallback = !src || failedSrc === src
 
@@ -40,7 +42,7 @@ export function ProductImage({ src, alt, className = '', eager = false }: Produc
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
       onError={() => setFailedSrc(src)}
-      className={`h-full w-full object-cover ${className}`}
+      className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} ${className}`}
     />
   )
 }

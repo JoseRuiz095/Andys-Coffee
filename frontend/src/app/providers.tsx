@@ -25,7 +25,9 @@ export function Providers({ children }: ProvidersProps) {
           <SessionValidatorWrapper>
             {children}
             <Toaster
-              position="bottom-right"
+              // Top center: at the bottom right they covered "Procesar orden" for seconds after
+              // every sale (and the total of the POS).
+              position="top-center"
               options={{
                 fill: "#171717",
                 roundness: 16,

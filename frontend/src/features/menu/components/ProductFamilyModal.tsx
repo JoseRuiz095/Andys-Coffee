@@ -2,6 +2,7 @@ import React from 'react'
 import { ProductImage } from '../../../shared/components/ProductImage'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { XIcon } from '../../../components/ui/XIcon'
+import { Button } from '../../../shared/components/Button'
 import { ExtrasPicker } from './ExtrasPicker'
 import { extrasUnitPrice } from '../utils/extras'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '../../../components/ui/dialog'
@@ -13,6 +14,21 @@ interface ProductFamilyModalProps {
   onClose: () => void
   onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
 }
+
+// Touch-sized choice buttons (44px on touch screens); the chosen one is tinted with the brand color.
+const choiceClassName =
+  'min-h-10 rounded-xl border px-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11'
+
+const choiceStyle = (isSelected: boolean) => ({
+  borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
+  backgroundColor: isSelected ? 'color-mix(in srgb, var(--color-primary) 14%, var(--color-surface))' : 'var(--color-surface)',
+  color: 'var(--color-text-primary)',
+  // Inline: index.css `button { font: inherit }` overrides font utilities on buttons.
+  fontSize: '0.875rem',
+  fontWeight: isSelected ? 600 : 500,
+})
+
+const sectionTitleClassName = 'mb-2 text-xs font-semibold uppercase tracking-wide'
 
 export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFamilyModalProps) {
   const isChilaquiles = family.key === 'Chilaquiles'
@@ -115,13 +131,13 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
   }
 
   return (
-    <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()} size="xl">
       <DialogContent>
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-14 w-14 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--color-background)' }}>
-                <ProductImage src={selectedVariant?.imageUrl} alt={family.title} eager />
+              <div className="h-14 w-14 overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--color-image-tile)' }}>
+                <ProductImage src={selectedVariant?.imageUrl} alt={family.title} eager fit="contain" />
               </div>
               <div>
                 <DialogTitle>{family.title}</DialogTitle>
@@ -135,7 +151,7 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
               onClick={onClose}
               aria-label="Cerrar personalización"
               title="Cerrar"
-              className="rounded-lg p-2 transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-lg transition-colors pointer-coarse:h-11 pointer-coarse:w-11"
               style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}
             >
               <XIcon size={18} />
@@ -143,11 +159,11 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
           </div>
         </DialogHeader>
 
-        <div className="space-y-5 py-4">
+        <div className="space-y-4 py-4">
           {isChilaquiles ? (
             <>
               <div>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                <h3 className={sectionTitleClassName} style={{ color: 'var(--color-text-secondary)' }}>
                   Salsa
                 </h3>
                 <div className="flex gap-2">
@@ -157,12 +173,8 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
                       type="button"
                       aria-pressed={selectedSalsa === salsa}
                       onClick={() => setSelectedSalsa(salsa)}
-                      className="flex-1 rounded-xl border px-3 py-2 text-sm font-medium"
-                      style={{
-                        borderColor: selectedSalsa === salsa ? 'var(--color-primary)' : 'var(--color-border)',
-                        backgroundColor: selectedSalsa === salsa ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                        color: 'var(--color-text-primary)',
-                      }}
+                      className={`flex-1 ${choiceClassName}`}
+                      style={choiceStyle(selectedSalsa === salsa)}
                     >
                       {salsa === 'verde' ? 'Verde' : 'Roja'}
                     </button>
@@ -171,22 +183,18 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+                <h3 className={sectionTitleClassName} style={{ color: 'var(--color-text-secondary)' }}>
                   Proteína
                 </h3>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {proteinOptions.map((protein) => (
                     <button
                       key={protein}
                       type="button"
                       aria-pressed={selectedProtein === protein}
                       onClick={() => setSelectedProtein(protein)}
-                      className="rounded-xl border px-3 py-2 text-sm font-medium"
-                      style={{
-                        borderColor: selectedProtein === protein ? 'var(--color-primary)' : 'var(--color-border)',
-                        backgroundColor: selectedProtein === protein ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                        color: 'var(--color-text-primary)',
-                      }}
+                      className={choiceClassName}
+                      style={choiceStyle(selectedProtein === protein)}
                     >
                       {protein[0].toUpperCase() + protein.slice(1)}
                     </button>
@@ -196,7 +204,7 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
             </>
           ) : temperatureOptions.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+              <h3 className={sectionTitleClassName} style={{ color: 'var(--color-text-secondary)' }}>
                 Temperatura
               </h3>
               <div className="flex gap-2">
@@ -206,12 +214,8 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
                     type="button"
                     aria-pressed={selectedTemperature === temperature}
                     onClick={() => handleTemperatureChange(temperature)}
-                    className="flex-1 rounded-xl border px-3 py-2 text-sm font-medium"
-                    style={{
-                      borderColor: selectedTemperature === temperature ? 'var(--color-primary)' : 'var(--color-border)',
-                      backgroundColor: selectedTemperature === temperature ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                      color: 'var(--color-text-primary)',
-                    }}
+                    className={`flex-1 ${choiceClassName}`}
+                    style={choiceStyle(selectedTemperature === temperature)}
                   >
                     {formatTemperature(temperature)}
                   </button>
@@ -221,10 +225,11 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
           )}
 
           {!isChilaquiles && <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+            <h3 className={sectionTitleClassName} style={{ color: 'var(--color-text-secondary)' }}>
               Sabor
             </h3>
-            <div className="-mx-2 flex gap-3 overflow-x-auto px-2 pb-1">
+            {/* A grid, not a horizontal strip: every flavor is in view without scrolling sideways. */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {visibleVariants.map((variant) => {
                 const isSelected = selectedVariant?.id === variant.id
 
@@ -234,20 +239,19 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
                     type="button"
                     aria-pressed={selectedVariant?.id === variant.id}
                     onClick={() => setSelectedVariantId(variant.id)}
-                    className="min-w-[140px] rounded-xl border p-3 text-left"
-                    style={{
-                      borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
-                      backgroundColor: isSelected ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                    }}
+                    className="flex min-h-14 items-center gap-2 rounded-xl border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)]"
+                    style={choiceStyle(isSelected)}
                   >
-                    <div className="mb-2 h-16 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-background)' }}>
-                      <ProductImage src={variant.imageUrl} alt={variant.name} eager />
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-image-tile)' }}>
+                      <ProductImage src={variant.imageUrl} alt={variant.name} eager fit="contain" />
                     </div>
-                    <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      {variantLabelOf(variant)}
-                    </div>
-                    <div className="mt-1 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-                      {formatCurrency((effectiveSize === 'JUMBO' ? variant.jumboPrice ?? variant.price : variant.price))}
+                    <div className="min-w-0">
+                      <div className="line-clamp-2 text-sm leading-5" style={{ color: 'var(--color-text-primary)' }}>
+                        {variantLabelOf(variant)}
+                      </div>
+                      <div className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-primary)' }}>
+                        {formatCurrency((effectiveSize === 'JUMBO' ? variant.jumboPrice ?? variant.price : variant.price))}
+                      </div>
                     </div>
                   </button>
                 )
@@ -257,7 +261,7 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
 
           {!isChilaquiles && family.key === 'Latte' && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
+              <h3 className={sectionTitleClassName} style={{ color: 'var(--color-text-secondary)' }}>
                 Tamaño
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -265,12 +269,8 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
                   type="button"
                   aria-pressed={effectiveSize === 'REGULAR'}
                   onClick={() => setSelectedSize('REGULAR')}
-                  className="rounded-xl border px-3 py-2 text-sm font-medium"
-                  style={{
-                    borderColor: effectiveSize === 'REGULAR' ? 'var(--color-primary)' : 'var(--color-border)',
-                    backgroundColor: effectiveSize === 'REGULAR' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                    color: 'var(--color-text-primary)',
-                  }}
+                  className={choiceClassName}
+                  style={choiceStyle(effectiveSize === 'REGULAR')}
                 >
                   Regular
                 </button>
@@ -279,12 +279,8 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
                   aria-pressed={effectiveSize === 'JUMBO'}
                   disabled={selectedVariant?.jumboPrice === null || selectedVariant?.jumboPrice === undefined}
                   onClick={() => setSelectedSize('JUMBO')}
-                  className="rounded-xl border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    borderColor: effectiveSize === 'JUMBO' ? 'var(--color-primary)' : 'var(--color-border)',
-                    backgroundColor: effectiveSize === 'JUMBO' ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                    color: 'var(--color-text-primary)',
-                  }}
+                  className={choiceClassName}
+                  style={choiceStyle(effectiveSize === 'JUMBO')}
                 >
                   Jumbo
                 </button>
@@ -294,13 +290,13 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
 
           <ExtrasPicker extras={offeredExtras} value={chosenExtras} onChange={setSelectedExtras} />
 
-          <div className="rounded-xl border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)' }}>
+          <div className="rounded-xl border px-4 py-3" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)' }}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
                   Precio total
                 </p>
-                <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
+                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-primary)' }}>
                   {formatCurrency(selectedPrice ?? 0)}
                 </p>
               </div>
@@ -315,24 +311,10 @@ export function ProductFamilyModal({ family, onClose, onAddToOrder }: ProductFam
 
         </div>
 
-        <DialogFooter>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium"
-            style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--color-button-text)] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            Agregar al pedido
-          </button>
+        {/* Always in view, even when many flavors and extras make the dialog scroll. */}
+        <DialogFooter sticky>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleConfirm} disabled={!canConfirm}>Agregar al pedido</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
