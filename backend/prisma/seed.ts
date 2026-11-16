@@ -1,5 +1,6 @@
 // Variables de backend/.env.<NODE_ENV> (development por defecto).
 import { ENV_MODE, USES_PRODUCTION_DATABASE } from "../src/config/env";
+import { shouldSeedCatalog } from "./seed-guards";
 import { prisma } from "../src/config/prisma";
 import { PromotionType, type DrinkTemperature } from "@prisma/client";
 import bcrypt from "bcrypt";
@@ -19,6 +20,7 @@ const categories = [
     name: "Bebidas",
     description: "Café, té y otras bebidas calientes y frías.",
     displayOrder: 1,
+    isBeverage: true,
   },
   {
     name: "Bagels",
@@ -491,6 +493,7 @@ const permissions = [
   { name: "cash.correct", description: "Corregir un cierre de caja" },
   { name: "cash.read", description: "Consultar historial de cortes de caja" },
   { name: "dashboard.read", description: "Consultar dashboard y métricas" },
+  { name: "settings.manage", description: "Cambiar la configuración del negocio, finanzas e inventario" },
   { name: "expenses.read", description: "Consultar gastos" },
   { name: "expenses.create", description: "Registrar gastos" },
   { name: "expenses.update", description: "Actualizar gastos" },
@@ -505,6 +508,7 @@ const permissions = [
   { name: "inventory.manage_suppliers", description: "Gestionar proveedores" },
   { name: "inventory.delete_ingredient", description: "Eliminar ingredientes" },
   { name: "inventory.delete_supplier", description: "Eliminar proveedores" },
+  { name: "inventory.manage_recipes", description: "Editar recetas de productos y extras" },
 ];
 
 // ============================================================
@@ -596,11 +600,17 @@ async function main() {
   // ==========================================================
   // prisma/seed-data/catalog.json (scripts/export-catalog.ts) holds the real catalog;
   // without it (e.g. the Docker test database) the built-in sample catalog is loaded.
-  const catalog = readCatalogExport();
-  if (catalog) {
-    await seedCatalogFromExport(catalog, adminUser.id);
+  // Against production the catalog step (which overwrites prices and deletes every promotion)
+  // only runs with SEED_CATALOG=true: the real catalog is synced with scripts/sync-*.
+  if (shouldSeedCatalog({ envMode: ENV_MODE, usesProductionDatabase: USES_PRODUCTION_DATABASE, seedCatalogFlag: process.env.SEED_CATALOG })) {
+    const catalog = readCatalogExport();
+    if (catalog) {
+      await seedCatalogFromExport(catalog, adminUser.id);
+    } else {
+      await seedSampleCatalog();
+    }
   } else {
-    await seedSampleCatalog();
+    console.log("Catálogo omitido: la BD es de producción (usa SEED_CATALOG=true solo si de verdad quieres sobrescribirlo).");
   }
 
   const activeCashRegister = await prisma.cashRegister.findFirst({
@@ -656,7 +666,26 @@ async function main() {
     },
   ];
 
-  for (const pref of distributionPreferences) {
+  // Real-time inventory (docs/Project/plan-inventario-tiempo-real.md). Consumption stays off
+  // until every product has its recipe; it is switched on through its dedicated endpoint.
+  const inventoryPreferences = [
+    {
+      key: "inventory.consumeOnSale",
+      value: "false",
+      type: "boolean",
+      label: "Descontar inventario al vender",
+      description: "Cada venta descuenta los insumos de la receta de sus productos y extras.",
+    },
+    {
+      key: "inventory.lowStockNotify",
+      value: "true",
+      type: "boolean",
+      label: "Avisar stock bajo",
+      description: "Notifica cuando un insumo llega a su stock mínimo o se agota.",
+    },
+  ];
+
+  for (const pref of [...distributionPreferences, ...inventoryPreferences]) {
     await prisma.systemPreference.upsert({
       where: { key: pref.key },
       update: {},
@@ -883,12 +912,14 @@ async function seedSampleCatalog() {
   // UNIDADES DE MEDIDA
   // ==========================================================
   console.log("Creando unidades de medida...");
+  // Ingredients are stocked in the base unit of each dimension (factor 1); kg and lt only
+  // convert what is captured.
   const units = [
-    { name: "Mililitro", abbreviation: "ml" },
-    { name: "Litro", abbreviation: "lt" },
-    { name: "Pieza", abbreviation: "pz" },
-    { name: "Gramo", abbreviation: "gr" },
-    { name: "Kilogramo", abbreviation: "kg" },
+    { name: "Mililitro", abbreviation: "ml", dimension: "VOLUME" as const, factor: 1 },
+    { name: "Litro", abbreviation: "lt", dimension: "VOLUME" as const, factor: 1000 },
+    { name: "Pieza", abbreviation: "pz", dimension: "COUNT" as const, factor: 1 },
+    { name: "Gramo", abbreviation: "gr", dimension: "MASS" as const, factor: 1 },
+    { name: "Kilogramo", abbreviation: "kg", dimension: "MASS" as const, factor: 1000 },
   ];
 
   // Never delete here: this used to wipe every ingredient and inventory movement on each run.

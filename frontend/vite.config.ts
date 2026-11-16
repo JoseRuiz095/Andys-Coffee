@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [tailwindcss(), react()],
+    // Dependencies imported only by lazily loaded views: pre-bundled at startup, otherwise the
+    // dev server discovers them on the first visit, re-optimizes, and that import fails (504).
+    optimizeDeps: {
+      include: ['recharts'],
+    },
     server: {
       host: '127.0.0.1',
       port: 5173,

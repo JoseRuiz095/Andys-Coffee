@@ -97,6 +97,11 @@ export const OrderRepository = {
     });
   },
 
+  /** The order row read inside the caller's transaction (fresh delivery and payment flags). */
+  async findRowInTransaction(tx: Tx, id: string) {
+    return tx.order.findUniqueOrThrow({ where: { id } });
+  },
+
   async findStatus(tx: Tx, id: string) {
     return tx.order.findUnique({ where: { id }, select: { status: true } });
   },
@@ -125,7 +130,7 @@ export const OrderRepository = {
           temperature: true,
           jumboPrice: true,
           categoryId: true,
-          category: { select: { name: true } },
+          category: { select: { name: true, isBeverage: true } },
           price: true,
           cost: true,
         },
@@ -292,6 +297,20 @@ export const OrderRepository = {
         order: { select: { id: true, orderNumber: true, customerName: true, total: true, createdAt: true, completedAt: true } },
       },
     });
+  },
+
+  /** Marks the sale as having consumed its ingredients (inside the sale's transaction). */
+  async markInventoryProcessed(tx: Tx, id: string) {
+    await tx.order.update({ where: { id }, data: { inventoryProcessed: true } });
+  },
+
+  /**
+   * Takes the right to give back the sale's ingredients: only one caller turns
+   * inventoryProcessed from true to false, so a cancellation can't be reversed twice.
+   */
+  async claimInventoryReversal(tx: Tx, id: string): Promise<boolean> {
+    const claimed = await tx.order.updateMany({ where: { id, inventoryProcessed: true }, data: { inventoryProcessed: false } });
+    return claimed.count === 1;
   },
 
   /** Records the decision only if the request is still pending (two reviewers can't both win). */

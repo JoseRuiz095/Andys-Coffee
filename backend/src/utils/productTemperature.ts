@@ -1,14 +1,18 @@
 import type { DrinkTemperature } from '@prisma/client';
 
-export function getDrinkTemperature(productName: string, categoryName?: string | null): Exclude<DrinkTemperature, 'BOTH'> | null {
+/**
+ * Fallback for beverages whose `temperature` column is still empty: reads it from the name.
+ * Only beverages (category `isBeverage`) have a temperature. Once every beverage has its
+ * temperature stored (scripts/normalize-catalog.ts), the column is the only source.
+ */
+export function getDrinkTemperature(productName: string, isBeverage: boolean): Exclude<DrinkTemperature, 'BOTH'> | null {
+  if (!isBeverage) return null;
+
   const normalizedName = productName
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .trim()
     .toLowerCase();
-  const normalizedCategory = categoryName?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-
-  if (normalizedCategory !== 'bebidas') return null;
 
   if (/(?:^|\s)(?:frio|iced|cold)$/.test(normalizedName)) return 'COLD';
   if (/(?:^|\s)(?:caliente|hot)$/.test(normalizedName)) return 'HOT';
@@ -16,13 +20,7 @@ export function getDrinkTemperature(productName: string, categoryName?: string |
   return null;
 }
 
-export function isJumboLatteProduct(productName: string, categoryName?: string | null): boolean {
-  const normalizedName = productName
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-  const normalizedCategory = categoryName?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-
-  return normalizedCategory === 'bebidas' && normalizedName.startsWith('latte ') && normalizedName !== 'latte jumbo';
+/** A product offers the Jumbo size when it is a beverage with a Jumbo price. */
+export function isJumboAvailable(product: { jumboPrice: unknown }, isBeverage: boolean): boolean {
+  return isBeverage && product.jumboPrice !== null && product.jumboPrice !== undefined;
 }

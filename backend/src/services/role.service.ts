@@ -2,6 +2,18 @@ import { RoleRepository, PermissionRepository } from '../repositories/role.repos
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 
+/**
+ * A1 (estabilización 2026-11-14): a role can only be renamed, deleted or have its permissions
+ * changed by someone who holds every permission it currently grants (otherwise a delegated
+ * admin could strip a more privileged role).
+ */
+function assertCoversRole(role: { name: string; permissions: { permission: { name: string } }[] }, actor: AuthUser) {
+  const missing = role.permissions.map(({ permission }) => permission.name).filter((name) => !actor.permissions?.includes(name));
+  if (missing.length > 0) {
+    throw new AuthorizationError(`No puedes modificar el rol "${role.name}": incluye permisos que tú no tienes.`);
+  }
+}
+
 export const RoleService = {
   async findAll(user: AuthUser) {
     if (!user.permissions?.includes('users.read')) {
@@ -56,6 +68,8 @@ export const RoleService = {
       throw new NotFoundError('Rol no encontrado.');
     }
 
+    assertCoversRole(existingRole, user);
+
     // Prevent renaming built-in roles (using isSystem flag)
     if (data.name && existingRole.name !== data.name) {
       if (existingRole.isSystem) {
@@ -90,6 +104,7 @@ export const RoleService = {
     if (existingRole.isSystem) {
       throw new ValidationError('No se puede eliminar un rol del sistema.');
     }
+    assertCoversRole(existingRole, user);
 
     // Check if role has users assigned
     const userCount = await RoleRepository.countUsersWithRole(id);
@@ -118,6 +133,8 @@ export const RoleService = {
         throw new AuthorizationError('No tienes permiso para modificar los permisos de los roles del sistema.');
       }
     }
+    // The whole set is replaced: removing a permission the actor lacks is as privileged as granting it.
+    assertCoversRole(existingRole, user);
 
     // Validate that all permission IDs exist and that actor possesses each permission
     if (permissionIds.length > 0) {

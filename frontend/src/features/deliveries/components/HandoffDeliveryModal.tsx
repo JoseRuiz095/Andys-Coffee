@@ -1,9 +1,9 @@
-import { createPortal } from 'react-dom';
+import { useId } from 'react';
 import { useHandoffDelivery } from '../hooks/useDeliveries';
 import type { PendingDelivery } from '../api/deliveries.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
-import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
-import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
+import { Modal } from '../../../shared/components/Modal';
+import { formatPaymentMethod } from '../../../shared/constants/paymentMethods'
 
 interface HandoffDeliveryModalProps {
   isOpen: boolean;
@@ -13,10 +13,11 @@ interface HandoffDeliveryModalProps {
 
 export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliveryModalProps) {
   const { mutate: handoffDelivery, isPending } = useHandoffDelivery();
-  useBodyScrollLock(isOpen);
-  useOverlayEscape(isOpen, () => {
+  const titleId = useId();
+  // Escape, the backdrop and "Cancelar" are ignored while the request is in flight.
+  const handleClose = () => {
     if (!isPending) onClose();
-  });
+  };
 
   if (!isOpen || !delivery) return null;
 
@@ -25,20 +26,10 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
     handoffDelivery(delivery.id, { onSuccess: () => onClose() });
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={() => {
-        if (!isPending) onClose();
-      }}
-      style={{ backdropFilter: 'blur(4px)' }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl p-6 shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+  return (
+    <Modal isOpen onClose={handleClose} ariaLabelledBy={titleId}>
+      <div className="p-6">
+        <h2 id={titleId} className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
           Marcar Mandadito como Entregado
         </h2>
 
@@ -53,7 +44,7 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
             <strong>Monto:</strong> {formatCurrency(Number(delivery.deliveryAmount))}
           </p>
           <p>
-            <strong>Método:</strong> {delivery.deliveryPaymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+            <strong>Método:</strong> {formatPaymentMethod(delivery.deliveryPaymentMethod)}
           </p>
         </div>
 
@@ -63,7 +54,7 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
 
         <div className="flex gap-2 justify-end">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
             className="rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
@@ -73,14 +64,13 @@ export function HandoffDeliveryModal({ isOpen, delivery, onClose }: HandoffDeliv
           <button
             onClick={handleConfirm}
             disabled={isPending}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-button-text)] transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             {isPending ? 'Confirmando...' : 'Confirmar entrega'}
           </button>
         </div>
       </div>
-    </div>,
-    document.getElementById('modal-root') ?? document.body,
+    </Modal>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import type { PendingCancellationRequest } from '../types/orders.types'
+import { formatShortDateTime } from '../../../shared/utils/dateUtils'
 
 interface CancellationRequestsPanelProps {
   requests: PendingCancellationRequest[]
@@ -10,8 +11,6 @@ interface CancellationRequestsPanelProps {
   onReview: (request: PendingCancellationRequest, decision: 'approve' | 'reject', comment: string | undefined) => void
 }
 
-const formatDateTime = (value: string) =>
-  new Date(value).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })
 
 /** Approver's list of completed sales waiting for a cancellation decision. */
 export function CancellationRequestsPanel({ requests, reviewingId, onReview }: CancellationRequestsPanelProps) {
@@ -47,7 +46,7 @@ export function CancellationRequestsPanel({ requests, reviewingId, onReview }: C
                 {request.order.customerName ? ` · ${request.order.customerName}` : ''}
               </p>
               <p style={{ color: 'var(--color-text-secondary)' }}>
-                {request.requestedBy.name} · {formatDateTime(request.createdAt)}
+                {request.requestedBy.name} · {formatShortDateTime(request.createdAt)}
               </p>
               <p className="mt-1" style={{ color: 'var(--color-text-primary)' }}>Motivo: {request.reason}</p>
             </div>
@@ -65,7 +64,7 @@ export function CancellationRequestsPanel({ requests, reviewingId, onReview }: C
                 type="button"
                 disabled={reviewingId !== null}
                 onClick={() => setPending({ request, decision: 'approve' })}
-                className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-[var(--color-button-text)] disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-danger)' }}
               >
                 {reviewingId === request.id ? 'Procesando...' : 'Aprobar'}

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { lazy, useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
+import { lazyWithReload } from '../shared/utils/lazyWithReload'
 import { LazyView } from '../shared/components/LazyView'
 import { LoginPage } from '../features/auth'
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage'
@@ -7,19 +8,10 @@ import { authStore } from '../features/auth/store/auth.store'
 import { getCurrentUser } from '../features/auth/services/auth.service'
 import { APP_ROUTES } from '../shared/constants/routes'
 import { ScreenSkeleton } from '../shared/components/ScreenSkeleton'
-
-function usePrevious<T>(value: T) {
-  const ref = useRef<T | undefined>(undefined)
-  useEffect(() => {
-    ref.current = value
-  })
-  // The ref intentionally exposes the value from the previous render.
-  // eslint-disable-next-line react-hooks/refs
-  return ref.current
-}
+import { usePrevious } from '../shared/hooks/usePrevious'
 
 // Loaded on demand: most sessions never open Configuración.
-const SettingsPage = lazy(() => import('../features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SettingsPage = lazyWithReload(() => import('../features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 export function AppRouter() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
@@ -27,7 +19,7 @@ export function AppRouter() {
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const prevPathname = usePrevious(pathname)
 
-  const routeOrder: string[] = [APP_ROUTES.login, APP_ROUTES.dashboard, APP_ROUTES.menu, APP_ROUTES.settings]
+  const routeOrder: string[] = [APP_ROUTES.login, APP_ROUTES.dashboard, APP_ROUTES.settings]
   const direction = prevPathname ? (routeOrder.indexOf(pathname) > routeOrder.indexOf(prevPathname) ? 1 : -1) : 1
 
   useEffect(() => {

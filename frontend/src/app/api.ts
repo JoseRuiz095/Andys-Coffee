@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { sileo } from 'sileo';
 import { authStore } from '../features/auth/store/auth.store';
 
 /**
@@ -14,14 +15,26 @@ import { authStore } from '../features/auth/store/auth.store';
  * En producción, tu servidor (como Nginx o Vercel) deberá estar configurado
  * para redirigir las peticiones de '/api' al servidor del backend.
  */
+
+/**
+ * A request that hangs would keep its button on "Procesando..." forever and, being mutations
+ * serialized below, block every later one. Retrying a timed-out sale is safe: it reuses its
+ * idempotency key until the server confirms it.
+ */
+export const REQUEST_TIMEOUT_MS = 20_000;
+/** Photo uploads on a slow connection need longer. */
+export const UPLOAD_TIMEOUT_MS = 120_000;
+
 export const apiClient = axios.create({
   baseURL: '/api',
   withCredentials: true,
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 const csrfClient = axios.create({
   baseURL: '/api',
   withCredentials: true,
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 let csrfQueue = Promise.resolve();
@@ -60,7 +73,17 @@ function releaseCsrfRequest(config?: object) {
   }
 }
 
-import { sileo } from 'sileo'
+/**
+ * A 401 means the session expired only when there was one and the request wasn't the login
+ * itself (wrong credentials also answer 401, shown inline by the form). After the first one the
+ * session is gone, so the polling queries failing at the same time don't repeat the notice.
+ */
+/** Fired on a 403 while logged in (see useSessionValidator). */
+export const PERMISSIONS_STALE_EVENT = 'auth:permissions-stale';
+
+export function isSessionExpiry(status: number | undefined, url: string | undefined, hadSession: boolean) {
+  return status === 401 && hadSession && !url?.includes('/auth/login');
+}
 
 apiClient.interceptors.response.use(
   (response) => {
@@ -69,15 +92,18 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     releaseCsrfRequest(error.config);
-    if (error.response?.status === 401) {
+    const hadSession = authStore.getState().user !== null;
+    // A 403 on a live session usually means the role or its permissions changed since the user
+    // was loaded: the session validator re-reads them so the UI stops offering that action.
+    if (error.response?.status === 403 && hadSession) {
+      window.dispatchEvent(new Event(PERMISSIONS_STALE_EVENT));
+    }
+    if (isSessionExpiry(error.response?.status, error.config?.url, hadSession)) {
       authStore.clearSession();
-      // Solo mostrar notificación si no es una validación periódica
-      if (!error.config?.url?.includes('/auth/me')) {
-        sileo.error({
-          title: 'Sesión expirada',
-          description: 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
-        });
-      }
+      sileo.error({
+        title: 'Sesión expirada',
+        description: 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
+      });
     }
     return Promise.reject(error);
   },

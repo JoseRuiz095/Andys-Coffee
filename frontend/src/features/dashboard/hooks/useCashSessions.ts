@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../../app/api'
 import { sileo } from 'sileo'
 import { getErrorMessage } from '../../../shared/utils/errors'
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation'
 
 export interface CashSession {
   id: string
@@ -48,12 +49,35 @@ export function useCorrectCashClosing() {
       return data.session
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cash-sessions-history'] })
+      // The corrected count changes the cash difference reported for that day too.
+      void invalidateMoneyAndStockQueries(queryClient)
       sileo.success({ title: 'Cierre corregido', description: 'El cierre de caja ha sido actualizado' })
     },
     onError: (error: unknown) => {
       const message = getErrorMessage(error, 'Error al corregir el cierre')
       sileo.error({ title: 'Error', description: message })
+    },
+  })
+}
+
+/**
+ * Reopens a closed cut (POST /cash-register/sessions/:id/reopen, needs cash.correct). The
+ * discarded count is kept in the audit log by the backend; the drawer becomes "open" again.
+ */
+export function useReopenCashSession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ sessionId, reason }: { sessionId: string; reason: string }) => {
+      const { data } = await apiClient.post<{ session: CashSession }>(`/cash-register/sessions/${sessionId}/reopen`, { reason })
+      return data.session
+    },
+    onSuccess: () => {
+      void invalidateMoneyAndStockQueries(queryClient)
+      sileo.success({ title: 'Caja reabierta', description: 'El corte se descartó y la caja vuelve a estar abierta.' })
+    },
+    onError: (error: unknown) => {
+      sileo.error({ title: 'No se pudo reabrir la caja', description: getErrorMessage(error, 'Inténtalo de nuevo.') })
     },
   })
 }

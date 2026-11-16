@@ -16,8 +16,16 @@ import {
   useIncomeStatementRange,
 } from '../hooks/useIncomeStatement';
 import { TableSkeleton } from '../../../shared/components/TableSkeleton';
+import { PageHeader } from '../../../shared/components/PageHeader';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { navigateTo } from '../../../app/navigation';
+import { APP_ROUTES } from '../../../shared/constants/routes';
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser';
+import { hasPermission, SETTINGS_PERMISSION } from '../../auth/utils/permissions';
 
 export function IncomeStatementPage() {
+  // The split and the fixed expenses are configured in Configuración › Finanzas (settings.manage).
+  const canConfigure = hasPermission(useCurrentUser(), SETTINGS_PERMISSION);
   const [viewMode, setViewMode] = React.useState<ViewMode>('day');
   const [date, setDate] = React.useState(getTodayDateString());
   const [month, setMonth] = React.useState(getCurrentYearMonth());
@@ -31,17 +39,23 @@ export function IncomeStatementPage() {
   const rangeQuery = useIncomeStatementRange(rangeFrom, rangeTo, undefined, viewMode === 'range');
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-            Estado de Resultados
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Reporte financiero operativo basado en caja, ventas y gastos reales
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Estado de resultados"
+        description="Reporte financiero operativo basado en caja, ventas y gastos reales."
+        actions={
+          canConfigure && (
+            <button
+              type="button"
+              onClick={() => navigateTo(`${APP_ROUTES.settings}?tab=finance`)}
+              className="text-sm font-medium hover:underline"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              Configurar distribución y gastos fijos →
+            </button>
+          )
+        }
+      />
 
       <PeriodSwitcher
         viewMode={viewMode}
@@ -59,7 +73,9 @@ export function IncomeStatementPage() {
       {viewMode === 'day' && (
         <>
           {dayQuery.isLoading && <TableSkeleton rows={4} columns={2} />}
-          {dayQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte del día.</p>}
+          {dayQuery.error && (
+            <QueryErrorState error={dayQuery.error} subject="el reporte del día" onRetry={() => void dayQuery.refetch()} isRetrying={dayQuery.isFetching} />
+          )}
           {dayQuery.data && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <MovimientosDelDiaSection summary={dayQuery.data} />
@@ -74,7 +90,9 @@ export function IncomeStatementPage() {
       {viewMode === 'week' && (
         <>
           {weekQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
-          {weekQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte semanal.</p>}
+          {weekQuery.error && (
+            <QueryErrorState error={weekQuery.error} subject="el reporte semanal" onRetry={() => void weekQuery.refetch()} isRetrying={weekQuery.isFetching} />
+          )}
           {weekQuery.data && <WeekTable week={weekQuery.data} onSelectDay={setDrawerDate} />}
         </>
       )}
@@ -82,7 +100,9 @@ export function IncomeStatementPage() {
       {viewMode === 'month' && (
         <>
           {monthQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
-          {monthQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte mensual.</p>}
+          {monthQuery.error && (
+            <QueryErrorState error={monthQuery.error} subject="el reporte mensual" onRetry={() => void monthQuery.refetch()} isRetrying={monthQuery.isFetching} />
+          )}
           {monthQuery.data && <MonthTable month={monthQuery.data} onSelectDay={setDrawerDate} />}
         </>
       )}
@@ -93,7 +113,9 @@ export function IncomeStatementPage() {
             <p style={{ color: 'var(--color-danger)' }}>La fecha inicial debe ser menor o igual a la fecha final.</p>
           )}
           {rangeQuery.isLoading && <TableSkeleton rows={6} columns={5} />}
-          {rangeQuery.error && <p style={{ color: 'var(--color-danger)' }}>Error al cargar el reporte del rango.</p>}
+          {rangeQuery.error && (
+            <QueryErrorState error={rangeQuery.error} subject="el reporte del rango" onRetry={() => void rangeQuery.refetch()} isRetrying={rangeQuery.isFetching} />
+          )}
           {rangeQuery.data && <RangeTable range={rangeQuery.data} onSelectDay={setDrawerDate} />}
         </>
       )}

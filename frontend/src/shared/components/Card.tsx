@@ -8,7 +8,7 @@ type CardProps = HTMLAttributes<HTMLElement> & {
 }
 
 const variantClassName: Record<CardVariant, string> = {
-  panel: 'rounded-2xl border p-5 shadow-[0_14px_34px_rgba(45,33,29,0.06)]',
+  panel: 'rounded-2xl border p-5 shadow-[var(--shadow-panel)]',
   inset: 'rounded-lg border p-4',
   plain: '',
 }

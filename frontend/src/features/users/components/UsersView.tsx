@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Card } from '../../../shared/components/Card'
 import { Button } from '../../../shared/components/Button'
+import { PageHeader } from '../../../shared/components/PageHeader'
 import { UserTable, type UserRowIntent } from './UserTable'
 import { UserDetailDrawer } from './UserDetailDrawer'
 import { UserFormModal } from './UserFormModal'
 import { RolePermissionsDrawer } from '../../roles/components/RolePermissionsDrawer'
 import { useRolesList } from '../../roles/hooks/useRoles'
+import { useUserById } from '../hooks/useUsers'
 import { hasPermission } from '../../auth/utils/permissions'
 import type { AuthUser } from '../../auth/types/auth.types'
 
@@ -15,7 +16,7 @@ interface UsersViewProps {
 
 /**
  * "Usuarios" view — answers "who has access to the system?". Owns only what
- * that question needs: search + table + the selected user's detail drawer.
+ * that question needs: filters + table + the selected user's detail drawer.
  * Role/permission editing is delegated to the roles feature so both flows
  * (from here, and from the Roles view) share one implementation.
  */
@@ -25,54 +26,43 @@ export function UsersView({ currentUser }: UsersViewProps) {
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [detailIntent, setDetailIntent] = useState<UserRowIntent>('view')
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  // 'new' = creating; a user id = editing that user.
+  const [form, setForm] = useState<'new' | string | null>(null)
   const [rolePermissionsRoleId, setRolePermissionsRoleId] = useState<string | null>(null)
 
-  const handleSelectUser = (userId: string, intent: UserRowIntent) => {
-    setSelectedUserId(userId)
-    setDetailIntent(intent)
-  }
+  const editingUserId = form && form !== 'new' ? form : null
+  const { data: editingUser } = useUserById(editingUserId)
+  // The edit form opens once its user is loaded (it is usually cached by the detail drawer).
+  const showForm = form === 'new' || (editingUserId !== null && editingUser?.id === editingUserId)
 
   return (
-    <div className="space-y-4">
-      <Card variant="panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Usuarios
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-              Gestiona los usuarios y su acceso al sistema
-            </p>
-          </div>
-          {canCreateUsers && (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditingUserId(null)
-                setShowUserModal(true)
-              }}
-            >
+    <div>
+      <PageHeader
+        title="Usuarios"
+        description="Quién tiene acceso al sistema y con qué rol."
+        actions={
+          canCreateUsers && (
+            <Button variant="primary" onClick={() => setForm('new')}>
               + Nuevo usuario
             </Button>
-          )}
-        </div>
-      </Card>
+          )
+        }
+      />
 
-      <Card variant="panel">
-        <UserTable currentUser={currentUser} onSelectUser={handleSelectUser} />
-      </Card>
+      <UserTable
+        currentUser={currentUser}
+        onSelectUser={(userId, intent) => {
+          setSelectedUserId(userId)
+          setDetailIntent(intent)
+        }}
+      />
 
       <UserDetailDrawer
         userId={selectedUserId}
         currentUser={currentUser}
         autoOpenRoleChange={detailIntent === 'changeRole'}
         onClose={() => setSelectedUserId(null)}
-        onEditUser={(userId) => {
-          setEditingUserId(userId)
-          setShowUserModal(true)
-        }}
+        onEditUser={(userId) => setForm(userId)}
         onViewRolePermissions={(roleId) => setRolePermissionsRoleId(roleId)}
       />
 
@@ -82,19 +72,17 @@ export function UsersView({ currentUser }: UsersViewProps) {
         onClose={() => setRolePermissionsRoleId(null)}
       />
 
-      <UserFormModal
-        isOpen={showUserModal}
-        onClose={() => {
-          setShowUserModal(false)
-          setEditingUserId(null)
-        }}
-        editingUserId={editingUserId}
-        roles={roles || []}
-        onSuccess={() => {
-          setShowUserModal(false)
-          setEditingUserId(null)
-        }}
-      />
+      {/* Mounted per opening and keyed by the user, so the fields always start from them (or empty). */}
+      {showForm && (
+        <UserFormModal
+          key={form ?? 'closed'}
+          editingUser={form === 'new' ? null : editingUser}
+          roles={roles ?? []}
+          currentUser={currentUser}
+          onClose={() => setForm(null)}
+          onSuccess={() => setForm(null)}
+        />
+      )}
     </div>
   )
 }

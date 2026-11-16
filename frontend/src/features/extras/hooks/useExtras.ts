@@ -48,14 +48,3 @@ export function useExtraMutations() {
   return { save, setActive, remove }
 }
 
-export function useSetProductExtras() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ productId, extraIds }: { productId: string; extraIds: string[] }) => ExtraAPI.setProductExtras(productId, extraIds),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: extrasQueryKey })
-      void queryClient.invalidateQueries({ queryKey: menuQueryKey })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-    },
-  })
-}

@@ -28,7 +28,7 @@ const stockOf = async () =>
 before(async () => {
   if (!integrationEnabled) return;
 
-  const unit = await prisma.inventoryUnit.create({ data: { name: `inv-unit-${testId}`, abbreviation: "u" } });
+  const unit = await prisma.inventoryUnit.create({ data: { name: `inv-unit-${testId}`, abbreviation: `u-${testId}` } });
   unitId = unit.id;
   const ingredient = await prisma.ingredient.create({
     data: { name: `inv-ingredient-${testId}`, unitId, currentStock: 10, averageCost: 2 },
@@ -76,15 +76,18 @@ after(async () => {
   await prisma.role.deleteMany({ where: { id: viewerRoleId } });
 });
 
-test("salida manual: descuenta stock, registra el movimiento y respeta stock, permisos y estado", { skip: !integrationEnabled }, async () => {
+test("salida manual: descuenta stock, registra el movimiento y respeta cantidad, permisos y estado", { skip: !integrationEnabled }, async () => {
   const { movement } = await InventoryService.createExit({ ingredientId, quantity: "3", reason: "waste" }, admin);
   assert.equal(await stockOf(), 7);
   assert.equal(movement.type, "exit");
   assert.equal(movement.quantity.toNumber(), -3);
   assert.equal(movement.reason, "waste");
+  assert.equal(movement.balanceAfter?.toNumber(), 7);
 
+  // INV-6 (2026-11-14): an exit larger than the stock is now allowed (stock may go negative,
+  // decision D-1; covered in stabilization-p2). An invalid quantity is still rejected.
   await assert.rejects(
-    InventoryService.createExit({ ingredientId, quantity: "100", reason: "waste" }, admin),
+    InventoryService.createExit({ ingredientId, quantity: "0", reason: "waste" }, admin),
     (error: Error) => error.name === "ValidationError",
   );
   await assert.rejects(
@@ -120,22 +123,32 @@ test("conteo físico: draft -> completed -> applied ajusta el stock por la difer
   assert.equal(await stockOf(), 5, "applying twice must not adjust again");
 });
 
-test("L-10: un ajuste que dejaría stock negativo se rechaza completo (sin cambios parciales)", { skip: !integrationEnabled }, async () => {
+// N-2 (2026-11-14): this test used to expect "after applying, the stock equals what was counted",
+// which erased the consumption between counting and applying. The decision is to apply the
+// difference measured at count time, so later sales and exits keep their effect.
+test("conteo: si el stock cambia entre contar y aplicar, se aplica la diferencia medida al contar", { skip: !integrationEnabled }, async () => {
   const count = await InventoryCountService.createCount(admin);
-  await InventoryCountService.addItem(count.id, ingredientId, 0, null, admin); // difference -5
+  const item = await InventoryCountService.addItem(count.id, ingredientId, 4, null, admin);
+  assert.equal(item.difference.toNumber(), -1); // counted 4 vs system 5
   await InventoryCountService.completeCount(count.id, admin);
 
-  // Stock drops after the count was taken: applying -5 would leave it at -3.
+  // 3 units are used after the count was taken (a sale or an exit): 5 -> 2.
   await InventoryService.createExit({ ingredientId, quantity: "3", reason: "internal_consumption" }, admin);
   assert.equal(await stockOf(), 2);
 
-  await assert.rejects(
-    InventoryCountService.applyAdjustments(count.id, admin),
-    (error: Error) => error.name === "ValidationError" && /registra un conteo nuevo/.test(error.message),
-  );
-  assert.equal(await stockOf(), 2, "stock unchanged after the failed adjustment");
-  const stillCompleted = await prisma.inventoryCount.findUniqueOrThrow({ where: { id: count.id } });
-  assert.equal(stillCompleted.status, "completed");
+  await InventoryCountService.applyAdjustments(count.id, admin);
+  // Physically: 4 counted, then 3 used -> 1. Only the measured difference (-1) is applied.
+  assert.equal(await stockOf(), 1, "the consumption after the count is kept");
+
+  const adjustment = await prisma.inventoryMovement.findFirstOrThrow({
+    where: { ingredientId, referenceType: "inventory_count", referenceId: count.id },
+  });
+  assert.equal(adjustment.quantity.toNumber(), -1);
+  assert.equal(adjustment.balanceAfter?.toNumber(), 1);
+
+  const applied = await prisma.inventoryCountItem.findFirstOrThrow({ where: { inventoryCountId: count.id } });
+  assert.equal(applied.systemQuantity.toNumber(), 5, "the item keeps the stock it was counted against");
+  assert.equal(applied.difference.toNumber(), -1);
 });
 
 test("compra: se recibe una sola vez aunque lleguen dos recepciones simultáneas", { skip: !integrationEnabled }, async () => {

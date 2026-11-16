@@ -12,18 +12,20 @@ import {
 import { OrderRepository } from '../repositories/order.repository';
 import { UserRepository } from '../repositories/user.repository';
 import { CashRepository } from '../repositories/cash.repository';
-import { InventoryRepository } from '../repositories/inventory.repository';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { AuditLogRepository } from '../repositories/audit-log.repository';
-import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { runInTransaction, type Tx } from '../repositories/transaction';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { auditLog, logger } from '../utils/logger';
 import { priceSale } from './sale-pricing.service';
+import { InventoryConsumptionService, type SaleLineForConsumption, type StockCrossing } from './inventory-consumption.service';
+import { StockAlertService } from './stock-alert.service';
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
+import { isSameIdempotentOrder } from '../utils/idempotentOrderMatch';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import { getZonedDayBoundaries, getTodayInZone, getZonedCalendarDate, getCalendarDateAsUtc } from '../utils/businessDate';
+import { invalidateSnapshotSafely } from './snapshot-invalidation';
 
 // --- Custom Errors for Service Layer ---
 
@@ -63,33 +65,34 @@ async function resolveReversalSessionId(tx: Tx, originalSessionId: string): Prom
 }
 
 /**
+ * F3: a retry may only repeat the SAME sale. A different cart under a reused idempotency key is
+ * rejected (409) instead of silently returning the first order while the new one is never made.
+ */
+function assertSameRetry(
+  existingOrder: Parameters<typeof isSameIdempotentOrder>[0],
+  items: CreateOrderInput['items'],
+  paymentMethod: string,
+) {
+  if (!isSameIdempotentOrder(existingOrder, { items, paymentMethod })) {
+    throw new ConflictError('La clave de idempotencia ya se usó para otra venta. Recarga la pantalla antes de volver a cobrar.');
+  }
+}
+
+/**
  * Everything a cancelled sale must undo, inside the caller's transaction: legacy inventory
  * consumption, the cash it brought in (to the open drawer if its session is already closed),
  * its payments and its mandadito. Shared by a direct cancellation and an approved cancellation
  * request, so both reverse exactly the same things.
  */
-async function reverseSaleForCancellation(tx: Tx, order: Order, user: AuthUser) {
+async function reverseSaleForCancellation(tx: Tx, orderReadBefore: Order, user: AuthUser) {
+  // F4: decide with the row as it is inside this transaction. The caller read it before the
+  // transaction; a mandadito handed off in between used to be reversed a second time.
+  const order = await OrderRepository.findRowInTransaction(tx, orderReadBefore.id);
   let deletedExpenseDate: Date | null = null;
-  // Inventory reversal only for sales that consumed ingredients (sales made before ingredient
-  // consumption left the MVP, 2026-10-20). Cash, payments and mandaditos are reversed for
-  // every cancelled sale, independently of that flag.
-  let inventoryReversed = false;
-  if (order.inventoryProcessed) {
-    // Give back the ingredients the sale consumed.
-    const inventoryMovements = await InventoryRepository.findSaleMovementsForOrder(tx, order.id);
-    for (const movement of inventoryMovements) {
-      await InventoryRepository.updateStock(movement.ingredientId, movement.quantity.negated(), tx);
-      await InventoryRepository.createMovement({
-        ingredientId: movement.ingredientId,
-        type: 'sale_reversal',
-        quantity: movement.quantity.negated(),
-        referenceType: 'order_cancellation',
-        referenceId: order.id,
-        createdById: user.id,
-      }, tx);
-    }
-    inventoryReversed = true;
-  }
+  // Ingredients the sale consumed: given back (pending order) or turned into waste (already
+  // prepared). Only sales with inventoryProcessed consumed anything; the claim inside makes a
+  // second cancellation a no-op. Cash, payments and mandaditos are reversed for every sale.
+  const { reversed: inventoryReversed } = await InventoryConsumptionService.reverseForOrder(tx, order, user.id);
 
   // Refund the cash sale (money leaves the drawer). Not filtered by the order's session:
   // a pay-later order settled in cash records its `sale` in the session open at settlement
@@ -136,20 +139,21 @@ async function reverseSaleForCancellation(tx: Tx, order: Order, user: AuthUser) 
     }
   }
 
-  if (order.hasDelivery && order.deliveryResponsible === 'business_absorbs') {
+  // N-1 (2026-11-14): a sale already delivered (completed) paid its courier — that expense is
+  // real, so it stays and its cash does not come back. Only an undelivered mandadito is undone.
+  if (order.hasDelivery && order.deliveryResponsible === 'business_absorbs' && order.status !== 'completed') {
     const deliveryExpense = await ExpenseRepository.findBySourceOrder(tx, order.id);
     if (deliveryExpense) {
-      const expenseMovement = await CashRepository.findFirstMovement(tx, {
-        referenceType: 'expense',
-        referenceId: deliveryExpense.id,
-        type: 'expense',
-      });
-      if (expenseMovement) {
+      // F2: the NET cash effect of the expense (its original movement plus any adjustment or
+      // reversal recorded since), not just the first movement.
+      const expenseMovements = await CashRepository.findMovementsByReference(tx, 'expense', deliveryExpense.id);
+      const netEffect = expenseMovements.reduce((sum, movement) => sum.add(movement.amount), new Prisma.Decimal(0));
+      if (expenseMovements.length > 0 && !netEffect.isZero()) {
         // The courier's cash comes back into the drawer.
         await CashRepository.recordMovement(tx, {
-          cashSessionId: await resolveReversalSessionId(tx, expenseMovement.cashSessionId),
+          cashSessionId: await resolveReversalSessionId(tx, expenseMovements[0].cashSessionId),
           type: 'expense_reversal',
-          amount: expenseMovement.amount.negated(),
+          amount: netEffect.negated(),
           referenceType: 'order_cancellation',
           referenceId: order.id,
           description: `Cancelación de mandadito absorbido — Venta #${order.orderNumber.toString()}`,
@@ -175,7 +179,7 @@ async function invalidateCancelledSaleSnapshots(order: Order, deletedExpenseDate
   const affectedDates = new Set([getZonedCalendarDate(order.createdAt)]);
   if (deletedExpenseDate) affectedDates.add(getZonedCalendarDate(deletedExpenseDate));
   for (const dateStr of affectedDates) {
-    await incomeStatementRepository.invalidateSnapshot(dateStr);
+    await invalidateSnapshotSafely(dateStr);
   }
 }
 
@@ -475,11 +479,16 @@ export const OrderService = {
     const productIds = items.map(item => item.productId).filter(Boolean) as string[];
     const comboIds = items.map(item => item.comboId).filter(Boolean) as string[];
     const extraIds = items.flatMap(item => item.extras?.map(e => e.extraId) || []).filter(Boolean);
+    // Ingredients that crossed their minimum with this sale (filled inside the transaction).
+    let stockCrossings: StockCrossing[] = [];
 
     try {
       const result = await runInTransaction(async (tx) => {
         const existingOrder = await OrderRepository.findByIdempotencyKey(userId, idempotencyKey, tx);
-        if (existingOrder) return { order: existingOrder, wasCreated: false as const };
+        if (existingOrder) {
+          assertSameRetry(existingOrder, items, paymentMethod);
+          return { order: existingOrder, wasCreated: false as const };
+        }
 
         // Product/combo/extra/promotion data is read inside the transaction (not before it)
         // so Serializable isolation covers price/isActive against concurrent changes: a price
@@ -512,13 +521,15 @@ export const OrderService = {
           idempotencyKey,
         });
 
+        const consumptionLines: SaleLineForConsumption[] = [];
         for (const pricedItem of pricing.items) {
           for (const line of pricedItem.lines) {
-            await OrderRepository.createItem(tx, {
+            const createdItem = await OrderRepository.createItem(tx, {
               orderId: order.id,
               productId: line.productId,
               productName: line.productName,
               temperature: line.temperature,
+              size: line.size,
               quantity: line.quantity,
               unitPrice: line.unitPrice,
               discount: line.discount,
@@ -536,6 +547,14 @@ export const OrderService = {
                   costSnapshot: extra.costSnapshot,
                 })),
               },
+            });
+            consumptionLines.push({
+              orderItemId: createdItem.id,
+              productId: line.productId,
+              size: line.size,
+              temperature: line.temperature ?? null,
+              quantity: line.quantity,
+              extras: line.extras.map((extra) => ({ extraId: extra.extraId, quantity: new Prisma.Decimal(extra.quantity) })),
             });
           }
         }
@@ -559,9 +578,11 @@ export const OrderService = {
         }
         const changeAmount = receivedAmount ? receivedAmount.sub(cashDue) : null;
 
-        // Sales don't consume ingredients: recipe-based inventory is outside the MVP (business
-        // decision 2026-10-20), so a sale never fails for lack of stock and leaves no inventory
-        // movements. `inventoryProcessed` stays false.
+        // Ingredients of the recipes, in this same transaction (decisions D-1/D-2, plan F5): a
+        // sale never fails for lack of stock (it may go negative) and consumes only while
+        // inventory.consumeOnSale is on. Alerts for the ingredients that crossed their minimum
+        // are sent after the commit.
+        stockCrossings = await InventoryConsumptionService.consumeForOrder(tx, order, consumptionLines, userId);
 
         const updatedOrder = await OrderRepository.updateWithItems(tx, order.id, {
           subtotal: pricing.subtotal,
@@ -690,6 +711,9 @@ export const OrderService = {
         }
       }
 
+      // Low-stock alerts for the ingredients this sale took to (or below) their minimum.
+      if (result.wasCreated) await StockAlertService.notify(stockCrossings, { requestId });
+
       return result.order;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) {
@@ -698,7 +722,10 @@ export const OrderService = {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         for (let lookupAttempt = 0; lookupAttempt < 3; lookupAttempt += 1) {
           const existingOrder = await OrderRepository.findByIdempotencyKey(userId, idempotencyKey);
-          if (existingOrder) return existingOrder;
+          if (existingOrder) {
+            assertSameRetry(existingOrder, items, paymentMethod);
+            return existingOrder;
+          }
         }
       }
       throw error;
@@ -905,7 +932,7 @@ export const OrderService = {
     }, { serializable: true });
 
     // A settled payment now counts as revenue for the day the order was created.
-    await incomeStatementRepository.invalidateSnapshot(getZonedCalendarDate(payment.order.createdAt));
+    await invalidateSnapshotSafely(getZonedCalendarDate(payment.order.createdAt));
 
     return updatedPayment;
   },

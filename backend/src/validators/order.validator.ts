@@ -14,7 +14,8 @@ export const filterQuerySchema = z.strictObject({
 /** `quantity` is per unit of the product line (2 lattes with quantity 1 = 2 extras). */
 export const orderItemExtraSchema = z.strictObject({
   extraId: z.string().uuid(),
-  quantity: z.number().positive().max(20),
+  // F7 (2026-11-14): whole units — half an extra gave totals with more than 2 decimals.
+  quantity: z.number().int().positive().max(20),
 });
 
 export const orderItemSchema = z.strictObject({

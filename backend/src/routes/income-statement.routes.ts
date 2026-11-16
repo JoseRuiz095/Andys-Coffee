@@ -1,3 +1,4 @@
+import { SETTINGS_PERMISSION } from '../config/permissions';
 import express from 'express';
 import {
   getDay,
@@ -31,10 +32,10 @@ router.get('/week', checkPermission('dashboard.read'), getWeek);
 router.get('/month', checkPermission('dashboard.read'), getMonth);
 router.get('/range', checkPermission('dashboard.read'), getRange);
 router.get('/settings/distribution', checkPermission('dashboard.read'), getDistributionSettings);
-router.patch('/settings/distribution', checkPermission('users.update'), validate(distributionSettingsSchema), updateDistributionSettings);
+router.patch('/settings/distribution', checkPermission(SETTINGS_PERMISSION), validate(distributionSettingsSchema), updateDistributionSettings);
 router.get('/settings/fixed-expenses', checkPermission('dashboard.read'), getFixedExpenseSettings);
-router.put('/settings/fixed-expenses/:slug', checkPermission('users.update'), validate(fixedExpenseConceptSchema), upsertFixedExpenseConcept);
-router.delete('/settings/fixed-expenses/:slug', checkPermission('users.update'), deleteFixedExpenseConcept);
-router.patch('/day/accumulated-balances', checkPermission('users.update'), validate(accumulatedBalancesSchema), updateAccumulatedBalances);
+router.put('/settings/fixed-expenses/:slug', checkPermission(SETTINGS_PERMISSION), validate(fixedExpenseConceptSchema), upsertFixedExpenseConcept);
+router.delete('/settings/fixed-expenses/:slug', checkPermission(SETTINGS_PERMISSION), deleteFixedExpenseConcept);
+router.patch('/day/accumulated-balances', checkPermission(SETTINGS_PERMISSION), validate(accumulatedBalancesSchema), updateAccumulatedBalances);
 
 export default router;

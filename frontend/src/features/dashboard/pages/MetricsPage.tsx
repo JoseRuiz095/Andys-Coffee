@@ -1,274 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { DashboardSummary } from '../components/DashboardSummary';
-import { TopProducts } from '../components/TopProducts';
-import { InventoryStatus } from '../components/InventoryStatus';
-import { SalesTrendChart } from '../components/SalesTrendChart';
-import { CostEvolutionChart } from '../components/CostEvolutionChart';
-import { ProductCostsBreakdown } from '../components/ProductCostsBreakdown';
-import { ExpensesByCategory } from '../components/ExpensesByCategory';
-import { UpcomingInventory } from '../components/UpcomingInventory';
-import { RecentMovements } from '../components/RecentMovements';
-import type { PeriodType } from '../hooks/useDashboard';
-import { IncomeStatementPage } from '../../income-statement';
-import { PendingPaymentsPage } from '../../pending-payments';
-import { PendingDeliveriesPage } from '../../deliveries';
-import { DailyOrdersPage } from '../../daily-orders';
-import { hasPermission } from '../../auth/utils/permissions';
-import { authStore } from '../../auth/store/auth.store';
-import type { AuthUser } from '../../auth/types/auth.types';
+import type { ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { AdminOverview } from '../components/AdminOverview'
+import { CashSessionHistory } from '../components/CashSessionHistory'
+import { IncomeStatementPage } from '../../income-statement'
+import { PendingPaymentsPage } from '../../pending-payments'
+import { PendingDeliveriesPage } from '../../deliveries'
+import { DailyOrdersPage } from '../../daily-orders'
+import { ExpensesPage } from '../../expenses/pages/ExpensesPage'
+import { hasPermission } from '../../auth/utils/permissions'
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
+import { useUrlParam } from '../../../shared/hooks/useUrlParam'
+import { usePrevious } from '../../../shared/hooks/usePrevious'
+import { SectionTabs } from '../../../shared/components/SectionTabs'
+import { SegmentedTabs } from '../../../shared/components/SegmentedTabs'
+import type { AuthUser } from '../../auth/types/auth.types'
 
-type AdminView = 'metrics' | 'income-statement' | 'pending-payments' | 'pending-deliveries' | 'daily-orders';
+/** The views; their ids are the ?admin= values used by links (the old ones are kept). */
+type AdminView =
+  | 'metrics'
+  | 'income-statement'
+  | 'expenses'
+  | 'cash-history'
+  | 'pending-payments'
+  | 'pending-deliveries'
+  | 'daily-orders'
 
-function MetricsOverview() {
-  const [period, setPeriod] = React.useState<PeriodType>('today');
+interface AdminSection {
+  id: 'summary' | 'finance' | 'pending'
+  label: string
+  views: { id: AdminView; label: string; permission: string | null; render: (user: AuthUser | null) => ReactNode }[]
+}
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-            Dashboard Administrativo
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Métricas y análisis en tiempo real del negocio
-          </p>
-        </div>
+/**
+ * Three sections instead of five flat tabs: the analysis (Resumen), the money records (Finanzas)
+ * and the day's pending tasks (Pendientes). The whole view already requires dashboard.read.
+ */
+const SECTIONS: AdminSection[] = [
+  {
+    id: 'summary',
+    label: 'Resumen',
+    views: [{ id: 'metrics', label: 'Resumen', permission: null, render: () => <AdminOverview /> }],
+  },
+  {
+    id: 'finance',
+    label: 'Finanzas',
+    views: [
+      { id: 'income-statement', label: 'Estado de resultados', permission: null, render: () => <IncomeStatementPage /> },
+      { id: 'expenses', label: 'Gastos', permission: 'expenses.read', render: () => <ExpensesPage /> },
+      {
+        id: 'cash-history',
+        label: 'Cortes de caja',
+        permission: 'cash.read',
+        render: (user) => <CashSessionHistory canCorrect={hasPermission(user, 'cash.correct')} />,
+      },
+    ],
+  },
+  {
+    id: 'pending',
+    label: 'Pendientes',
+    // Their lists (and settling / handing off) are sales endpoints: GET needs sales.read.
+    views: [
+      { id: 'pending-payments', label: 'Cuentas por cobrar', permission: 'sales.read', render: () => <PendingPaymentsPage /> },
+      { id: 'pending-deliveries', label: 'Mandaditos', permission: 'sales.read', render: () => <PendingDeliveriesPage /> },
+      { id: 'daily-orders', label: 'Órdenes del día', permission: 'sales.read', render: () => <DailyOrdersPage /> },
+    ],
+  },
+]
 
-        {/* Period Selector */}
-        <div className="flex gap-2">
-          {(['today', 'yesterday', 'week', 'month'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="px-4 py-2 text-sm font-medium rounded-lg transition"
-              style={{
-                backgroundColor: period === p ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: period === p ? 'var(--color-button-text)' : 'var(--color-text-primary)',
-                border: `1px solid ${period === p ? 'var(--color-primary)' : 'var(--color-border)'}`,
-              }}
-            >
-              {p === 'today' ? 'Hoy' : p === 'yesterday' ? 'Ayer' : p === 'week' ? '7 días' : 'Mes'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Resumen */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          {period === 'today'
-            ? 'Resumen de hoy'
-            : period === 'yesterday'
-            ? 'Resumen de ayer'
-            : period === 'week'
-            ? 'Resumen de los últimos 7 días'
-            : 'Resumen del mes'}
-        </h2>
-        <DashboardSummary period={period} />
-      </section>
-
-      {/* Ventas */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Ventas
-        </h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <SalesTrendChart period={period} />
-          <TopProducts period={period} />
-        </div>
-      </section>
-
-      {/* Finanzas y Costos */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Finanzas y Costos
-        </h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CostEvolutionChart period={period} />
-          <ProductCostsBreakdown period={period} />
-        </div>
-        <div className="mt-6">
-          <ExpensesByCategory period={period} />
-        </div>
-      </section>
-
-      {/* Inventario */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Inventario
-        </h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <InventoryStatus onlyLow={true} />
-          <UpcomingInventory limit={10} />
-        </div>
-        <div className="mt-6">
-          <RecentMovements limit={20} />
-        </div>
-      </section>
-    </div>
-  );
+const variants = {
+  enter: (dir: number) => ({ x: dir > 0 ? 100 : -100, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: number) => ({ x: dir < 0 ? 100 : -100, opacity: 0 }),
 }
 
 export function MetricsPage() {
-  const [activeView, setActiveView] = React.useState<AdminView>('metrics');
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user);
-  // Slide direction of the view transition, decided when the user switches views.
-  const [direction, setDirection] = React.useState<1 | -1>(1);
+  const currentUser = useCurrentUser()
+  const sections = SECTIONS.map((section) => ({
+    ...section,
+    views: section.views.filter((view) => view.permission === null || hasPermission(currentUser, view.permission)),
+  })).filter((section) => section.views.length > 0)
+  const visibleIds = sections.flatMap((section) => section.views.map((view) => view.id))
 
-  const views: AdminView[] = ['metrics', 'income-statement', 'pending-payments', 'pending-deliveries', 'daily-orders'];
-
-  useEffect(() => {
-    const handleAuthChanged = () => {
-      setCurrentUser(authStore.getState().user);
-    };
-
-    window.addEventListener('auth:changed', handleAuthChanged);
-    return () => window.removeEventListener('auth:changed', handleAuthChanged);
-  }, []);
-
-  const handleViewChange = (view: AdminView) => {
-    setDirection(views.indexOf(view) > views.indexOf(activeView) ? 1 : -1);
-    setActiveView(view);
-  };
-
-  const variants = {
-    enter: (dir: number) => ({ x: dir > 0 ? 100 : -100, opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir: number) => ({ x: dir < 0 ? 100 : -100, opacity: 0 }),
-  };
+  // Kept in the URL (?admin=…): a reload stays on the view and Back returns to the previous one.
+  const [activeView, setActiveView] = useUrlParam<AdminView>('admin', visibleIds, 'metrics')
+  const activeSection = sections.find((section) => section.views.some((view) => view.id === activeView)) ?? sections[0]
+  const active = activeSection.views.find((view) => view.id === activeView) ?? activeSection.views[0]
+  const previousSection = usePrevious(activeSection.id)
+  const order = sections.map((section) => section.id)
+  const direction = previousSection && order.indexOf(activeSection.id) < order.indexOf(previousSection) ? -1 : 1
 
   return (
     <div>
-      {/* Sub-navigation */}
-      <div
-        className="sticky top-0 z-10 mb-6 border-b overflow-x-auto"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <nav className="flex gap-1 min-w-max md:min-w-0">
-          <button
-            onClick={() => handleViewChange('metrics')}
-            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
-            style={{
-              borderColor: activeView === 'metrics' ? 'var(--color-primary)' : 'transparent',
-              color: activeView === 'metrics' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            }}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => handleViewChange('income-statement')}
-            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
-            style={{
-              borderColor: activeView === 'income-statement' ? 'var(--color-primary)' : 'transparent',
-              color: activeView === 'income-statement' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            }}
-          >
-            Estado de Resultados
-          </button>
-          <button
-            onClick={() => handleViewChange('pending-payments')}
-            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
-            style={{
-              borderColor: activeView === 'pending-payments' ? 'var(--color-primary)' : 'transparent',
-              color: activeView === 'pending-payments' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            }}
-          >
-            Cuentas por Cobrar
-          </button>
-          <button
-            onClick={() => handleViewChange('pending-deliveries')}
-            className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
-            style={{
-              borderColor: activeView === 'pending-deliveries' ? 'var(--color-primary)' : 'transparent',
-              color: activeView === 'pending-deliveries' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            }}
-          >
-            Mandaditos por Entregar
-          </button>
-          {hasPermission(currentUser, 'sales.read') && (
-            <button
-              onClick={() => handleViewChange('daily-orders')}
-              className="border-b-2 px-4 py-3 text-sm font-medium transition-colors"
-              style={{
-                borderColor: activeView === 'daily-orders' ? 'var(--color-primary)' : 'transparent',
-                color: activeView === 'daily-orders' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              }}
-            >
-              Órdenes del Día
-            </button>
-          )}
-        </nav>
-      </div>
+      <SectionTabs
+        ariaLabel="Secciones de administración"
+        items={sections}
+        value={activeSection.id}
+        onChange={(id) => setActiveView((sections.find((section) => section.id === id) ?? sections[0]).views[0].id)}
+      />
 
-      <AnimatePresence mode="wait" custom={direction}>
-        {activeView === 'metrics' && (
+      <div className="pt-5">
+        {activeSection.views.length > 1 && (
+          <SegmentedTabs
+            className="mb-5"
+            ariaLabel={`Vistas de ${activeSection.label}`}
+            items={activeSection.views}
+            value={active.id}
+            onChange={setActiveView}
+          />
+        )}
+
+        <AnimatePresence mode="wait" custom={direction}>
           <motion.div
-            key="metrics-view"
+            key={`${activeSection.id}-section`}
+            role="tabpanel"
             custom={direction}
             variants={variants}
             initial="enter"
             animate="center"
             exit="exit"
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.25 }}
           >
-            <MetricsOverview />
+            <div key={active.id}>{active.render(currentUser)}</div>
           </motion.div>
-        )}
-        {activeView === 'income-statement' && (
-          <motion.div
-            key="income-statement-view"
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-          >
-            <IncomeStatementPage />
-          </motion.div>
-        )}
-        {activeView === 'pending-payments' && (
-          <motion.div
-            key="pending-payments-view"
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-          >
-            <PendingPaymentsPage />
-          </motion.div>
-        )}
-        {activeView === 'pending-deliveries' && (
-          <motion.div
-            key="pending-deliveries-view"
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-          >
-            <PendingDeliveriesPage />
-          </motion.div>
-        )}
-        {activeView === 'daily-orders' && hasPermission(currentUser, 'sales.read') && (
-          <motion.div
-            key="daily-orders-view"
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-          >
-            <DailyOrdersPage />
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
     </div>
-  );
+  )
 }

@@ -90,7 +90,7 @@ export function ExpenseFilters({
                 className="px-3 py-1 rounded-full text-xs font-medium"
                 style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
               >
-                Desde {new Date(startDate).toLocaleDateString('es-ES')}
+                Desde {new Date(startDate).toLocaleDateString('es-MX')}
               </span>
             )}
             {endDate && (
@@ -98,7 +98,7 @@ export function ExpenseFilters({
                 className="px-3 py-1 rounded-full text-xs font-medium"
                 style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
               >
-                Hasta {new Date(endDate).toLocaleDateString('es-ES')}
+                Hasta {new Date(endDate).toLocaleDateString('es-MX')}
               </span>
             )}
           </div>

@@ -1,68 +1,43 @@
+import type { ReactNode } from 'react';
 import { useDashboardRecentMovements } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { DashboardCard, DashboardCardEmpty } from './DashboardCard';
 
 interface RecentMovementsProps {
   limit?: number;
+  /** Link to the module with the full list. */
+  action?: ReactNode;
 }
 
-export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
-  const { data, isLoading, error } = useDashboardRecentMovements({ limit });
+export function RecentMovements({ limit = 20, action }: RecentMovementsProps) {
+  const { data, isLoading, error, refetch, isFetching } = useDashboardRecentMovements({ limit });
 
   if (error) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Movimientos Recientes
-        </h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-danger)' }}>
-          Error al cargar
-        </p>
-      </div>
+      <DashboardCard title="Movimientos recientes" action={action}>
+        <QueryErrorState error={error} subject="los movimientos recientes" onRetry={() => void refetch()} isRetrying={isFetching} />
+      </DashboardCard>
     );
   }
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Movimientos Recientes
-        </h3>
+      <DashboardCard title="Movimientos recientes" action={action}>
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-12" />
           ))}
         </div>
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data?.movements.length) {
     return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Movimientos Recientes
-        </h3>
-        <p className="mt-2">No hay movimientos registrados</p>
-      </div>
+      <DashboardCard title="Movimientos recientes" action={action}>
+        <DashboardCardEmpty>No hay movimientos registrados</DashboardCardEmpty>
+      </DashboardCard>
     );
   }
 
@@ -101,16 +76,7 @@ export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
   };
 
   return (
-    <div
-      className="rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
-    >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-        Movimientos Recientes ({data.count})
-      </h3>
+    <DashboardCard title="Movimientos recientes" action={action}>
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {data.movements.map((movement) => (
           <div
@@ -125,7 +91,7 @@ export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
                 {movement.ingredientName}
               </p>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-                {movement.quantity.toFixed(2)} u • {new Date(movement.createdAt).toLocaleDateString('es-ES')}
+                {movement.quantity.toFixed(2)} u • {new Date(movement.createdAt).toLocaleDateString('es-MX')}
               </p>
             </div>
             <span
@@ -143,6 +109,6 @@ export function RecentMovements({ limit = 20 }: RecentMovementsProps) {
           </div>
         ))}
       </div>
-    </div>
+    </DashboardCard>
   );
 }

@@ -2,6 +2,7 @@ import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import type { DailyOrder, DailyOrderStatus } from '../types/daily-orders.types';
 import { TableSkeleton } from '../../../shared/components/TableSkeleton';
+import { formatPaymentMethods } from '../../../shared/constants/paymentMethods'
 
 interface DailyOrdersTableProps {
   orders: DailyOrder[];
@@ -30,17 +31,6 @@ function formatTime(dateStr: string) {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function getPaymentMethodsText(methods: string[]): string {
-  const unique = [...new Set(methods)];
-  const methodMap: Record<string, string> = {
-    cash: 'Efectivo',
-    transfer: 'Transferencia',
-    card: 'Tarjeta',
-    pending: 'Pendiente',
-  };
-  return unique.map((m) => methodMap[m] || m).join(', ');
 }
 
 export function DailyOrdersTable({ orders, isLoading, onSelectOrder }: DailyOrdersTableProps) {
@@ -103,7 +93,7 @@ export function DailyOrdersTable({ orders, isLoading, onSelectOrder }: DailyOrde
                 {order.customerName || 'Sin nombre'}
               </td>
               <td className="px-4 py-3" style={{ color: 'var(--color-text-primary)' }}>
-                {getPaymentMethodsText(order.payments.map((p) => p.method))}
+                {formatPaymentMethods(order.payments.map((p) => p.method))}
               </td>
               <td className="px-4 py-3 text-center" style={{ color: 'var(--color-text-secondary)' }}>
                 {order.hasDelivery ? '📦 Envío' : '🏪 Recolección'}
@@ -119,7 +109,7 @@ export function DailyOrdersTable({ orders, isLoading, onSelectOrder }: DailyOrde
               <td className="px-4 py-3 text-center">
                 <button
                   onClick={() => onSelectOrder(order)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-80"
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-button-text)] transition hover:opacity-80"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   Ver detalle

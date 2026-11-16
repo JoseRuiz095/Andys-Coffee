@@ -6,6 +6,29 @@ import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ing
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 import { auditLog } from '../utils/logger';
+import { crossedThreshold, type StockCrossing } from './inventory-consumption.service';
+import { StockAlertService } from './stock-alert.service';
+
+export const INGREDIENT_SKU_PREFIX = 'INS-';
+
+/** Next INS-### SKU after the highest one in use (INS-001 when there is none). */
+export function nextIngredientSku(existingSkus: string[]) {
+  const highest = existingSkus.reduce((max, sku) => {
+    const match = /^INS-(\d+)$/.exec(sku);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `${INGREDIENT_SKU_PREFIX}${String(highest + 1).padStart(3, '0')}`;
+}
+
+function ensureMaximumNotBelowMinimum(minimum: string, maximum: string | null | undefined) {
+  if (maximum === null || maximum === undefined) return;
+  if (new Prisma.Decimal(maximum).lt(minimum)) {
+    throw new ValidationError('El stock máximo no puede ser menor que el stock mínimo.');
+  }
+}
+
+const isUniqueViolation = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 export const InventoryService = {
   async search(query: string, user: AuthUser) {
@@ -29,7 +52,6 @@ export const InventoryService = {
 
     const { page, limit, search, status, isActive } = query;
 
-    // Build where clause for filtering (status filtering done in memory)
     const where = {
       isActive: isActive !== undefined ? isActive : true,
       ...(search && {
@@ -38,22 +60,10 @@ export const InventoryService = {
           { sku: { contains: search, mode: 'insensitive' as const } },
         ],
       }),
-      ...(status === 'out_of_stock' && {
-        currentStock: { lte: 0 },
-      }),
     };
 
-    const result = await InventoryRepository.findWithPagination(page, limit, where);
-
-    // Filter by status in memory
-    if (status === 'low_stock') {
-      result.data = result.data.filter(ing =>
-        new Prisma.Decimal(ing.currentStock).gt(0) &&
-        new Prisma.Decimal(ing.currentStock).lte(ing.minimumStock)
-      );
-    }
-
-    return result;
+    // The stock status is filtered in the query, so every page comes back full.
+    return InventoryRepository.findWithPagination(page, limit, where, status);
   },
 
   async findOne(id: string, user: AuthUser) {
@@ -92,7 +102,7 @@ export const InventoryService = {
       throw new AuthorizationError('No tienes permiso para ver el historial de movimientos.');
     }
 
-    const { page, limit, ingredientId, type, startDate, endDate, search } = query;
+    const { page, limit, ingredientId, type, startDate, endDate, search, orderId } = query;
 
     // Validate ingredient exists if filtering by it
     if (ingredientId) {
@@ -110,6 +120,7 @@ export const InventoryService = {
       page,
       limit,
       search,
+      orderId,
     );
   },
 
@@ -146,7 +157,8 @@ export const InventoryService = {
       throw new AuthorizationError('No tienes permiso para registrar salidas de inventario.');
     }
 
-    return runInTransaction(async (tx) => {
+    let crossings: StockCrossing[] = [];
+    const result = await runInTransaction(async (tx) => {
       if (idempotencyKey) {
         const existingMovement = await InventoryRepository.findMovementByIdempotencyKey(user.id, idempotencyKey, tx);
         if (existingMovement) {
@@ -161,11 +173,8 @@ export const InventoryService = {
 
       const quantity = new Prisma.Decimal(data.quantity);
       if (quantity.lte(0)) throw new ValidationError('La cantidad debe ser mayor a cero.');
-      if (quantity.gt(ingredient.currentStock)) {
-        throw new ValidationError(
-          `Stock insuficiente. Disponible: ${ingredient.currentStock.toString()}`
-        );
-      }
+      // INV-6 (2026-11-14): stock may go negative (decision D-1 of the real-time inventory
+      // plan: sales never block). A real waste must be recordable even then; the count fixes it.
 
       const updatedIngredient = await InventoryRepository.updateStock(data.ingredientId, quantity.negated(), tx);
 
@@ -180,12 +189,27 @@ export const InventoryService = {
           notes: data.notes,
           createdById: user.id,
           idempotencyKey,
+          balanceAfter: updatedIngredient.currentStock,
         },
         tx,
       );
 
+      if (crossedThreshold(ingredient.currentStock, updatedIngredient.currentStock, updatedIngredient.minimumStock)) {
+        crossings = [{
+          ingredientId: updatedIngredient.id,
+          name: updatedIngredient.name,
+          unit: updatedIngredient.unit.abbreviation,
+          before: ingredient.currentStock,
+          after: updatedIngredient.currentStock,
+          minimumStock: updatedIngredient.minimumStock,
+        }];
+      }
       return { ingredient: updatedIngredient, movement };
     }, { serializable: true });
+
+    // After the commit: alert if the exit took the ingredient to its minimum or ran it out.
+    await StockAlertService.notify(crossings);
+    return result;
   },
 
   async createIngredient(data: z.infer<typeof ingredientCreateSchema>, user: AuthUser) {
@@ -204,12 +228,42 @@ export const InventoryService = {
       );
     }
 
-    return InventoryRepository.create({
+    // Stock and recipes are kept in the base unit of each dimension (gr, ml, pz); kg and lt
+    // only convert what is captured.
+    const unit = await InventoryRepository.findUnitById(data.unitId);
+    if (!unit) throw new ValidationError('La unidad de medida no existe.');
+    if (!unit.factor.eq(1)) {
+      throw new ValidationError(
+        `Los insumos se guardan en unidad base (gramos, mililitros o piezas), no en ${unit.name}.`,
+      );
+    }
+    ensureMaximumNotBelowMinimum(data.minimumStock ?? '0', data.maximumStock);
+
+    const base = {
       name: data.name,
-      sku: data.sku,
       unitId: data.unitId,
       minimumStock: data.minimumStock ? new Prisma.Decimal(data.minimumStock) : undefined,
-    });
+      maximumStock: data.maximumStock === undefined || data.maximumStock === null ? null : new Prisma.Decimal(data.maximumStock),
+    };
+    if (data.sku) {
+      try {
+        return await InventoryRepository.create({ ...base, sku: data.sku });
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new ConflictError(`Ya existe un ingrediente con el SKU "${data.sku}".`);
+        throw error;
+      }
+    }
+
+    // INS-### numbering; a concurrent create taking the same number retries with the next one.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const sku = nextIngredientSku(await InventoryRepository.findLastSkuWithPrefix(INGREDIENT_SKU_PREFIX));
+      try {
+        return await InventoryRepository.create({ ...base, sku });
+      } catch (error) {
+        if (!isUniqueViolation(error) || attempt === 2) throw error;
+      }
+    }
+    throw new ConflictError('No se pudo asignar un SKU al ingrediente. Intenta de nuevo.');
   },
 
   async updateIngredient(id: string, data: z.infer<typeof ingredientUpdateSchema>, user: AuthUser) {
@@ -237,11 +291,23 @@ export const InventoryService = {
       }
     }
 
-    return InventoryRepository.update(id, {
-      name: data.name,
-      sku: data.sku,
-      minimumStock: data.minimumStock ? new Prisma.Decimal(data.minimumStock) : undefined,
-    });
+    ensureMaximumNotBelowMinimum(
+      data.minimumStock ?? ingredient.minimumStock.toString(),
+      data.maximumStock === undefined ? ingredient.maximumStock?.toString() ?? null : data.maximumStock,
+    );
+
+    try {
+      return await InventoryRepository.update(id, {
+        name: data.name,
+        sku: data.sku,
+        minimumStock: data.minimumStock !== undefined ? new Prisma.Decimal(data.minimumStock) : undefined,
+        maximumStock: data.maximumStock === undefined ? undefined
+          : data.maximumStock === null ? null : new Prisma.Decimal(data.maximumStock),
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictError(`Ya existe un ingrediente con el SKU "${data.sku}".`);
+      throw error;
+    }
   },
 
   async setIngredientActive(id: string, isActive: boolean, user: AuthUser) {
@@ -254,6 +320,17 @@ export const InventoryService = {
     const ingredient = await InventoryRepository.findById(id);
     if (!ingredient) {
       throw new NotFoundError('Ingrediente no encontrado.');
+    }
+
+    // A sale must find every ingredient of its recipe: deactivate only unused ingredients.
+    if (!isActive) {
+      const usedBy = await InventoryRepository.findActiveRecipeUsage(id);
+      if (usedBy.length > 0) {
+        throw new ConflictError(
+          `No se puede desactivar "${ingredient.name}": lo usan las recetas de ${usedBy.join(', ')}. ` +
+          'Quítalo de esas recetas primero.',
+        );
+      }
     }
 
     return InventoryRepository.setActive(id, isActive);

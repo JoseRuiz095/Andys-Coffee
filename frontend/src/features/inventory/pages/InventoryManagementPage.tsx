@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { IngredientIcon } from '../../../components/ui/IngredientIcon'
 import { SupplierIcon } from '../../../components/ui/SupplierIcon'
 import { CoffeeIcon } from '../../../components/ui/coffee'
+import { PlusIcon } from '../../../components/ui/PlusIcon'
+import { useUrlParam } from '../../../shared/hooks/useUrlParam'
+import { SegmentedTabs } from '../../../shared/components/SegmentedTabs'
 import { IngredientsTab } from '../components/tabs/IngredientsTab'
 import { SuppliersTab } from '../components/tabs/SuppliersTab'
 import { ProductsTab } from '../components/tabs/ProductsTab'
@@ -10,82 +11,28 @@ import { ExtrasTab } from '../../extras/components/ExtrasTab'
 
 type TabType = 'ingredients' | 'suppliers' | 'products' | 'extras'
 
-export function InventoryManagementPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('products')
+const tabs = [
+  { id: 'products' as const, label: 'Productos', icon: CoffeeIcon },
+  { id: 'extras' as const, label: 'Extras', icon: PlusIcon },
+  { id: 'ingredients' as const, label: 'Ingredientes', icon: IngredientIcon },
+  { id: 'suppliers' as const, label: 'Proveedores', icon: SupplierIcon },
+]
+const TAB_IDS: TabType[] = tabs.map((tab) => tab.id)
 
-  const tabs = [
-    { id: 'products' as const, label: 'Productos', icon: CoffeeIcon },
-    { id: 'extras' as const, label: 'Extras', icon: CoffeeIcon },
-    { id: 'ingredients' as const, label: 'Ingredientes', icon: IngredientIcon },
-    { id: 'suppliers' as const, label: 'Proveedores', icon: SupplierIcon },
-  ]
+/** Catálogo: what is sold (products, extras) and what is bought (ingredients, suppliers). */
+export function InventoryManagementPage() {
+  // Kept in the URL (?gestion=…) like the other tabs.
+  const [activeTab, setActiveTab] = useUrlParam<TabType>('gestion', TAB_IDS, 'products')
 
   return (
-    <motion.div
-      className="min-h-screen p-4 md:p-6"
-      style={{ backgroundColor: 'var(--color-background)' }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="mx-auto max-w-7xl">
-        {/* Header */}
-        <motion.div
-          className="mb-6"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <h1 className="mb-1 text-2xl md:text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Gestión de Inventario</h1>
-          <p className="text-sm md:text-base" style={{ color: 'var(--color-text-secondary)' }}>Administra ingredientes y proveedores</p>
-        </motion.div>
-
-        {/* Tabs */}
-        <motion.div
-          className="mb-6 border-b overflow-x-auto"
-          style={{ borderColor: 'var(--color-border)' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <div className="flex gap-2 min-w-max md:min-w-0">
-            {tabs.map((tab) => {
-              const IconComponent = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className="px-4 md:px-6 py-3 font-medium transition-colors relative whitespace-nowrap text-sm md:text-base flex items-center gap-2"
-                  style={{ color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}
-                >
-                  <IconComponent size={20} />
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <motion.div
-                      className="absolute bottom-0 left-0 right-0 h-0.5"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                      layoutId="activeTab"
-                    />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </motion.div>
-
-        {/* Tab Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeTab === 'products' && <ProductsTab />}
-          {activeTab === 'extras' && <ExtrasTab />}
-          {activeTab === 'ingredients' && <IngredientsTab />}
-          {activeTab === 'suppliers' && <SuppliersTab />}
-        </motion.div>
+    <div>
+      <SegmentedTabs className="mb-5" ariaLabel="Catálogo de inventario" items={tabs} value={activeTab} onChange={setActiveTab} />
+      <div key={activeTab}>
+        {activeTab === 'products' && <ProductsTab />}
+        {activeTab === 'extras' && <ExtrasTab />}
+        {activeTab === 'ingredients' && <IngredientsTab />}
+        {activeTab === 'suppliers' && <SuppliersTab />}
       </div>
-    </motion.div>
+    </div>
   )
 }

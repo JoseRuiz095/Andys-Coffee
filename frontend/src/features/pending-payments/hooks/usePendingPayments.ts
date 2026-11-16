@@ -10,6 +10,9 @@ export function usePendingPayments() {
   return useQuery({
     queryKey: [QUERY_KEY],
     queryFn: () => PendingPaymentsAPI.getPendingPayments(),
+    // Sales from other devices create them too: keep the list current like the orders board.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 

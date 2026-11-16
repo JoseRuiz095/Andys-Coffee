@@ -1,55 +1,55 @@
-import { useState, useCallback, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Skeleton } from '../../../shared/components/Skeleton'
+import { Fragment, useState, useCallback } from 'react'
+import { TableSkeleton } from '../../../shared/components/TableSkeleton'
+import { QueryErrorState } from '../../../shared/components/QueryErrorState'
+import { FilterBar } from '../../../shared/components/FilterBar'
+import { FILTER_FIELD_CLASS } from '../../../shared/constants/fieldStyles'
+import { PageHeader } from '../../../shared/components/PageHeader'
 import { useInventoryMovements } from '../hooks/useInventory'
 import type { UseInventoryMovementsParams } from '../hooks/useInventory'
+import type { InventoryMovement } from '../api/inventory.api'
+import { EXIT_REASON_LABELS, type ExitReason } from '../api/inventory-exits.api'
+import { Pagination } from '../../../shared/components/Pagination'
+import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { getMovementTypeColor, getMovementTypeLabel, MOVEMENT_TYPES } from '../constants/movementTypes'
 
-const MOVEMENT_TYPES = [
-  { value: 'sale', label: 'Venta' },
-  { value: 'purchase', label: 'Compra' },
-  { value: 'sale_reversal', label: 'Reversión de venta' },
-  { value: 'adjustment', label: 'Ajuste' },
-  { value: 'exit', label: 'Salida manual' },
-]
-
-function getMovementTypeLabel(type: string): string {
-  const found = MOVEMENT_TYPES.find((t) => t.value === type)
-  return found ? found.label : type
+const REFERENCE_LABELS: Record<string, string> = {
+  purchase: 'Compra',
+  manual_exit: 'Salida manual',
+  inventory_count: 'Conteo físico',
+  order: 'Venta',
+  order_cancellation: 'Cancelación',
+  initial_balance: 'Saldo inicial',
 }
 
-function getMovementTypeColor(type: string): string {
-  switch (type) {
-    case 'sale':
-      return 'text-[var(--color-danger)] bg-red-50'
-    case 'purchase':
-      return 'text-[var(--color-success)] bg-green-50'
-    case 'sale_reversal':
-      return 'text-orange-600 bg-orange-50'
-    case 'adjustment':
-      return 'text-blue-600 bg-blue-50'
-    case 'exit':
-      return 'text-purple-600 bg-purple-50'
-    default:
-      return 'text-[var(--color-text-secondary)] bg-[var(--color-surface-hover)]'
+/** Where the movement comes from, in words: sale #, product and size, or the exit reason. */
+function describeOrigin(movement: InventoryMovement): { title: string; detail: string | null } {
+  const reason = movement.reason ? EXIT_REASON_LABELS[movement.reason as ExitReason] ?? movement.reason : null
+  if (movement.orderItem) {
+    const size = movement.orderItem.size === 'JUMBO' ? ' (Jumbo)' : ''
+    const prefix = movement.referenceType === 'order_cancellation' ? 'Cancelación de venta' : 'Venta'
+    return {
+      title: `${prefix} #${movement.orderItem.order.orderNumber}`,
+      detail: `${movement.orderItem.productName}${size}${reason ? ` · ${reason}` : ''}`,
+    }
   }
+  const title = movement.referenceType ? REFERENCE_LABELS[movement.referenceType] ?? movement.referenceType : '—'
+  return { title, detail: reason ?? movement.notes }
 }
+
+
+
 
 export function InventoryMovements() {
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState<string>('')
   const [searchIngredient, setSearchIngredient] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // One request once the user stops typing, not one per keystroke.
+  const debouncedSearch = useDebouncedValue(searchIngredient, 300)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchIngredient)
-      setPage(1)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchIngredient])
+  // Row whose secondary data (unit cost, user) is shown.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const queryParams: UseInventoryMovementsParams = {
     page,
@@ -60,10 +60,11 @@ export function InventoryMovements() {
     search: debouncedSearch || undefined,
   };
 
-  const { data, isLoading, error } = useInventoryMovements(queryParams);
+  const { data, isLoading, error, refetch, isFetching } = useInventoryMovements(queryParams);
 
   const handleSearch = useCallback((value: string) => {
     setSearchIngredient(value);
+    setPage(1);
   }, []);
 
   const handleTypeChange = (newType: string) => {
@@ -82,320 +83,152 @@ export function InventoryMovements() {
 
   const movements = data?.data || [];
 
-  if (error) {
-    return (
-      <motion.div
-        className="min-h-screen bg-[var(--color-surface-hover)] p-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div className="mx-auto max-w-7xl">
-          <motion.div
-            className="rounded-lg border border-red-200 bg-red-50 p-6"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h1 className="mb-2 font-semibold text-red-900">Error cargando movimientos</h1>
-            <p className="text-[var(--color-danger)]">
-              {error instanceof Error ? error.message : 'Error desconocido'}
-            </p>
-          </motion.div>
-        </div>
-      </motion.div>
-    )
-  }
+  const hasFilters = Boolean(searchIngredient || filterType || startDate || endDate);
+  const clearFilters = () => {
+    handleSearch('');
+    handleTypeChange('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   return (
-    <motion.div
-      className="min-h-screen bg-[var(--color-surface-hover)] p-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="mx-auto max-w-7xl">
-        {/* Header */}
-        <motion.div
-          className="mb-6"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <h1 className="mb-2 text-3xl font-bold text-[var(--color-text-primary)]">Historial de Movimientos</h1>
-          <p className="text-[var(--color-text-secondary)]">Trazabilidad completa de cambios en inventario</p>
-        </motion.div>
+    <div className="mx-auto max-w-7xl">
+      <PageHeader title="Movimientos" description="Historial de cada entrada, salida, venta y ajuste del inventario." />
 
-        {/* Filtros */}
-        <motion.div
-          className="mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Búsqueda de ingrediente */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                Ingrediente
-              </label>
-              <input
-                type="text"
-                placeholder="Buscar por nombre o SKU..."
-                value={searchIngredient}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              />
-            </div>
+      <FilterBar hasFilters={hasFilters} onClear={clearFilters}>
+        <input
+          type="search"
+          value={searchIngredient}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Buscar por nombre o SKU..."
+          aria-label="Buscar ingrediente"
+          className={`${FILTER_FIELD_CLASS} w-full sm:w-64`}
+        />
+        <select value={filterType} onChange={(e) => handleTypeChange(e.target.value)} aria-label="Tipo de movimiento" className={FILTER_FIELD_CLASS}>
+          <option value="">Todos los tipos</option>
+          {MOVEMENT_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>{type.label}</option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Desde
+          <input type="date" value={startDate} onChange={(e) => handleDateChange('start', e.target.value)} className={FILTER_FIELD_CLASS} />
+        </label>
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Hasta
+          <input type="date" value={endDate} onChange={(e) => handleDateChange('end', e.target.value)} className={FILTER_FIELD_CLASS} />
+        </label>
+      </FilterBar>
 
-            {/* Tipo de movimiento */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                Tipo de movimiento
-              </label>
-              <select
-                value={filterType}
-                onChange={(e) => handleTypeChange(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              >
-                <option value="">Todos</option>
-                {MOVEMENT_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Fecha desde */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                Desde
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => handleDateChange('start', e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              />
-            </div>
-
-            {/* Fecha hasta */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">
-                Hasta
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => handleDateChange('end', e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              />
-            </div>
-          </div>
-
-          {/* Filtros activos */}
-          {(searchIngredient || filterType || startDate || endDate) && (
-            <motion.div
-              className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              <span>Filtros activos:</span>
-              {searchIngredient && (
-                <button
-                  onClick={() => handleSearch('')}
-                  className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-secondary)] px-2 py-1 hover:bg-gray-200 transition-colors"
-                >
-                  Ingrediente: "{searchIngredient}" ✕
-                </button>
-              )}
-              {filterType && (
-                <button
-                  onClick={() => handleTypeChange('')}
-                  className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-secondary)] px-2 py-1 hover:bg-gray-200 transition-colors"
-                >
-                  Tipo: {getMovementTypeLabel(filterType)} ✕
-                </button>
-              )}
-              {startDate && (
-                <button
-                  onClick={() => handleDateChange('start', '')}
-                  className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-secondary)] px-2 py-1 hover:bg-gray-200 transition-colors"
-                >
-                  Desde: {startDate} ✕
-                </button>
-              )}
-              {endDate && (
-                <button
-                  onClick={() => handleDateChange('end', '')}
-                  className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-secondary)] px-2 py-1 hover:bg-gray-200 transition-colors"
-                >
-                  Hasta: {endDate} ✕
-                </button>
-              )}
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* Tabla de movimientos */}
-        <motion.div
-          className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-        >
+      {error ? (
+        <QueryErrorState error={error} subject="los movimientos" onRetry={() => void refetch()} isRetrying={isFetching} />
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
           {isLoading ? (
-            <div className="space-y-3 p-6">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12" />
-              ))}
-            </div>
+            <TableSkeleton rows={6} columns={6} />
           ) : movements.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-[var(--color-text-secondary)]">No hay movimientos para mostrar</p>
-            </div>
+            <p className="p-8 text-center text-[var(--color-text-secondary)]">
+              {hasFilters ? 'Ningún movimiento coincide con los filtros.' : 'Aún no hay movimientos de inventario.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]">
                   <tr>
-                    <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Fecha</th>
-                    <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">
-                      Ingrediente
-                    </th>
-                    <th className="px-6 py-3 text-center font-semibold text-[var(--color-text-primary)]">Tipo</th>
-                    <th className="px-6 py-3 text-right font-semibold text-[var(--color-text-primary)]">Cantidad</th>
-                    <th className="px-6 py-3 text-right font-semibold text-[var(--color-text-primary)]">Costo Unit.</th>
-                    <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Origen</th>
-                    <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Usuario</th>
+                    <th className="px-4 py-3 text-left font-semibold">Fecha</th>
+                    <th className="px-4 py-3 text-left font-semibold">Ingrediente</th>
+                    <th className="px-4 py-3 text-center font-semibold">Tipo</th>
+                    <th className="px-4 py-3 text-right font-semibold">Cantidad</th>
+                    <th className="px-4 py-3 text-right font-semibold">Saldo</th>
+                    <th className="px-4 py-3 text-left font-semibold">Origen</th>
+                    <th className="px-2 py-3"><span className="sr-only">Detalle</span></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {movements.map((movement, i) => (
-                    <motion.tr
-                      key={movement.id}
-                      className="transition-colors hover:bg-[var(--color-surface-hover)]"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.02 }}
-                    >
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)]">
-                        {new Date(movement.createdAt).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-[var(--color-text-primary)]">{movement.ingredient.name}</p>
-                        <p className="text-xs text-[var(--color-text-secondary)]">
-                          {movement.ingredient.sku || '—'}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getMovementTypeColor(movement.type)}`}
-                        >
-                          {getMovementTypeLabel(movement.type)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div
-                          className={
-                            Number(movement.quantity) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'
-                          }
-                        >
-                          {Number(movement.quantity) > 0 ? '+' : ''}
-                          {Number(movement.quantity).toFixed(2)}{' '}
-                          <span className="text-[var(--color-text-secondary)]">
-                            {movement.ingredient.unit.abbreviation}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right text-[var(--color-text-secondary)]">
-                        ${Number(movement.unitCost).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[var(--color-text-secondary)]">
-                        {movement.referenceType ? (
-                          <div>
-                            <p className="font-medium">{movement.referenceType}</p>
-                            {movement.referenceId && (
-                              <p className="text-xs text-[var(--color-text-secondary)]">
-                                {movement.referenceId.substring(0, 8)}...
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          '—'
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  {movements.map((movement) => {
+                    const origin = describeOrigin(movement);
+                    const isExpanded = expandedId === movement.id;
+                    return (
+                      <Fragment key={movement.id}>
+                        <tr className="transition-colors hover:bg-[var(--color-surface-hover)]">
+                          <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                            {new Date(movement.createdAt).toLocaleDateString('es-MX', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-[var(--color-text-primary)]">{movement.ingredient.name}</p>
+                            {movement.ingredient.sku && <p className="text-xs text-[var(--color-text-secondary)]">{movement.ingredient.sku}</p>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getMovementTypeColor(movement.type)}`}>
+                              {getMovementTypeLabel(movement.type)}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-3 text-right ${Number(movement.quantity) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
+                            {Number(movement.quantity) > 0 ? '+' : ''}
+                            {Number(movement.quantity).toFixed(2)}{' '}
+                            <span className="text-[var(--color-text-secondary)]">{movement.ingredient.unit.abbreviation}</span>
+                          </td>
+                          <td
+                            className="px-4 py-3 text-right"
+                            style={{ color: movement.balanceAfter !== null && Number(movement.balanceAfter) < 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}
+                          >
+                            {movement.balanceAfter === null ? '—' : Number(movement.balanceAfter).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                            <p className="font-medium">{origin.title}</p>
+                            {origin.detail && <p>{origin.detail}</p>}
+                          </td>
+                          <td className="px-2 py-3 text-right">
+                            <button
+                              type="button"
+                              aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? 'Ocultar' : 'Ver'} detalle del movimiento de ${movement.ingredient.name}`}
+                              onClick={() => setExpandedId(isExpanded ? null : movement.id)}
+                              className="rounded px-2 py-1 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface-hover)]"
+                            >
+                              {isExpanded ? 'Ocultar' : 'Detalle'}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-[var(--color-surface-hover)]">
+                            <td colSpan={7} className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                              <span className="mr-6">
+                                Costo unitario: <strong className="text-[var(--color-text-primary)]">{formatCurrency(Number(movement.unitCost))}</strong>
+                              </span>
+                              <span>
+                                Registrado por: <strong className="text-[var(--color-text-primary)]">{movement.createdBy?.name ?? 'Sistema'}</strong>
+                              </span>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {movement.createdBy ? (
-                          <p className="font-medium text-[var(--color-text-primary)]">{movement.createdBy.name}</p>
-                        ) : (
-                          <p className="text-[var(--color-text-secondary)]">Sistema</p>
-                        )}
-                      </td>
-                    </motion.tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-        </motion.div>
+        </div>
+      )}
 
-        {/* Paginación */}
-        {data && data.pagination.totalPages > 1 && (
-          <motion.div
-            className="mt-6 flex items-center justify-between"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              Mostrando {movements.length} de {data.pagination.total} movimientos
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-              >
-                Anterior
-              </button>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: Math.min(5, data.pagination.totalPages) }).map((_, i) => {
-                  const pageNum = Math.max(1, page - 2) + i
-                  if (pageNum > data.pagination.totalPages) return null
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPage(pageNum)}
-                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                        page === pageNum
-                          ? 'bg-[var(--color-primary)] text-white'
-                          : 'border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-              </div>
-              <button
-                onClick={() => setPage(Math.min(data.pagination.totalPages, page + 1))}
-                disabled={page === data.pagination.totalPages}
-                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-              >
-                Siguiente
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </div>
-    </motion.div>
+      {data && data.pagination.totalPages > 1 && (
+        <Pagination
+          className="mt-4"
+          page={page}
+          totalPages={data.pagination.totalPages}
+          total={data.pagination.total}
+          pageSize={data.pagination.limit}
+          itemLabel="movimientos"
+          onPageChange={setPage}
+        />
+      )}
+    </div>
   )
 }

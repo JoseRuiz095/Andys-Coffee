@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InventoryCountAPI } from '../api/inventory-count.api';
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 
 const QUERY_KEY = 'inventory-counts';
 
@@ -87,12 +88,9 @@ export const useApplyAdjustments = (countId: string | null) => {
         });
       }
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'] });
-      queryClient.invalidateQueries({
-        queryKey: ['inventory', 'summary'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['inventory', 'movements'],
-      });
+      // The adjustments change stock everywhere it is shown (lists, low stock, replenishment,
+      // value) and the inventory losses of the day.
+      void invalidateMoneyAndStockQueries(queryClient);
     },
   });
 };

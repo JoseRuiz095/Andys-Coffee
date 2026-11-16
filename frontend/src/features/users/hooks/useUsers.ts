@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { UserAPI } from '../api/user.api'
 
 const QUERY_KEY = 'users'
+// The roles list shows how many users each role has.
+const ROLES_LIST_KEY = ['roles', 'list']
 
 export interface UseUsersListParams {
   page?: number
@@ -34,7 +36,8 @@ export const useCreateUser = () => {
     mutationFn: (data: { name: string; email: string; password: string; roleId: string }) =>
       UserAPI.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: ROLES_LIST_KEY })
     },
   })
 }
@@ -44,9 +47,10 @@ export const useUpdateUser = () => {
   return useMutation({
     mutationFn: (params: { id: string; data: { name?: string; email?: string; roleId?: string } }) =>
       UserAPI.update(params.id, params.data),
-    onSuccess: (data) => {
+    onSuccess: (data, params) => {
       queryClient.setQueryData([QUERY_KEY, data.user.id], data.user)
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      if (params.data.roleId) void queryClient.invalidateQueries({ queryKey: ROLES_LIST_KEY })
     },
   })
 }
@@ -58,7 +62,7 @@ export const useSetUserActive = () => {
       UserAPI.setActive(params.id, params.isActive),
     onSuccess: (data) => {
       queryClient.setQueryData([QUERY_KEY, data.user.id], data.user)
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
     },
   })
 }
@@ -68,7 +72,8 @@ export const useDeleteUser = () => {
   return useMutation({
     mutationFn: (userId: string) => UserAPI.delete(userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'list'], refetchType: 'active' })
+      void queryClient.invalidateQueries({ queryKey: ROLES_LIST_KEY })
     },
   })
 }

@@ -1,7 +1,8 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useOverlayEscape } from '../hooks/useOverlayEscape'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -33,6 +34,8 @@ export function ConfirmDialog({
   children,
 }: ConfirmDialogProps) {
   const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(isOpen, panelRef)
   useBodyScrollLock(isOpen)
   useOverlayEscape(isOpen, () => {
     if (!isLoading) onCancel()
@@ -51,7 +54,9 @@ export function ConfirmDialog({
       role="presentation"
     >
       <div
-        className="rounded-lg shadow-lg p-6 max-w-sm w-full mx-4"
+        ref={panelRef}
+        tabIndex={-1}
+        className="rounded-lg shadow-lg p-6 max-w-sm w-full mx-4 outline-none"
         style={{ backgroundColor: 'var(--color-surface)' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -97,7 +102,7 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={isLoading || confirmDisabled}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               backgroundColor: isDangerous ? 'var(--color-danger)' : 'var(--color-primary)',
             }}

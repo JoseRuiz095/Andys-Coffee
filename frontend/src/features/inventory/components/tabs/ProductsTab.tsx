@@ -1,25 +1,32 @@
 import { useState } from 'react'
-import { useProducts, useCategories, useProductDetail, useProductImage } from '../../../products/hooks/useProducts'
+import { useProducts, useCategories, useProductDetail, useProductImage, useProductFamilies } from '../../../products/hooks/useProducts'
+import { ProductRecipeSection } from '../../../products/components/ProductRecipeSection'
+import type { ProductRecipeDraft } from '../../../products/types/recipe.types'
+import { EMPTY_PRODUCT_RECIPE, recipeCost, recipeRowsError, rowsFromRecipe, rowsToInput } from '../../../products/utils/recipeDraft'
+import { useInventoryUnits } from '../../hooks/useInventory'
 import { useImageDraft } from '../../../products/hooks/useImageDraft'
 import { ProductImageField } from '../../../products/components/ProductImageField'
-import { ProductImage } from '../../../../shared/components/ProductImage'
-import { useExtras, useSetProductExtras } from '../../../extras/hooks/useExtras'
-import { authStore } from '../../../auth/store/auth.store'
+import { useExtras } from '../../../extras/hooks/useExtras'
+import { useCurrentUser } from '../../../auth/hooks/useCurrentUser'
 import { hasPermission } from '../../../auth/utils/permissions'
-import { Card } from '../../../../shared/components/Card'
 import { ConfirmDialog } from '../../../../shared/components/ConfirmDialog'
 import { Modal } from '../../../../shared/components/Modal'
 import { formatCurrency } from '../../../../shared/utils/formatCurrency'
 import { getErrorMessage } from '../../../../shared/utils/errors'
 import { CategoryManagerModal } from '../CategoryManagerModal'
 import { sileo } from 'sileo'
-import type { CreateProductInput, UpdateProductInput } from '../../../products/types/product.types'
+import type { CreateProductInput, ProductVariantOption, UpdateProductInput } from '../../../products/types/product.types'
 import type { Product } from '../../../products/types/product.types'
 import { formatDrinkTemperature, getDrinkTemperature } from '../../../../shared/utils/productTemperature'
 import type { ProductTemperature } from '../../../../shared/utils/productTemperature'
+import { Pagination } from '../../../../shared/components/Pagination'
+import { ProductsTable } from './ProductsTable'
+import { PageHeader } from '../../../../shared/components/PageHeader'
+import { FilterBar } from '../../../../shared/components/FilterBar'
+import { FILTER_FIELD_CLASS } from '../../../../shared/constants/fieldStyles'
 
 export function ProductsTab() {
-  const currentUser = authStore.getState().user
+  const currentUser = useCurrentUser()
   const {
     products,
     loading,
@@ -27,6 +34,8 @@ export function ProductsTab() {
     page,
     setPage,
     totalPages,
+    total,
+    pageSize,
     search,
     setSearch,
     categoryFilter,
@@ -40,35 +49,48 @@ export function ProductsTab() {
     isCreating,
     isUpdating,
     isDeleting,
-    isLoadingActive,
+    togglingProductId,
   } = useProducts()
   const { categories } = useCategories()
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  // R-04: recipe-based cost hint, only when editing an existing product.
   const { data: editingDetail } = useProductDetail(editingProduct?.id)
-  const suggestedCost =
-    editingDetail?.suggestedCost !== null && editingDetail?.suggestedCost !== undefined
-      ? Number(editingDetail.suggestedCost)
-      : null
-  // Extras offered with the product in the POS (saved with their own endpoint after the product).
+  const { data: units } = useInventoryUnits()
+  const { families, createAsync: createFamilyAsync, isCreating: isCreatingFamily } = useProductFamilies(isCreateModalOpen)
+  const canManageRecipes = hasPermission(currentUser, 'inventory.manage_recipes')
+  // Extras, recipe, family and options are saved together with the product (one request).
   const { data: allExtras = [] } = useExtras(isCreateModalOpen)
-  const setProductExtras = useSetProductExtras()
   const [selectedExtraIds, setSelectedExtraIds] = useState<string[]>([])
-  const [extrasLoadedFor, setExtrasLoadedFor] = useState<string | null>(null)
-  if (editingDetail && editingDetail.id === editingProduct?.id && extrasLoadedFor !== editingDetail.id) {
-    setExtrasLoadedFor(editingDetail.id)
+  const [recipeDraft, setRecipeDraft] = useState<ProductRecipeDraft>(EMPTY_PRODUCT_RECIPE)
+  const [tracksInventory, setTracksInventory] = useState(true)
+  const [familyId, setFamilyId] = useState<string>('')
+  const [variantLabel, setVariantLabel] = useState('')
+  const [options, setOptions] = useState<ProductVariantOption[]>([])
+  const [showSaleOptions, setShowSaleOptions] = useState(false)
+  // Products that already use a family, options or extras show the section open (nothing hidden).
+  const hasSaleOptions = Boolean(familyId) || options.length > 0 || selectedExtraIds.length > 0
+  const isSaleOptionsOpen = showSaleOptions || hasSaleOptions
+  const [newFamilyName, setNewFamilyName] = useState('')
+  // The detail (recipe, extras, options) loaded into the form; until then an edit can't be saved.
+  const [detailLoadedFor, setDetailLoadedFor] = useState<string | null>(null)
+  if (editingDetail && editingDetail.id === editingProduct?.id && detailLoadedFor !== editingDetail.id) {
+    setDetailLoadedFor(editingDetail.id)
     setSelectedExtraIds((editingDetail.extras ?? []).map(({ extraId }) => extraId))
+    setRecipeDraft({ REGULAR: rowsFromRecipe(editingDetail.recipe?.REGULAR), JUMBO: rowsFromRecipe(editingDetail.recipe?.JUMBO) })
+    setTracksInventory(editingDetail.tracksInventory ?? true)
+    setFamilyId(editingDetail.familyId ?? '')
+    setVariantLabel(editingDetail.variantLabel ?? '')
+    setOptions(editingDetail.options ?? [])
   }
-  const savedExtraIds = (editingDetail?.extras ?? []).map(({ extraId }) => extraId)
-  const extrasChanged =
-    selectedExtraIds.length !== savedExtraIds.length || selectedExtraIds.some((id) => !savedExtraIds.includes(id))
+  const detailReady = !editingProduct || detailLoadedFor === editingProduct.id
   const toggleExtra = (extraId: string) =>
     setSelectedExtraIds((current) => (current.includes(extraId) ? current.filter((id) => id !== extraId) : [...current, extraId]))
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
+  // Deactivating hides the product from the POS menu: it is confirmed first.
+  const [productToDeactivate, setProductToDeactivate] = useState<Product | null>(null)
 
   // Product photo: picked locally (preview), then uploaded and converted to WebP by the API.
   const productImage = useProductImage()
@@ -147,15 +169,27 @@ export function ProductsTab() {
     temperature: null,
     displayOrder: 0,
   })
+  // R-04: cost of the regular recipe as it is being edited, offered as the product cost.
+  // Sold hot and cold: the hot version's cost (lines marked "Ambas" + "Caliente").
+  const suggestedCost = tracksInventory && recipeDraft.REGULAR.length > 0
+    ? recipeCost(recipeDraft.REGULAR, units, formData.temperature === 'BOTH' ? 'HOT' : undefined)
+    : null
 
   // Fill (or clear) the form whenever the product being edited changes — adjusted during
   // render instead of in an effect, as recommended by React.
   const [formProduct, setFormProduct] = useState<Product | null>(null)
   if (editingProduct !== formProduct) {
     setFormProduct(editingProduct)
-    // Another product (or a new one): its extras are loaded from its detail, not carried over.
+    // Another product (or a new one): its extras, recipe and grouping come from its detail.
     setSelectedExtraIds([])
-    setExtrasLoadedFor(null)
+    setRecipeDraft(EMPTY_PRODUCT_RECIPE)
+    setTracksInventory(true)
+    setFamilyId('')
+    setVariantLabel('')
+    setOptions([])
+    setNewFamilyName('')
+    setShowSaleOptions(false)
+    setDetailLoadedFor(null)
     if (editingProduct) {
       setFormData({
         name: editingProduct.name,
@@ -192,9 +226,42 @@ export function ProductsTab() {
 
   const isSaving = isCreating || isUpdating || productImage.isUploading || productImage.isRemoving
 
+  const handleCreateFamily = async () => {
+    const name = newFamilyName.trim()
+    if (name.length < 2) return
+    try {
+      const family = await createFamilyAsync({ name, categoryId: formData.categoryId || null })
+      setFamilyId(family.id)
+      setNewFamilyName('')
+    } catch (error) {
+      sileo.error({ title: 'No se pudo crear la familia', description: getErrorMessage(error, 'Intenta de nuevo.') })
+    }
+  }
+
+  /** First reason the recipe can't be saved (decision D-5), or null. */
+  const recipeProblem = (): string | null => {
+    if (!tracksInventory) return null
+    if (recipeDraft.REGULAR.length === 0) {
+      return 'Captura la receta (ingredientes y cantidades) o marca "No controla inventario".'
+    }
+    if (jumboAvailable && recipeDraft.JUMBO.length === 0) return 'El producto tiene precio Jumbo: captura también la receta Jumbo.'
+    return recipeRowsError(recipeDraft.REGULAR, false) ?? (jumboAvailable ? recipeRowsError(recipeDraft.JUMBO, false) : null)
+  }
+
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.sku?.trim() || formData.price < 0 || formData.cost < 0) {
+    if (!formData.name.trim() || !formData.sku?.trim()) {
       sileo.error({ title: 'Error', description: 'Por favor completa los campos requeridos' })
+      return
+    }
+
+    // An emptied number field is NaN, which JSON would send as null: reject it here.
+    const isAmount = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+    if (!isAmount(formData.price) || !isAmount(formData.cost)) {
+      sileo.error({ title: 'Revisa los montos', description: 'El precio y el costo deben ser números mayores o iguales a 0.' })
+      return
+    }
+    if (formData.jumboPrice !== null && formData.jumboPrice !== undefined && !isAmount(formData.jumboPrice)) {
+      sileo.error({ title: 'Revisa los montos', description: 'El precio Jumbo debe ser un número mayor o igual a 0, o déjalo vacío.' })
       return
     }
 
@@ -203,31 +270,43 @@ export function ProductsTab() {
       return
     }
 
+    // Without the recipes permission the recipe isn't sent (the server keeps the stored one).
+    const problem = canManageRecipes ? recipeProblem() : null
+    if (problem) {
+      sileo.error({ title: 'Receta incompleta', description: problem })
+      return
+    }
+
+    const payload = {
+      ...formData,
+      categoryId: formData.categoryId || undefined,
+      jumboPrice: isBeverageCategory(formData.categoryId) ? formData.jumboPrice ?? null : null,
+      tracksInventory,
+      familyId: familyId || null,
+      variantLabel: variantLabel.trim() || null,
+      options: options.filter((option) => option.name.trim() && option.value.trim()),
+      extraIds: selectedExtraIds,
+      ...(canManageRecipes && {
+        recipe: tracksInventory
+          ? { REGULAR: rowsToInput(recipeDraft.REGULAR), ...(jumboAvailable && { JUMBO: rowsToInput(recipeDraft.JUMBO) }) }
+          : { REGULAR: [] },
+      }),
+    }
+
     try {
       if (editingProduct) {
-        await updateAsync({
-          input: {
-            id: editingProduct.id,
-            ...formData,
-          } as UpdateProductInput,
-        })
-        if (extrasChanged) {
-          await setProductExtras.mutateAsync({ productId: editingProduct.id, extraIds: selectedExtraIds })
-        }
+        await updateAsync({ input: { id: editingProduct.id, ...payload } as UpdateProductInput })
         sileo.success({ title: 'Éxito', description: 'Producto actualizado correctamente' })
         // A photo picked but not confirmed yet is uploaded with the save instead of being lost.
         if (imageDraft.draft) await uploadPendingImage(editingProduct.id, imageDraft.draft.file)
       } else {
-        const created = await createAsync({ input: formData })
-        if (selectedExtraIds.length > 0 && created?.id) {
-          await setProductExtras.mutateAsync({ productId: created.id, extraIds: selectedExtraIds })
-        }
+        const created = await createAsync({ input: payload })
         sileo.success({ title: 'Éxito', description: 'Producto creado correctamente' })
         // New products need their id before the photo can be uploaded.
         if (imageDraft.draft && created?.id) await uploadPendingImage(created.id, imageDraft.draft.file)
       }
       setSelectedExtraIds([])
-      setExtrasLoadedFor(null)
+      setDetailLoadedFor(null)
 
       setIsCreateModalOpen(false)
       setEditingProduct(null)
@@ -264,8 +343,13 @@ export function ProductsTab() {
     setProductToDelete(null)
   }
 
-  const handleToggleActive = (productId: string, currentStatus: boolean) => {
-    setActive({ id: productId, isActive: !currentStatus })
+  const handleToggleActive = (product: Product) => {
+    if (togglingProductId) return
+    if (product.isActive) {
+      setProductToDeactivate(product)
+      return
+    }
+    setActive({ id: product.id, isActive: true })
   }
 
   const getCategoryName = (categoryId?: string) => {
@@ -273,284 +357,142 @@ export function ProductsTab() {
     return categories.find((c) => c.id === categoryId)?.name || 'Desconocida'
   }
 
-  const isBeverageCategory = (categoryId?: string) =>
-    getCategoryName(categoryId).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'bebidas'
+  /** Beverages are flagged on their category (temperature and Jumbo size). */
+  const isBeverageCategory = (categoryId?: string) => categories.find((c) => c.id === categoryId)?.isBeverage === true
 
-  const isLatteProduct = (name: string, categoryId?: string) => {
-    const normalizedName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
-    return isBeverageCategory(categoryId) && normalizedName.startsWith('latte ') && normalizedName !== 'latte jumbo'
-  }
+  const jumboAvailable = isBeverageCategory(formData.categoryId) && formData.jumboPrice !== null && formData.jumboPrice !== undefined
 
   const getProductTemperature = (product: Product): ProductTemperature | null =>
     product.temperature ?? getDrinkTemperature(product.name, getCategoryName(product.categoryId))
 
   if (error) {
     return (
-      <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}>
-        Error al cargar productos: {error.message}
+      <div role="alert" className="rounded-lg border p-4" style={{ borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', color: 'var(--color-danger)' }}>
+        Error al cargar productos: {getErrorMessage(error, 'revisa tu conexión e inténtalo de nuevo.')}
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            Administra los productos que se venden en el menú
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {canCreate && (
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="rounded-lg px-4 py-2 font-semibold transition"
-              style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-            >
-              ⚙️ Gestionar Categorías
-            </button>
-          )}
-          {canCreate && (
-            <button
-              onClick={() => {
-                resetImageState()
-                setEditingProduct(null)
-                setIsCreateModalOpen(true)
-              }}
-              className="rounded-lg px-4 py-2 font-semibold text-white transition"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              + Nuevo Producto
-            </button>
-          )}
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Productos"
+        description="Lo que se vende en el menú del punto de venta."
+        actions={
+          canCreate && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="min-h-10 rounded-lg border px-4 text-sm font-medium transition hover:bg-[var(--color-surface-hover)]"
+                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+              >
+                Categorías
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetImageState()
+                  setEditingProduct(null)
+                  setIsCreateModalOpen(true)
+                }}
+                className="min-h-10 rounded-lg px-4 text-sm font-semibold text-[var(--color-button-text)] transition hover:bg-[var(--color-primary-hover)]"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                + Nuevo producto
+              </button>
+            </>
+          )
+        }
+      />
 
-      {/* Search & Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-            Buscar
-          </label>
-          <input
-            type="text"
-            placeholder="Nombre o SKU..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border px-4 py-2 text-sm"
-            style={{ borderColor: 'var(--color-border)' }}
-          />
-        </div>
+      <FilterBar
+        hasFilters={Boolean(search) || categoryFilter !== undefined || statusFilter !== undefined}
+        onClear={() => {
+          setSearch('')
+          setCategoryFilter(undefined)
+          setStatusFilter(undefined)
+          setPage(1)
+        }}
+      >
+        <input
+          type="search"
+          placeholder="Nombre o SKU..."
+          aria-label="Buscar producto por nombre o SKU"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          className={`${FILTER_FIELD_CLASS} w-full sm:w-64`}
+        />
+        <select
+          aria-label="Filtrar por categoría"
+          value={categoryFilter || ''}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value || undefined)
+            setPage(1)
+          }}
+          className={FILTER_FIELD_CLASS}
+        >
+          <option value="">Todas las categorías</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filtrar por estado"
+          value={statusFilter === undefined ? '' : statusFilter === true ? 'active' : 'inactive'}
+          onChange={(e) => {
+            if (e.target.value === '') setStatusFilter(undefined)
+            else if (e.target.value === 'active') setStatusFilter(true)
+            else setStatusFilter(false)
+            setPage(1)
+          }}
+          className={FILTER_FIELD_CLASS}
+        >
+          <option value="">Todos los estados</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
+      </FilterBar>
 
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-            Categoría
-          </label>
-          <select
-            value={categoryFilter || ''}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value || undefined)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border px-4 py-2 text-sm"
-            style={{ borderColor: 'var(--color-border)' }}
-          >
-            <option value="">Todas</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-            Estado
-          </label>
-          <select
-            value={
-              statusFilter === undefined ? '' : statusFilter === true ? 'active' : 'inactive'
-            }
-            onChange={(e) => {
-              if (e.target.value === '') setStatusFilter(undefined)
-              else if (e.target.value === 'active') setStatusFilter(true)
-              else setStatusFilter(false)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border px-4 py-2 text-sm"
-            style={{ borderColor: 'var(--color-border)' }}
-          >
-            <option value="">Todos</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-            Limpiar
-          </label>
-          <button
-            onClick={() => {
-              setSearch('')
-              setCategoryFilter(undefined)
-              setStatusFilter(undefined)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border px-4 py-2 text-sm font-medium transition"
-            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-          >
-            Restablecer
-          </button>
-        </div>
-      </div>
-
-      {/* Products Table */}
-      <Card>
-        {loading ? (
-          <div className="p-6 text-center" style={{ color: 'var(--color-text-secondary)' }}>
-            Cargando productos...
-          </div>
-        ) : products.length === 0 ? (
-          <div className="p-6 text-center" style={{ color: 'var(--color-text-secondary)' }}>
-            No hay productos registrados
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Nombre
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    SKU
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Categoría
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Temperatura
-                  </th>
-                  <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Precio
-                  </th>
-                  <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Costo
-                  </th>
-                  <th className="px-6 py-3 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td className="px-6 py-4" style={{ color: 'var(--color-text-primary)' }}>
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
-                          <ProductImage src={product.imageUrl} alt="" />
-                        </div>
-                        <span>{product.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
-                      {product.sku}
-                    </td>
-                    <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
-                      {getCategoryName(product.categoryId)}
-                    </td>
-                    <td className="px-6 py-4" style={{ color: 'var(--color-text-secondary)' }}>
-                      {isBeverageCategory(product.categoryId)
-                        ? getProductTemperature(product) ? formatDrinkTemperature(getProductTemperature(product)!) : 'Sin definir'
-                        : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-primary)' }}>
-                      {formatCurrency(product.price)}
-                    </td>
-                    <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-secondary)' }}>
-                      {formatCurrency(product.cost)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleToggleActive(product.id, product.isActive)}
-                        disabled={isLoadingActive}
-                        className="inline-block rounded px-2 py-1 text-xs font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{
-                          backgroundColor: product.isActive ? 'var(--color-success)' : 'var(--color-warning)',
-                        }}
-                      >
-                        {isLoadingActive ? 'Cambiando...' : (product.isActive ? 'Activo' : 'Inactivo')}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {canUpdate && (
-                          <button
-                            onClick={() => {
-                              resetImageState()
-                              setEditingProduct(product)
-                              setIsCreateModalOpen(true)
-                            }}
-                            className="rounded px-2 py-1 text-xs font-semibold transition"
-                            style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
-                          >
-                            Editar
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => handleDeleteClick(product.id)}
-                            disabled={isDeleting}
-                            className="rounded px-2 py-1 text-xs font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}
-                          >
-                            {isDeleting ? 'Eliminando...' : 'Eliminar'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <ProductsTable
+        products={products}
+        isLoading={loading}
+        hasFilters={Boolean(search) || categoryFilter !== undefined || statusFilter !== undefined}
+        getCategoryName={getCategoryName}
+        getTemperatureLabel={(product) =>
+          isBeverageCategory(product.categoryId)
+            ? getProductTemperature(product) ? formatDrinkTemperature(getProductTemperature(product)!) : 'Sin definir'
+            : null
+        }
+        canUpdate={canUpdate}
+        canDelete={canDelete}
+        togglingProductId={togglingProductId}
+        deletingProductId={isDeleting ? productToDelete : null}
+        onEdit={(product) => {
+          resetImageState()
+          setEditingProduct(product)
+          setIsCreateModalOpen(true)
+        }}
+        onToggleActive={handleToggleActive}
+        onDelete={handleDeleteClick}
+      />
 
       {/* Pagination Footer */}
       {!loading && products.length > 0 && totalPages > 1 && (
-        <div className="flex items-center justify-between gap-4">
-          <span style={{ color: 'var(--color-text-secondary)' }} className="text-sm">
-            Página {page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-              className="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-            >
-              Anterior
-            </button>
-            <button
-              onClick={() => setPage(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages}
-              className="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
+        <Pagination
+          className="mt-4"
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          itemLabel="productos"
+          onPageChange={setPage}
+        />
       )}
 
       {/* Create/Edit Modal */}
@@ -563,6 +505,7 @@ export function ProductsTab() {
           resetImageState()
         }}
         ariaLabelledBy="product-modal-title"
+        maxWidthClassName="max-w-2xl"
       >
             <div className="space-y-4 p-6">
               <h2 id="product-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
@@ -570,11 +513,13 @@ export function ProductsTab() {
               </h2>
 
               <div className="space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Datos básicos</h3>
                 <div>
-                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="productstab-nombre" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     Nombre *
                   </label>
                   <input
+                    id="productstab-nombre"
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -585,10 +530,11 @@ export function ProductsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="productstab-sku" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     SKU *
                   </label>
                   <input
+                    id="productstab-sku"
                     type="text"
                     value={formData.sku}
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
@@ -599,10 +545,11 @@ export function ProductsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="productstab-descripcion" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     Descripción
                   </label>
                   <textarea
+                    id="productstab-descripcion"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="mt-1 w-full rounded-lg border px-4 py-2"
@@ -613,10 +560,11 @@ export function ProductsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="productstab-categoria-2" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     Categoría
                   </label>
                   <select
+                    id="productstab-categoria-2"
                     value={formData.categoryId || ''}
                     onChange={(e) => {
                       const categoryId = e.target.value || undefined
@@ -678,14 +626,16 @@ export function ProductsTab() {
                   onRemove={() => setRemoveImageConfirmOpen(true)}
                 />
 
-                <div className="grid grid-cols-3 gap-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Precio y costo</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    <label htmlFor="productstab-precio" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                       Precio *
                     </label>
                     <input
+                      id="productstab-precio"
                       type="number"
-                      value={formData.price}
+                      value={Number.isNaN(formData.price) ? '' : formData.price}
                       onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded-lg border px-4 py-2"
                       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
@@ -696,12 +646,13 @@ export function ProductsTab() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    <label htmlFor="productstab-costo" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                       Costo *
                     </label>
                     <input
+                      id="productstab-costo"
                       type="number"
-                      value={formData.cost}
+                      value={Number.isNaN(formData.cost) ? '' : formData.cost}
                       onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
                       className="mt-1 w-full rounded-lg border px-4 py-2"
                       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
@@ -710,7 +661,7 @@ export function ProductsTab() {
                       step="0.01"
                     />
                     {suggestedCost !== null && (
-                      <p className="mt-1 flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                         Costo según receta: {formatCurrency(suggestedCost)}
                         {suggestedCost !== Number(formData.cost) && (
                           <button
@@ -727,10 +678,11 @@ export function ProductsTab() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    <label htmlFor="productstab-orden" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                       Orden
                     </label>
                     <input
+                      id="productstab-orden"
                       type="number"
                       value={formData.displayOrder ?? 0}
                       onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value, 10) || 0 })}
@@ -743,12 +695,13 @@ export function ProductsTab() {
                   </div>
                 </div>
 
-                {isLatteProduct(formData.name, formData.categoryId) && (
+                {isBeverageCategory(formData.categoryId) && (
                   <div>
-                    <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    <label htmlFor="productstab-precio-jumbo" className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                       Precio Jumbo
                     </label>
                     <input
+                      id="productstab-precio-jumbo"
                       type="number"
                       value={formData.jumboPrice ?? ''}
                       onChange={(event) => setFormData({
@@ -764,36 +717,176 @@ export function ProductsTab() {
                   </div>
                 )}
 
-                {allExtras.length > 0 && (
-                  <fieldset>
-                    <legend className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                      Extras que se ofrecen en el POS
-                    </legend>
-                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {allExtras.map((extra) => (
-                        <label
-                          key={extra.id}
-                          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-                          style={{ borderColor: 'var(--color-border)', color: extra.isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedExtraIds.includes(extra.id)}
-                            onChange={() => toggleExtra(extra.id)}
-                          />
-                          <span className="flex-1">{extra.name}{extra.isActive ? '' : ' (inactivo)'}</span>
-                          <span style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(Number(extra.price))}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
+                <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Receta</h3>
+                {detailReady ? (
+                  <ProductRecipeSection
+                    recipe={recipeDraft}
+                    onChange={setRecipeDraft}
+                    tracksInventory={tracksInventory}
+                    onTracksInventoryChange={setTracksInventory}
+                    jumboAvailable={jumboAvailable}
+                    price={Number(formData.price) || 0}
+                    jumboPrice={formData.jumboPrice ?? null}
+                    readOnly={!canManageRecipes}
+                    soldBothWays={formData.temperature === 'BOTH'}
+                  />
+                ) : (
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Cargando receta…</p>
                 )}
+
+                {/* Advanced: only needed for grouped products (families) and add-ons. Opens by itself
+                    when the product already uses any of them, so no value is ever hidden. */}
+                <div className="rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+                  <button
+                    type="button"
+                    aria-expanded={isSaleOptionsOpen}
+                    onClick={() => setShowSaleOptions((open) => !open)}
+                    disabled={hasSaleOptions}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold disabled:cursor-default"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    <span>
+                      Opciones de venta
+                      <span className="ml-2 font-normal" style={{ color: 'var(--color-text-secondary)' }}>familia, variantes y extras</span>
+                    </span>
+                    {!hasSaleOptions && <span style={{ color: 'var(--color-primary)' }}>{isSaleOptionsOpen ? 'Ocultar' : 'Mostrar'}</span>}
+                  </button>
+                  {isSaleOptionsOpen && (
+                    <div className="space-y-4 border-t p-4" style={{ borderColor: 'var(--color-border)' }}>
+                    <fieldset className="space-y-2 rounded-lg border p-4" style={{ borderColor: 'var(--color-border)' }}>
+                      <legend className="px-1 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                        Agrupación en el POS
+                      </legend>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                          Familia
+                          <select
+                            value={familyId}
+                            onChange={(event) => setFamilyId(event.target.value)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2"
+                            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                          >
+                            <option value="">Sin familia (se muestra solo)</option>
+                            {families.filter((family) => family.isActive || family.id === familyId).map((family) => (
+                              <option key={family.id} value={family.id}>{family.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                          Variante
+                          <input
+                            type="text"
+                            value={variantLabel}
+                            onChange={(event) => setVariantLabel(event.target.value)}
+                            disabled={!familyId}
+                            placeholder="Ej: Vainilla"
+                            className="mt-1 w-full rounded-lg border px-3 py-2 disabled:opacity-50"
+                            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newFamilyName}
+                          onChange={(event) => setNewFamilyName(event.target.value)}
+                          placeholder="Nueva familia (ej. Frappé)"
+                          className="flex-1 rounded-lg border px-3 py-1.5 text-sm"
+                          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                          aria-label="Nombre de la nueva familia"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCreateFamily}
+                          disabled={isCreatingFamily || newFamilyName.trim().length < 2}
+                          className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                        >
+                          Crear familia
+                        </button>
+                      </div>
+                      {familyId && (
+                        <div className="space-y-2">
+                          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                            Opciones (sólo si la familia se elige por varias características, p. ej. Salsa y Proteína):
+                          </p>
+                          {options.map((option, index) => (
+                            <div key={index} className="flex gap-2">
+                              <input
+                                type="text"
+                                value={option.name}
+                                onChange={(event) => setOptions(options.map((o, i) => (i === index ? { ...o, name: event.target.value } : o)))}
+                                placeholder="Característica (Salsa)"
+                                className="flex-1 rounded-lg border px-3 py-1.5 text-sm"
+                                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                                aria-label="Nombre de la opción"
+                              />
+                              <input
+                                type="text"
+                                value={option.value}
+                                onChange={(event) => setOptions(options.map((o, i) => (i === index ? { ...o, value: event.target.value } : o)))}
+                                placeholder="Valor (Roja)"
+                                className="flex-1 rounded-lg border px-3 py-1.5 text-sm"
+                                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+                                aria-label="Valor de la opción"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setOptions(options.filter((_, i) => i !== index))}
+                                className="px-2 text-sm font-semibold"
+                                style={{ color: 'var(--color-danger)' }}
+                                aria-label="Quitar opción"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          {options.length < 5 && (
+                            <button
+                              type="button"
+                              onClick={() => setOptions([...options, { name: '', value: '' }])}
+                              className="text-sm font-semibold underline"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              + Agregar opción
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </fieldset>
+                    {allExtras.length > 0 && (
+                      <fieldset>
+                        <legend className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                          Extras que se ofrecen en el POS
+                        </legend>
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {allExtras.map((extra) => (
+                            <label
+                              key={extra.id}
+                              className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                              style={{ borderColor: 'var(--color-border)', color: extra.isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedExtraIds.includes(extra.id)}
+                                onChange={() => toggleExtra(extra.id)}
+                              />
+                              <span className="flex-1">{extra.name}{extra.isActive ? '' : ' (inactivo)'}</span>
+                              <span style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(Number(extra.price))}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex-1 rounded-lg px-4 py-2 font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isSaving || !detailReady}
+                    className="flex-1 rounded-lg px-4 py-2 font-semibold text-[var(--color-button-text)] transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     {isSaving ? (editingProduct ? 'Actualizando...' : 'Creando...') : (editingProduct ? 'Actualizar' : 'Crear')}
@@ -832,7 +925,21 @@ export function ProductsTab() {
         }}
       />
 
-      {/* Category Manager Modal */}
+      <ConfirmDialog
+        isOpen={productToDeactivate !== null}
+        title="Desactivar producto"
+        message={`"${productToDeactivate?.name ?? ''}" dejará de mostrarse en el menú de venta. Podrás activarlo de nuevo cuando quieras.`}
+        confirmText="Desactivar"
+        isDangerous
+        isLoading={togglingProductId !== null}
+        onConfirm={() => {
+          if (!productToDeactivate) return
+          setActive({ id: productToDeactivate.id, isActive: false }, { onSettled: () => setProductToDeactivate(null) })
+        }}
+        onCancel={() => setProductToDeactivate(null)}
+      />
+
+      {/* Image removal confirmation */}
       <ConfirmDialog
         isOpen={removeImageConfirmOpen}
         title="Quitar imagen"
@@ -845,6 +952,7 @@ export function ProductsTab() {
         onCancel={() => setRemoveImageConfirmOpen(false)}
       />
 
+      {/* Category Manager Modal */}
       <CategoryManagerModal isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} />
     </div>
   )

@@ -20,7 +20,7 @@ env:
 
 jobs:
   frontend:
-    name: Frontend (lint, typecheck, build)
+    name: Frontend (lint, typecheck, test, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -33,8 +33,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # P2 (2026-11-14): runtime dependencies without known high/critical vulnerabilities.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run test
       - run: npm run build
 
   backend:
@@ -55,6 +58,9 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      # Critical only: the remaining "high" ones are the Prisma CLI (deepmerge-ts), which is not
+      # in the image, and need Prisma 7 (major). See docs/Project/deployment.md.
+      - run: npm audit --omit=dev --audit-level=critical
       - run: npm run lint
       - run: npm run typecheck
       - run: npx prisma validate

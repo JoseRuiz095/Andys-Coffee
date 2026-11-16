@@ -1,4 +1,5 @@
 import type { MenuExtra, SelectedExtra } from '../types/menu.types'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
 const MAX_PER_UNIT = 5
 
@@ -34,7 +35,7 @@ export function ExtrasPicker({ extras, value, onChange }: ExtrasPickerProps) {
             >
               <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
                 {extra.name}
-                <span className="ml-2" style={{ color: 'var(--color-text-secondary)' }}>+${extra.price.toFixed(2)}</span>
+                <span className="ml-2" style={{ color: 'var(--color-text-secondary)' }}>+{formatCurrency(extra.price)}</span>
               </span>
               <span className="flex items-center gap-2">
                 <button

@@ -1,5 +1,6 @@
 import { Order, OrderStatus, mapOrderStatusToFrontend } from '../types/orders.types'
 import { OrderActions } from './OrderActions'
+import { useNow } from '../hooks/useNow'
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
 import type { AuthUser } from '../../auth/types/auth.types';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -8,7 +9,7 @@ interface OrderListViewProps {
   orders: Order[]
   onStatusChange: (orderId: string, newStatus: OrderStatus) => void
   currentUser: AuthUser | null
-  updatingOrderId?: string | null
+  isUpdatingOrder?: (orderId: string) => boolean
 }
 
 const statusTextMap: Record<OrderStatus, string> = {
@@ -27,7 +28,9 @@ const statusToneMap: Record<OrderStatus, 'warning' | 'info' | 'success' | 'neutr
   CANCELLED: 'danger',
 }
 
-export function OrderListView({ orders, onStatusChange, currentUser, updatingOrderId = null }: OrderListViewProps) {
+export function OrderListView({ orders, onStatusChange, currentUser, isUpdatingOrder = () => false }: OrderListViewProps) {
+  // One clock for every row (scheduled orders unlock 20 min before their time).
+  const now = useNow(30_000)
   if (orders.length === 0) {
     return (
       <div className="rounded-xl border p-8 text-center shadow-md" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -74,7 +77,7 @@ export function OrderListView({ orders, onStatusChange, currentUser, updatingOrd
                   <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
                 </td>
                 <td className="p-4" style={{ color: 'var(--color-text-secondary)' }}>
-                  {new Date(order.createdAt).toLocaleTimeString('es-ES', {
+                  {new Date(order.createdAt).toLocaleTimeString('es-MX', {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
@@ -85,7 +88,8 @@ export function OrderListView({ orders, onStatusChange, currentUser, updatingOrd
                     order={order}
                     onStatusChange={(status) => onStatusChange(order.id, status)}
                     currentUser={currentUser}
-                    isUpdating={updatingOrderId === order.id}
+                    isUpdating={isUpdatingOrder(order.id)}
+                    now={now}
                   />
                 </td>
               </tr>

@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma';
 import type { Prisma } from '@prisma/client';
-import type { Tx } from './transaction';
+import type { DbClient, Tx } from './transaction';
 
 const extraSelect = {
   id: true,
@@ -12,6 +12,14 @@ const extraSelect = {
   createdAt: true,
   updatedAt: true,
   _count: { select: { products: true } },
+  recipes: {
+    select: {
+      ingredientId: true,
+      quantity: true,
+      ingredient: { select: { name: true, sku: true, averageCost: true, isActive: true, unit: { select: { id: true, abbreviation: true } } } },
+    },
+    orderBy: { ingredient: { name: 'asc' } },
+  },
 } satisfies Prisma.ExtraSelect;
 
 export const ExtraRepository = {
@@ -19,8 +27,8 @@ export const ExtraRepository = {
     return prisma.extra.findMany({ orderBy: [{ isActive: 'desc' }, { name: 'asc' }], select: extraSelect });
   },
 
-  async findById(id: string) {
-    return prisma.extra.findUnique({ where: { id }, select: extraSelect });
+  async findById(id: string, client: DbClient = prisma) {
+    return client.extra.findUnique({ where: { id }, select: extraSelect });
   },
 
   /** Another extra with the same name (case and surrounding spaces ignored). */
@@ -31,8 +39,8 @@ export const ExtraRepository = {
     });
   },
 
-  async countByIds(ids: string[]) {
-    return prisma.extra.count({ where: { id: { in: ids } } });
+  async countByIds(ids: string[], client: DbClient = prisma) {
+    return client.extra.count({ where: { id: { in: ids } } });
   },
 
   /** Sale lines that used the extra: once sold, it is deactivated instead of deleted. */
@@ -40,12 +48,12 @@ export const ExtraRepository = {
     return prisma.orderItemExtra.count({ where: { extraId: id } });
   },
 
-  async create(data: Prisma.ExtraCreateInput) {
-    return prisma.extra.create({ data, select: extraSelect });
+  async create(data: Prisma.ExtraCreateInput, client: DbClient = prisma) {
+    return client.extra.create({ data, select: extraSelect });
   },
 
-  async update(id: string, data: Prisma.ExtraUpdateInput) {
-    return prisma.extra.update({ where: { id }, data, select: extraSelect });
+  async update(id: string, data: Prisma.ExtraUpdateInput, client: DbClient = prisma) {
+    return client.extra.update({ where: { id }, data, select: extraSelect });
   },
 
   async delete(id: string) {

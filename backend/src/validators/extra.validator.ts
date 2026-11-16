@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extraRecipeSchema } from './recipe.validator';
 
 export { setActiveSchema } from './common.validator';
 
@@ -10,6 +11,9 @@ export const createExtraSchema = z.strictObject({
   description: z.string().trim().max(300).optional().nullable(),
   price: money('El precio'),
   cost: money('El costo'),
+  // Ingredients the extra adds (positive) or removes (negative, e.g. "sin azúcar"); replaces
+  // the stored recipe when sent. Requires inventory.manage_recipes.
+  recipe: extraRecipeSchema.optional(),
 });
 
 export const updateExtraSchema = createExtraSchema.partial().refine((data) => Object.keys(data).length > 0, {

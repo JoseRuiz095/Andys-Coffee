@@ -1,7 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ProductAPI, CategoryAPI } from '../api/product.api'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { sileo } from 'sileo'
+import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
+import { getErrorMessage } from '../../../shared/utils/errors'
+import { ProductAPI, CategoryAPI, ProductFamilyAPI } from '../api/product.api'
 import type { CreateProductInput, UpdateProductInput } from '../types/product.types'
 import { useState } from 'react'
+
+const PRODUCTS_PAGE_SIZE = 50
+const SEARCH_DEBOUNCE_MS = 300
 
 export function useProducts(page = 1) {
   const [currentPage, setCurrentPage] = useState(page)
@@ -9,15 +15,18 @@ export function useProducts(page = 1) {
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>()
   const [statusFilter, setStatusFilter] = useState<boolean | undefined>()
   const queryClient = useQueryClient()
+  // One request once the user stops typing, not one per keystroke.
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products', currentPage, { search, categoryFilter, statusFilter }],
+    queryKey: ['products', currentPage, { search: debouncedSearch, categoryFilter, statusFilter }],
     queryFn: () =>
-      ProductAPI.getAll(currentPage, 50, {
+      ProductAPI.getAll(currentPage, PRODUCTS_PAGE_SIZE, {
         categoryId: categoryFilter,
         isActive: statusFilter,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
       }),
+    placeholderData: keepPreviousData,
   })
 
   const createMutation = useMutation({
@@ -25,6 +34,7 @@ export function useProducts(page = 1) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -33,6 +43,7 @@ export function useProducts(page = 1) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -41,15 +52,22 @@ export function useProducts(page = 1) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
   const setActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       ProductAPI.setActive(id, isActive),
-    onSuccess: () => {
+    onSuccess: (_data, { isActive }) => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
+      sileo.success({ title: isActive ? 'Producto activado' : 'Producto desactivado' })
+    },
+    // No caller handles it: without this a failed toggle was silent.
+    onError: (error: unknown) => {
+      sileo.error({ title: 'No se pudo cambiar el estado', description: getErrorMessage(error, 'Inténtalo de nuevo.') })
     },
   })
 
@@ -57,6 +75,7 @@ export function useProducts(page = 1) {
     products: data?.data || [],
     totalPages: data?.pagination?.totalPages ?? 0,
     total: data?.pagination?.total ?? 0,
+    pageSize: data?.pagination?.limit ?? PRODUCTS_PAGE_SIZE,
     loading: isLoading,
     error,
     page: currentPage,
@@ -78,6 +97,8 @@ export function useProducts(page = 1) {
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isLoadingActive: setActiveMutation.isPending,
+    /** Product whose active state is being changed (only that row shows it as busy). */
+    togglingProductId: setActiveMutation.isPending ? setActiveMutation.variables?.id ?? null : null,
   }
 }
 
@@ -116,6 +137,19 @@ export function useProductDetail(id: string | undefined) {
   })
 }
 
+/** POS families (Latte, Chilaquiles…) to group products; creating one refreshes the list. */
+export function useProductFamilies(enabled = true) {
+  const queryClient = useQueryClient()
+  const query = useQuery({ queryKey: ['product-families'], queryFn: () => ProductFamilyAPI.getAll(), enabled })
+  const create = useMutation({
+    mutationFn: (input: Parameters<typeof ProductFamilyAPI.create>[0]) => ProductFamilyAPI.create(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-families'] })
+    },
+  })
+  return { families: query.data ?? [], isLoading: query.isLoading, createAsync: create.mutateAsync, isCreating: create.isPending }
+}
+
 /** `includeInactive` is for the category manager; pickers and filters only need the active ones. */
 export function useCategories(options: { includeInactive?: boolean } = {}) {
   const includeInactive = options.includeInactive ?? false
@@ -130,6 +164,7 @@ export function useCategories(options: { includeInactive?: boolean } = {}) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -138,6 +173,7 @@ export function useCategories(options: { includeInactive?: boolean } = {}) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -146,6 +182,7 @@ export function useCategories(options: { includeInactive?: boolean } = {}) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -154,6 +191,7 @@ export function useCategories(options: { includeInactive?: boolean } = {}) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['menu'] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'products-without-recipe'] })
     },
   })
 
@@ -168,6 +206,8 @@ export function useCategories(options: { includeInactive?: boolean } = {}) {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isLoadingActive: setActiveMutation.isPending,
+    /** Product whose active state is being changed (only that row shows it as busy). */
+    togglingProductId: setActiveMutation.isPending ? setActiveMutation.variables?.id ?? null : null,
     isDeleting: deleteMutation.isPending,
   }
 }

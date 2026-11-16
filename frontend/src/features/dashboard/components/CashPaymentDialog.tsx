@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../../../shared/components/Button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
 interface CashPaymentDialogProps {
   open: boolean
@@ -9,6 +10,10 @@ interface CashPaymentDialogProps {
   /** Mandadito paid to Andy's in cash, charged in the same handover. */
   deliveryAmount?: number
   isLoading?: boolean
+  /** Why the server total could not be obtained; cash is never charged without it. */
+  pricingError?: string | null
+  isRetryingPricing?: boolean
+  onRetryPricing?: () => void
   onClose: () => void
   onConfirm: (cashReceived: number) => void
 }
@@ -18,6 +23,9 @@ export function CashPaymentDialog({
   saleAmount,
   deliveryAmount = 0,
   isLoading = false,
+  pricingError = null,
+  isRetryingPricing = false,
+  onRetryPricing,
   onClose,
   onConfirm,
 }: CashPaymentDialogProps) {
@@ -48,24 +56,24 @@ export function CashPaymentDialog({
               <>
                 <div className="flex justify-between text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   <span>Venta</span>
-                  <span>{isPricing ? 'Calculando…' : `$${(saleAmount ?? 0).toFixed(2)}`}</span>
+                  <span>{isPricing ? 'Calculando…' : formatCurrency((saleAmount ?? 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   <span>Mandadito</span>
-                  <span>${deliveryAmount.toFixed(2)}</span>
+                  <span>{formatCurrency(deliveryAmount)}</span>
                 </div>
               </>
             )}
             <div className="flex items-end justify-between">
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Total a cobrar en efectivo</span>
               <span className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                {isPricing ? 'Calculando…' : `$${total.toFixed(2)}`}
+                {isPricing ? 'Calculando…' : formatCurrency(total)}
               </span>
             </div>
           </div>
           <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
             Monto recibido
-            <div className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[#5A804F]/15" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)' }}>
+            <div className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--color-primary)_15%,transparent)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)' }}>
               <span style={{ color: 'var(--color-primary)' }}>$</span>
               <input
                 autoFocus
@@ -85,13 +93,23 @@ export function CashPaymentDialog({
             <div className="flex items-center justify-between">
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Cambio</span>
               <span className="text-2xl font-bold" style={{ color: canConfirm ? 'var(--color-primary)' : 'var(--color-text-primary)' }}>
-                ${Math.max(0, change).toFixed(2)}
+                {formatCurrency(Math.max(0, change))}
               </span>
             </div>
-            {!canConfirm && (
+            {!canConfirm && !(isPricing && pricingError) && (
               <p className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 {isPricing ? 'Esperando el total del servidor…' : 'El monto recibido debe cubrir el total.'}
               </p>
+            )}
+            {isPricing && pricingError && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs" style={{ color: 'var(--color-danger)' }}>
+                <span>{pricingError} No se puede cobrar en efectivo sin el total del servidor.</span>
+                {onRetryPricing && (
+                  <Button variant="link" onClick={onRetryPricing} disabled={isRetryingPricing}>
+                    {isRetryingPricing ? 'Reintentando…' : 'Reintentar'}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           <div className="grid grid-cols-3 gap-2">

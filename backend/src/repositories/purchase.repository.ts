@@ -91,8 +91,9 @@ export const PurchaseRepository = {
     };
   },
 
-  async delete(id: string) {
-    return prisma.purchase.delete({ where: { id } });
+  /** Deletes the purchase only while it is still a draft; returns how many rows went away. */
+  async deleteDraft(id: string) {
+    return prisma.purchase.deleteMany({ where: { id, status: 'draft' } }).then((result) => result.count);
   },
 
   async updateStatus(id: string, status: string) {
@@ -129,10 +130,11 @@ export const PurchaseRepository = {
     id: string,
     status: string,
     client: PrismaClient = prisma,
+    extra: { purchasedAt?: Date } = {},
   ) {
     return client.purchase.update({
       where: { id },
-      data: { status },
+      data: { status, ...extra },
       include: {
         items: {
           include: {
@@ -149,8 +151,9 @@ export const PurchaseRepository = {
   },
 
   async findIngredientsForPurchase(ingredientIds: string[], client: PrismaClient = prisma) {
+    // INV-8: only active, not deleted ingredients can be bought.
     return client.ingredient.findMany({
-      where: { id: { in: ingredientIds } },
+      where: { id: { in: ingredientIds }, isActive: true, deletedAt: null },
       select: {
         id: true,
         currentStock: true,

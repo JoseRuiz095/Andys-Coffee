@@ -1,35 +1,19 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
-import { useBodyScrollLock } from '../../shared/hooks/useBodyScrollLock';
-import { useOverlayEscape } from '../../shared/hooks/useOverlayEscape';
+import React, { createContext, useContext, useId } from 'react';
+import { Modal } from '../../shared/components/Modal';
+
+// Compound API kept for its callers (POS payment, cash cut, schedule, expenses, menu, notes);
+// the overlay itself is the shared Modal, so every dialog layers, scrolls, traps focus and
+// closes with Escape the same way.
+const DialogTitleIdContext = createContext<string | undefined>(undefined);
 
 const Dialog = ({ open, onOpenChange, children }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode }) => {
-  useBodyScrollLock(open);
-  useOverlayEscape(open, () => onOpenChange(false));
+  const titleId = useId();
 
-  if (!open) return null;
-
-  const dialogContent = (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="rounded-lg shadow-lg w-full max-w-md"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
+  return (
+    <Modal isOpen={open} onClose={() => onOpenChange(false)} ariaLabelledBy={titleId}>
+      <DialogTitleIdContext.Provider value={titleId}>{children}</DialogTitleIdContext.Provider>
+    </Modal>
   );
-
-  const portalRoot = document.getElementById('modal-root');
-  if (!portalRoot) return dialogContent;
-
-  return createPortal(dialogContent, portalRoot);
 };
 
 const DialogContent = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -45,7 +29,7 @@ const DialogFooter = ({ children }: { children: React.ReactNode }) => (
 );
 
 const DialogTitle = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{children}</h2>
+  <h2 id={useContext(DialogTitleIdContext)} className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{children}</h2>
 );
 
 export { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle };

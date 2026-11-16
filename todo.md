@@ -216,6 +216,10 @@ Plan: [docs/Project/plan-test.md](docs/Project/plan-test.md) · Reporte: [docs/P
 - [ ] Editar una compra en borrador (`PATCH /api/purchases/:id`; hoy solo se puede crear, recibir y eliminar)
 
 ### Inventario
+- [x] Inventario en tiempo real por receta (Fases 1-8 de `docs/Project/plan-inventario-tiempo-real.md`, nov 2026): recetas por tamaño en el modal de producto/extra, descuento al vender (interruptor `inventory.consumeOnSale`), reversa/merma al cancelar, alertas de stock bajo, reabastecimiento, normalización del catálogo
+- [ ] Producción: migraciones `20261111*`, normalización, sincronización de recetas y activación (Fase 9 del plan; requiere aprobación)
+- [ ] Revisión del negocio de `backend/prisma/ingredient-catalog.ts` y captura de recetas
+- [ ] Revisión manual en tema oscuro del modal de producto con receta y de la pestaña Reabastecimiento
 - [ ] Proyecciones de stock
 
 ### Promociones

@@ -8,10 +8,10 @@ interface OrdersGridViewProps {
   orders: Order[];
   onStatusChange: (orderId: string, newStatus: OrderStatus) => void;
   currentUser: AuthUser | null;
-  updatingOrderId?: string | null;
+  isUpdatingOrder?: (orderId: string) => boolean;
 }
 
-export function OrdersGridView({ orders, onStatusChange, currentUser, updatingOrderId = null }: OrdersGridViewProps) {
+export function OrdersGridView({ orders, onStatusChange, currentUser, isUpdatingOrder = () => false }: OrdersGridViewProps) {
   const now = useNow();
   const activeOrders = sortOrdersByUrgency(
     orders.filter(order => order.status !== 'completed' && order.status !== 'cancelled'),
@@ -35,7 +35,7 @@ export function OrdersGridView({ orders, onStatusChange, currentUser, updatingOr
           now={now}
           onStatusChange={onStatusChange}
           currentUser={currentUser}
-          isUpdating={updatingOrderId === order.id}
+          isUpdating={isUpdatingOrder(order.id)}
         />
       ))}
     </div>

@@ -13,8 +13,11 @@ import { prisma } from "../../src/config/prisma";
 // Playwright runs from backend/ (npm scripts); __dirname is unavailable in this ESM package.
 const backendRoot = process.cwd();
 const frontendRoot = path.resolve(backendRoot, "../frontend");
-const frontendOrigin = "http://127.0.0.1:5173";
-const unauthorizedOrigin = "http://127.0.0.1:5174";
+// Same port override as support/app-harness.ts (to run next to the dev servers).
+const backendPort = Number(process.env.E2E_BACKEND_PORT ?? 4000);
+const frontendPort = Number(process.env.E2E_FRONTEND_PORT ?? 5173);
+const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
+const unauthorizedOrigin = `http://127.0.0.1:${frontendPort + 1}`;
 const e2eEmail = `sec003-${randomUUID()}@example.com`;
 const e2ePassword = `E2E-${randomUUID()}-Password!`;
 const e2eRoleName = `sec003-role-${randomUUID()}`;
@@ -48,6 +51,7 @@ function startVite(port: number) {
   const vitePath = path.resolve(frontendRoot, "node_modules/vite/bin/vite.js");
   return spawn(process.execPath, [vitePath, "--host", "127.0.0.1", "--port", String(port)], {
     cwd: frontendRoot,
+    env: { ...process.env, BACKEND_PROXY_URL: `http://127.0.0.1:${backendPort}` },
     stdio: "ignore",
     windowsHide: true,
   });
@@ -170,11 +174,11 @@ test.beforeAll(async () => {
 
   const { app } = await import("../../src/app");
   backendServer = createServer(app);
-  await new Promise<void>((resolve) => backendServer.listen(4000, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => backendServer.listen(backendPort, "127.0.0.1", resolve));
   backendUrl = `http://127.0.0.1:${(backendServer.address() as AddressInfo).port}`;
 
-  viteServer = startVite(5173);
-  unauthorizedViteServer = startVite(5174);
+  viteServer = startVite(frontendPort);
+  unauthorizedViteServer = startVite(frontendPort + 1);
   await Promise.all([
     waitForHttp(`${backendUrl}/health`),
     waitForHttp(`${frontendOrigin}/login`, viteServer),
@@ -213,7 +217,7 @@ test("SEC-003 protege CORS, cookies, CSRF, GET y mutaciones reales", async ({ br
   expect((await productMutation(page, "POST", `${backendUrl}/api/products`, { name: "CSRF invalid", price: 10, cost: 2, sku: productSku }, "invalid-token")).status).toBe(403);
 
   const token = await csrfToken(page);
-  const createResponse = await productMutation(page, "POST", `${backendUrl}/api/products`, { name: "E2E Product", price: 25, cost: 8, sku: productSku }, token);
+  const createResponse = await productMutation(page, "POST", `${backendUrl}/api/products`, { name: "E2E Product", price: 25, cost: 8, sku: productSku, tracksInventory: false }, token);
   expect(createResponse.status, createResponse.body).toBe(201);
   const created = JSON.parse(createResponse.body) as { id: string };
 

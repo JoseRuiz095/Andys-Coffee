@@ -19,26 +19,47 @@ export const inventoryMovementsSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   search: z.string().optional(),
+  orderId: z.string().trim().min(1).max(64).optional(),
 });
 
+const stockAmount = z.string().or(z.number()).transform((v) => String(v))
+  .refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1_000_000_000, 'Debe ser un número entre 0 y 1,000,000,000.');
+
 export const ingredientCreateSchema = z.object({
-  name: z.string().min(1).max(255),
-  sku: z.string().optional(),
+  name: z.string().trim().min(1).max(255),
+  // Optional: the server assigns INS-### when it is missing.
+  sku: z.string().trim().max(50).optional(),
   unitId: z.string().uuid(),
-  minimumStock: z.string().or(z.number()).transform((v) => String(v)).optional(),
+  minimumStock: stockAmount.optional(),
+  // Restock target; null/omitted = 2 × minimumStock.
+  maximumStock: stockAmount.nullable().optional(),
 });
 
 export const ingredientUpdateSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  sku: z.string().optional(),
-  minimumStock: z.string().or(z.number()).transform((v) => String(v)).optional(),
+  name: z.string().trim().min(1).max(255).optional(),
+  sku: z.string().trim().max(50).optional(),
+  minimumStock: stockAmount.optional(),
+  maximumStock: stockAmount.nullable().optional(),
 });
 
-export const inventoryExitReasons = ['waste', 'sample', 'internal_consumption', 'donation', 'other'] as const;
+/** GET /inventory/replenishment: consumption window in days. */
+export const replenishmentQuerySchema = z.strictObject({
+  days: z.coerce.number().int().min(1).max(90).default(14),
+});
+
+/** PATCH /inventory/settings: inventory switches (at least one). */
+export const inventorySettingsSchema = z.strictObject({
+  consumeOnSale: z.boolean().optional(),
+  lowStockNotify: z.boolean().optional(),
+}).refine((data) => Object.keys(data).length > 0, { message: 'Indica al menos un ajuste.' });
+
+export const inventoryExitReasons = ['waste', 'damaged', 'expired', 'sample', 'internal_consumption', 'donation', 'other'] as const;
 
 export const inventoryExitSchema = z.object({
   ingredientId: z.string().uuid(),
-  quantity: z.string().or(z.number()).transform((v) => String(v)),
+  // V2 (2026-11-14): a non-numeric quantity used to reach Prisma.Decimal and answer 500.
+  quantity: z.string().or(z.number()).transform((v) => String(v))
+    .refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) > 0 && Number(v) <= 100_000, 'La cantidad debe ser un número mayor a 0.'),
   reason: z.enum(inventoryExitReasons),
   notes: z.string().max(500).optional(),
 });

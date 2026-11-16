@@ -104,7 +104,7 @@ export function LoginForm() {
         </div>
 
         {error && (
-          <p className="rounded-3xl px-4 py-3 text-sm" style={{
+          <p role="alert" className="rounded-3xl px-4 py-3 text-sm" style={{
             backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))',
             color: 'var(--color-danger)'
           }}>

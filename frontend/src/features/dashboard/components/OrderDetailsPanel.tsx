@@ -14,6 +14,8 @@ import type { OrderItem } from '../types/order.types'
 import { extrasUnitPrice } from '../../menu/utils/extras'
 import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
 import { ProductImage } from '../../../shared/components/ProductImage'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { formatShortDateTime } from '../../../shared/utils/dateUtils'
 
 type DeliveryResponsible = 'customer_to_courier' | 'customer_to_business' | 'business_absorbs'
 type DeliveryPaymentMethod = 'cash' | 'transfer'
@@ -31,6 +33,8 @@ interface OrderDetailsPanelProps {
   /** True while the server price of the current cart is on its way. */
   isPricing?: boolean
   pricingError?: string | null
+  isRetryingPricing?: boolean
+  onRetryPricing?: () => void
   /** Mandadito the customer pays to Andy's, charged on top of the sale (not revenue). */
   deliveryCharge?: number
   isLoading?: boolean
@@ -43,7 +47,6 @@ interface OrderDetailsPanelProps {
   deliveryResponsible?: DeliveryResponsible
   deliveryPaymentMethod?: DeliveryPaymentMethod
   scheduledFor?: string | null
-  onClearOrder?: () => void
   /** Takes one unit off the line (removes it at 1). */
   onRemoveItem?: (itemId: string) => void
   onIncrementItem?: (itemId: string) => void
@@ -70,8 +73,10 @@ export function OrderDetailsPanel({
   lineTotals,
   isPricing = false,
   pricingError = null,
+  isRetryingPricing = false,
+  onRetryPricing,
   deliveryCharge = 0,
-  isLoading = true,
+  isLoading = false,
   isProcessing = false,
   orderNotes,
   paymentMethod,
@@ -118,14 +123,14 @@ export function OrderDetailsPanel({
     return (
       <div className="space-y-4">
         {/* Customer Info */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <Skeleton className="mb-3 h-5 w-32" />
           <Skeleton className="mb-4 h-8 w-full rounded-lg" />
           <Skeleton className="h-10 w-full rounded-lg" />
         </div>
 
         {/* Order Details */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <Skeleton className="mb-4 h-5 w-28" />
 
           <div className="space-y-3">
@@ -143,7 +148,7 @@ export function OrderDetailsPanel({
         </div>
 
         {/* Order Summary */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <Skeleton className="mb-4 h-5 w-28" />
 
           <div className="space-y-2">
@@ -170,15 +175,18 @@ export function OrderDetailsPanel({
 
   return (
     <>
-      <div className="space-y-4">
+      {/* Beside the menu (tablet and desktop) the order stays in view, total included, while
+          the cashier scrolls the products. */}
+      <div className="space-y-4 md:sticky md:top-4 md:max-h-[calc(100svh-2rem)] md:self-start md:overflow-y-auto">
         {/* Customer Info */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <h3 className="mb-3 font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             Información del cliente
           </h3>
           <input
             type="text"
             placeholder="Nombre del cliente"
+            aria-label="Nombre del cliente"
             value={customerName || ''}
             onChange={(e) => onCustomerNameChange?.(e.target.value)}
             className="mb-3 w-full rounded-xl border px-3 py-2"
@@ -190,6 +198,7 @@ export function OrderDetailsPanel({
           />
           <textarea
             placeholder="Notas de la orden..."
+            aria-label="Notas de la orden"
             value={orderNotes || ''}
             onChange={(e) => onNotesChange?.(e.target.value)}
             className="mb-3 w-full rounded-xl border px-3 py-2"
@@ -203,6 +212,7 @@ export function OrderDetailsPanel({
           <select
             value={paymentMethod || ''}
             onChange={(e) => onPaymentMethodChange?.(e.target.value as PaymentMethod)}
+            aria-label="Método de pago"
             className="w-full rounded-xl border px-3 py-2"
             style={{
               borderColor: 'var(--color-border)',
@@ -240,6 +250,7 @@ export function OrderDetailsPanel({
                   min={0}
                   step="0.01"
                   placeholder="$0.00"
+                  aria-label="Costo del mandadito"
                   value={deliveryAmount}
                   onChange={(e) => onDeliveryAmountChange?.(e.target.value)}
                   className="w-full rounded-xl border px-3 py-2"
@@ -318,7 +329,7 @@ export function OrderDetailsPanel({
         </div>
 
         {/* Order Details */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <h3 className="mb-4 font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             Detalle de la orden
           </h3>
@@ -368,16 +379,16 @@ export function OrderDetailsPanel({
                       <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Nota: {item.note}</p>
                     )}
                     <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                      {item.quantity} × ${item.unitPrice.toFixed(2)}
+                      {item.quantity} × {formatCurrency(item.unitPrice)}
                     </div>
                   </div>
                   <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                     {hasLineDiscount && line && (
                       <div className="text-xs font-normal line-through" style={{ color: 'var(--color-text-secondary)' }}>
-                        ${line.gross.toFixed(2)}
+                        {formatCurrency(line.gross)}
                       </div>
                     )}
-                    ${lineAmount.toFixed(2)}
+                    {formatCurrency(lineAmount)}
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-1">
@@ -429,41 +440,46 @@ export function OrderDetailsPanel({
         </div>
 
         {/* Order Summary */}
-        <div className="rounded-[1.5rem] border p-4 shadow-[0_20px_50px_rgba(45,33,29,0.06)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="rounded-[1.5rem] border p-4 shadow-[var(--shadow-card)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <h3 className="mb-4 font-semibold" style={{ color: 'var(--color-text-primary)' }}>Resumen</h3>
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm" style={{ color: 'var(--color-ghost-text)' }}>
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-sm" style={{ color: 'var(--color-success)' }}>
                 <span>Promociones</span>
-                <span>−${discount.toFixed(2)}</span>
+                <span>−{formatCurrency(discount)}</span>
               </div>
             )}
             <div className="my-3 border-t" style={{ borderColor: 'var(--color-border)' }} />
             <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               <span>Total</span>
-              <span>{isPricing && !pricingError ? 'Calculando…' : `$${total.toFixed(2)}`}</span>
+              <span>{isPricing && !pricingError ? 'Calculando…' : formatCurrency(total)}</span>
             </div>
             {deliveryCharge > 0 && (
               <>
                 <div className="flex justify-between text-sm" style={{ color: 'var(--color-ghost-text)' }}>
                   <span>Mandadito (aparte de la venta)</span>
-                  <span>${deliveryCharge.toFixed(2)}</span>
+                  <span>{formatCurrency(deliveryCharge)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                   <span>Total con mandadito</span>
-                  <span>{isPricing && !pricingError ? 'Calculando…' : `$${(total + deliveryCharge).toFixed(2)}`}</span>
+                  <span>{isPricing && !pricingError ? 'Calculando…' : formatCurrency((total + deliveryCharge))}</span>
                 </div>
               </>
             )}
             {pricingError && (
-              <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-                {pricingError} El total mostrado es aproximado; el servidor lo confirmará al procesar.
-              </p>
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-2 text-xs" style={{ color: 'var(--color-danger)' }}>
+                <span>{pricingError} El total mostrado es aproximado; el servidor lo confirmará al procesar.</span>
+                {onRetryPricing && (
+                  <Button variant="link" onClick={onRetryPricing} disabled={isRetryingPricing}>
+                    {isRetryingPricing ? 'Reintentando…' : 'Reintentar'}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
@@ -479,7 +495,7 @@ export function OrderDetailsPanel({
             </button>
             <button
               onClick={onProcessTransaction}
-              className="rounded-xl px-4 py-3 font-medium text-white transition-colors disabled:opacity-50"
+              className="rounded-xl px-4 py-3 font-medium text-[var(--color-button-text)] transition-colors disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-primary)' }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
@@ -490,7 +506,7 @@ export function OrderDetailsPanel({
           </div>
           {scheduledFor && (
             <div className="mt-3 rounded-xl border p-2 text-xs" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
-              Programado para: {new Date(scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+              Programado para: {formatShortDateTime(scheduledFor)}
             </div>
           )}
         </div>

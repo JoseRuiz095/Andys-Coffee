@@ -1,4 +1,5 @@
 import type { AuthUser } from '../types/auth.types'
+import { queryClient } from '../../../app/queryClient'
 
 type AuthState = {
   user: AuthUser | null
@@ -16,6 +17,9 @@ export const authStore = {
   },
   clearSession() {
     authState.user = null
+    // The POS terminal is shared: whoever logs in next must not see the previous user's cached
+    // orders, cash or admin data (possibly data their role can't read).
+    queryClient.clear()
     window.dispatchEvent(new Event('auth:changed'))
   },
 }

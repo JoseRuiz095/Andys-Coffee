@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useTheme } from '../assets/theme'
 
-type ButtonVariant = 'primary' | 'ghost' | 'icon' | 'link'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'link'
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode
@@ -10,13 +10,16 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantClassName: Record<ButtonVariant, string> = {
   primary:
-    'inline-flex min-h-11 w-full max-w-52 items-center justify-center rounded-full px-6 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-70',
+    'inline-flex min-h-11 w-full max-w-52 items-center justify-center rounded-full px-6 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-70',
+  // Outlined companion of primary (same shape): secondary actions such as "Cerrar sesión".
+  secondary:
+    'inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--color-border)] px-5 text-sm font-semibold transition hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-60',
   ghost:
-    'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-transparent px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-70',
+    'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-transparent px-3 text-sm font-medium hover:bg-[var(--color-surface-hover)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-70',
   icon:
-    'inline-grid size-9 flex-shrink-0 place-items-center rounded-full bg-transparent transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
+    'inline-grid size-9 flex-shrink-0 place-items-center rounded-full bg-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-60',
   link:
-    'inline-flex w-auto items-center gap-1 text-sm font-medium transition hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline disabled:hover:no-underline',
+    'inline-flex w-auto items-center gap-1 text-sm font-medium transition hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline disabled:hover:no-underline',
 }
 
 export function Button({
@@ -33,14 +36,19 @@ export function Button({
     ...(variant === 'primary' && {
       backgroundColor: colors.accent,
       color: colors.buttonText,
-      boxShadow: 'none',
+    }),
+    // textLight/surfaceSecondary are fill colors (white on the light surface): text on a
+    // transparent button uses the text tokens so it stays readable in both themes.
+    ...(variant === 'secondary' && {
+      color: colors.text,
+      backgroundColor: 'transparent',
     }),
     ...(variant === 'ghost' && {
-      color: colors.textLight,
+      color: colors.ghostText,
       backgroundColor: 'transparent',
     }),
     ...(variant === 'icon' && {
-      color: colors.surfaceSecondary,
+      color: colors.text,
       backgroundColor: 'transparent',
     }),
     ...(variant === 'link' && {

@@ -39,7 +39,7 @@ export const MenuService = {
           extras: product.extras.map(({ extra }) => ({ id: extra.id, name: extra.name, price: extra.price.toNumber() })),
           // Resolved here with the same rule a sale validates against, so the POS never guesses
           // it from the name (null = the product has no temperature, e.g. food).
-          temperature: product.temperature ?? getDrinkTemperature(product.name, category.name),
+          temperature: product.temperature ?? getDrinkTemperature(product.name, category.isBeverage),
           price: pricing.total.toNumber(),
           jumboPrice: product.jumboPrice === null
             ? null

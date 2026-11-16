@@ -1,5 +1,7 @@
 import { useDashboardProductCosts, type PeriodType } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { DashboardCard, DashboardCardEmpty } from './DashboardCard';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 
 interface ProductCostsBreakdownProps {
@@ -7,77 +9,38 @@ interface ProductCostsBreakdownProps {
 }
 
 export function ProductCostsBreakdown({ period }: ProductCostsBreakdownProps) {
-  const { data, isLoading, error } = useDashboardProductCosts({ period, limit: 10 });
+  const { data, isLoading, error, refetch, isFetching } = useDashboardProductCosts({ period, limit: 10 });
 
   if (error) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Análisis de Costos por Producto
-        </h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-danger)' }}>
-          Error al cargar
-        </p>
-      </div>
+      <DashboardCard title="Costos por producto">
+        <QueryErrorState error={error} subject="los costos por producto" onRetry={() => void refetch()} isRetrying={isFetching} />
+      </DashboardCard>
     );
   }
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Análisis de Costos por Producto
-        </h3>
+      <DashboardCard title="Costos por producto">
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-10" />
           ))}
         </div>
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data?.products.length) {
     return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Análisis de Costos por Producto
-        </h3>
-        <p className="mt-2">No hay datos disponibles</p>
-      </div>
+      <DashboardCard title="Costos por producto">
+        <DashboardCardEmpty>No hay datos disponibles</DashboardCardEmpty>
+      </DashboardCard>
     );
   }
 
   return (
-    <div
-      className="rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
-    >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-        Análisis de Costos por Producto
-      </h3>
+    <DashboardCard title="Costos por producto">
       <div className="space-y-3">
         {data.products.map((product) => (
           <div
@@ -117,6 +80,6 @@ export function ProductCostsBreakdown({ period }: ProductCostsBreakdownProps) {
           </div>
         ))}
       </div>
-    </div>
+    </DashboardCard>
   );
 }

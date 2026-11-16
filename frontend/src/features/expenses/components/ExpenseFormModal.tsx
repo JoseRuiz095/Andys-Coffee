@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from '../../../shared/components/Button';
 import type { Expense, CreateExpenseInput, UpdateExpenseInput, ExpenseCategory, ExpensePaymentMethod } from '../types/expense.types';
 import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_METHODS } from '../types/expense.types';
+import { formatPaymentMethod } from '../../../shared/constants/paymentMethods'
 
 interface ExpenseFormModalProps {
   isOpen: boolean;
@@ -141,7 +142,7 @@ export function ExpenseFormModal({ isOpen, isLoading = false, editingExpense, on
               >
                 {EXPENSE_PAYMENT_METHODS.map((method) => (
                   <option key={method} value={method}>
-                    {method === 'cash' ? 'Efectivo' : method === 'transfer' ? 'Transferencia' : 'Tarjeta'}
+                    {formatPaymentMethod(method)}
                   </option>
                 ))}
               </select>

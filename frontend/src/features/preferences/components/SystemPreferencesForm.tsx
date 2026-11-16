@@ -1,80 +1,61 @@
 import { useState } from 'react'
-import { useGeneralPreferences, useUpdateGeneralPreferences } from '../hooks/useGeneralPreferences'
 import { sileo } from 'sileo'
+import { useGeneralPreferences, useUpdateGeneralPreferences } from '../hooks/useGeneralPreferences'
 import type { GeneralPreferences } from '../api/preferences.api'
 import { getErrorMessage } from '../../../shared/utils/errors'
+import { Button } from '../../../shared/components/Button'
+import { Input } from '../../../shared/components/Input'
+import { Select } from '../../../shared/components/Select'
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField'
+import { QueryErrorState } from '../../../shared/components/QueryErrorState'
+import { PermissionNotice } from '../../../shared/components/PermissionNotice'
+import { Skeleton } from '../../../shared/components/Skeleton'
+import { CURRENCY_OPTIONS, SYMBOL_OPTIONS, validateGeneralPreferences, type GeneralPreferencesErrors } from '../utils/generalPreferences'
 
-export function SystemPreferencesForm() {
-  const { data: preferences, isLoading } = useGeneralPreferences()
+const sectionClass = 'rounded-2xl border p-5'
+const sectionStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }
+
+/** "Datos del negocio": identity, operating hours (they drive the cash auto-close) and currency. */
+export function SystemPreferencesForm({ canEdit }: { canEdit: boolean }) {
+  const { data: preferences, isLoading, isError, error, refetch, isFetching } = useGeneralPreferences()
+
+  if (isError) {
+    return <QueryErrorState error={error} subject="los datos del negocio" onRetry={() => void refetch()} isRetrying={isFetching} />
+  }
+  if (isLoading || !preferences) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-32 rounded-2xl" />
+      </div>
+    )
+  }
+  // Keyed by the saved data: after saving (or a refetch) the form starts from what is stored.
+  return <GeneralPreferencesEditor key={JSON.stringify(preferences)} saved={preferences} canEdit={canEdit} />
+}
+
+function GeneralPreferencesEditor({ saved, canEdit }: { saved: GeneralPreferences; canEdit: boolean }) {
   const { mutate: updatePreferences, isPending } = useUpdateGeneralPreferences()
-  const [formData, setFormData] = useState<GeneralPreferences | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [formData, setFormData] = useState<GeneralPreferences>(saved)
+  const [errors, setErrors] = useState<GeneralPreferencesErrors>({})
+  const [showCurrency, setShowCurrency] = useState(false)
 
-  // Load the saved preferences whenever fresh data arrives (adjusting state during render).
-  const [loadedPreferences, setLoadedPreferences] = useState<GeneralPreferences | undefined>(undefined)
-  if (preferences && preferences !== loadedPreferences) {
-    setLoadedPreferences(preferences)
-    setFormData(preferences)
-    setErrors({})
-  }
+  const isDirty = JSON.stringify(formData) !== JSON.stringify(saved)
+  const set = <K extends keyof GeneralPreferences>(key: K, value: GeneralPreferences[K]) => setFormData((prev) => ({ ...prev, [key]: value }))
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData?.businessName?.trim()) {
-      newErrors.businessName = 'El nombre del negocio es requerido'
-    }
-
-    const timeRegex = /^\d{2}:\d{2}$/
-    if (!timeRegex.test(formData?.businessHoursOpen || '')) {
-      newErrors.businessHoursOpen = 'Formato inválido (HH:MM)'
-    }
-    if (!timeRegex.test(formData?.businessHoursClose || '')) {
-      newErrors.businessHoursClose = 'Formato inválido (HH:MM)'
-    }
-
-    if (
-      timeRegex.test(formData?.businessHoursOpen || '') &&
-      timeRegex.test(formData?.businessHoursClose || '')
-    ) {
-      const [openHour, openMin] = (formData?.businessHoursOpen || '').split(':').map(Number)
-      const [closeHour, closeMin] = (formData?.businessHoursClose || '').split(':').map(Number)
-      const openTime = openHour * 60 + openMin
-      const closeTime = closeHour * 60 + closeMin
-      if (closeTime <= openTime) {
-        newErrors.businessHoursClose = 'La hora de cierre debe ser posterior a la hora de apertura'
-      }
-    }
-
-    if (formData?.phone) {
-      const phoneRegex = /^[\d\s\-()+]*$/
-      if (formData.phone.length > 20) {
-        newErrors.phone = 'El teléfono no puede exceder 20 caracteres'
-      } else if (!phoneRegex.test(formData.phone)) {
-        newErrors.phone = 'Solo se permiten números, espacios, guiones, paréntesis y +'
-      } else if (!/\d/.test(formData.phone)) {
-        newErrors.phone = 'El teléfono debe contener al menos un dígito'
-      }
-    }
-
-    if (formData?.address && formData.address.length > 250) {
-      newErrors.address = 'La dirección no puede exceder 250 caracteres'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSave = () => {
-    if (!validateForm() || !formData) {
-      if (Object.keys(errors).length > 0) {
-        sileo.error({ title: 'Error', description: 'Corrige los errores antes de guardar' })
-      }
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canEdit || isPending) return
+    const nextErrors = validateGeneralPreferences(formData)
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      sileo.error({ title: 'Revisa los campos marcados', description: 'Corrige los errores antes de guardar.' })
       return
     }
 
-    // Only send non-empty optional fields
-    const dataToSend = {
+    // Same payload as before: optional fields go only when they have a value.
+    const dataToSend: GeneralPreferences = {
       businessName: formData.businessName,
       businessHoursOpen: formData.businessHoursOpen,
       businessHoursClose: formData.businessHoursClose,
@@ -84,231 +65,146 @@ export function SystemPreferencesForm() {
       ...(formData.address && { address: formData.address }),
     }
 
-    updatePreferences(dataToSend as GeneralPreferences, {
-      onSuccess: () => {
-        sileo.success({ title: 'Guardado', description: 'Preferencias actualizadas correctamente' })
-      },
-      onError: (error: unknown) => {
-        const message = getErrorMessage(error, 'No se pudieron guardar las preferencias')
-        sileo.error({ title: 'Error', description: message })
-      },
+    updatePreferences(dataToSend, {
+      onSuccess: () => sileo.success({ title: 'Datos del negocio guardados' }),
+      onError: (err: unknown) =>
+        sileo.error({ title: 'No se pudieron guardar los datos', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
     })
   }
 
-  if (isLoading || !formData) {
-    return <div className="text-center py-8">Cargando preferencias...</div>
-  }
-
-  const currencyOptions = ['MXN', 'USD', 'CAD']
-  const symbolOptions: Record<string, string[]> = {
-    MXN: ['$', 'Mex$', 'MXN'],
-    USD: ['$', 'US$', 'USD'],
-    CAD: ['$', 'C$', 'CAD'],
-  }
-  const defaultSymbols: Record<string, string> = {
-    MXN: '$',
-    USD: '$',
-    CAD: '$',
-  }
-
-  const handleCurrencyChange = (newCurrency: string) => {
-    setFormData({
-      ...formData,
-      currency: newCurrency,
-      currencySymbol: defaultSymbols[newCurrency] || formData.currencySymbol,
-    })
-  }
+  const fieldProps = (key: keyof GeneralPreferences, id: string) => ({
+    id,
+    disabled: !canEdit || isPending,
+    'aria-invalid': errors[key] ? true : undefined,
+    'aria-describedby': fieldDescriptionId(id),
+  })
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-        Preferencias Generales
-      </h2>
+    <form onSubmit={handleSave} noValidate className="space-y-4">
+      {!canEdit && <PermissionNotice action="cambiar los datos del negocio" />}
 
-      <div
-        className="rounded-2xl border p-5 shadow-sm space-y-4"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        {/* Nombre del negocio */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-            Nombre del negocio
-          </label>
-          <input
-            type="text"
-            value={formData.businessName}
-            onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-            className="w-full px-3 py-2 border rounded-lg"
-            style={{
-              borderColor: errors.businessName ? 'var(--color-danger)' : 'var(--color-border)',
-              backgroundColor: 'var(--color-input-bg)',
-              color: 'var(--color-input-text)',
-            }}
-          />
-          {errors.businessName && (
-            <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-              {errors.businessName}
-            </p>
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className={sectionClass} style={sectionStyle} aria-labelledby="business-identity-title">
+          <h2 id="business-identity-title" className="mb-4 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Identidad
+          </h2>
+          <div className="space-y-4">
+            <FormField htmlFor="business-name" label="Nombre del negocio" required error={errors.businessName} hint="Se muestra en la pantalla de inicio de sesión.">
+              <Input {...fieldProps('businessName', 'business-name')} type="text" value={formData.businessName} onChange={(e) => set('businessName', e.target.value)} />
+            </FormField>
+            <FormField
+              htmlFor="business-phone"
+              label="Teléfono"
+              error={errors.phone}
+              hint="Una vez guardados, el teléfono y la dirección no se pueden dejar vacíos desde aquí."
+            >
+              <Input
+                {...fieldProps('phone', 'business-phone')}
+                type="tel"
+                inputMode="tel"
+                maxLength={20}
+                value={formData.phone || ''}
+                // Only digits, spaces, hyphens, parentheses and +.
+                onChange={(e) => set('phone', e.target.value.replace(/[^\d\s\-()+]/g, ''))}
+                placeholder="Ej. (55) 1234-5678"
+              />
+            </FormField>
+            <FormField htmlFor="business-address" label="Dirección" error={errors.address}>
+              <textarea
+                {...fieldProps('address', 'business-address')}
+                value={formData.address || ''}
+                onChange={(e) => set('address', e.target.value)}
+                rows={2}
+                maxLength={250}
+                className="w-full rounded-md border px-4 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_35%,transparent)] disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+              />
+            </FormField>
+          </div>
+        </section>
 
-        {/* Horario */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Hora de apertura
-            </label>
-            <input
-              type="time"
-              value={formData.businessHoursOpen}
-              onChange={(e) => setFormData({ ...formData, businessHoursOpen: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-              style={{
-                borderColor: errors.businessHoursOpen ? 'var(--color-danger)' : 'var(--color-border)',
-                backgroundColor: 'var(--color-input-bg)',
-                color: 'var(--color-input-text)',
-              }}
-            />
-            {errors.businessHoursOpen && (
-              <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-                {errors.businessHoursOpen}
-              </p>
+        <section className={sectionClass} style={sectionStyle} aria-labelledby="business-hours-title">
+          <h2 id="business-hours-title" className="mb-1 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Horario de operación
+          </h2>
+          <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            La hora de cierre define el cierre automático de caja y a qué día contable pertenecen las ventas y los gastos.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField htmlFor="business-open" label="Apertura" required error={errors.businessHoursOpen}>
+              <Input {...fieldProps('businessHoursOpen', 'business-open')} type="time" value={formData.businessHoursOpen} onChange={(e) => set('businessHoursOpen', e.target.value)} />
+            </FormField>
+            <FormField htmlFor="business-close" label="Cierre" required error={errors.businessHoursClose}>
+              <Input {...fieldProps('businessHoursClose', 'business-close')} type="time" value={formData.businessHoursClose} onChange={(e) => set('businessHoursClose', e.target.value)} />
+            </FormField>
+          </div>
+
+          <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
+            <button
+              type="button"
+              onClick={() => setShowCurrency((v) => !v)}
+              aria-expanded={showCurrency}
+              aria-controls="business-currency"
+              className="text-sm font-medium hover:underline"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              {showCurrency ? '▾' : '▸'} Moneda (avanzado)
+            </button>
+            {showCurrency && (
+              <div id="business-currency" className="mt-3 space-y-3">
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Por ahora los montos del sistema siempre se muestran en pesos mexicanos; el símbolo se usa en los avisos de caja.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField htmlFor="business-currency-code" label="Moneda" required>
+                    <Select
+                      {...fieldProps('currency', 'business-currency-code')}
+                      value={formData.currency}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, currency: e.target.value, currencySymbol: '$' }))}
+                    >
+                      {CURRENCY_OPTIONS.map((cur) => (
+                        <option key={cur} value={cur}>
+                          {cur}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField htmlFor="business-currency-symbol" label="Símbolo" required>
+                    <Select {...fieldProps('currencySymbol', 'business-currency-symbol')} value={formData.currencySymbol} onChange={(e) => set('currencySymbol', e.target.value)}>
+                      {(SYMBOL_OPTIONS[formData.currency] || SYMBOL_OPTIONS.MXN).map((symbol) => (
+                        <option key={symbol} value={symbol}>
+                          {symbol}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+              </div>
             )}
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Hora de cierre
-            </label>
-            <input
-              type="time"
-              value={formData.businessHoursClose}
-              onChange={(e) => setFormData({ ...formData, businessHoursClose: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-              style={{
-                borderColor: errors.businessHoursClose ? 'var(--color-danger)' : 'var(--color-border)',
-                backgroundColor: 'var(--color-input-bg)',
-                color: 'var(--color-input-text)',
-              }}
-            />
-            {errors.businessHoursClose && (
-              <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-                {errors.businessHoursClose}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Moneda y Símbolo */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Moneda
-            </label>
-            <select
-              value={formData.currency}
-              onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-input-bg)',
-                color: 'var(--color-input-text)',
-              }}
-            >
-              {currencyOptions.map((cur) => (
-                <option key={cur} value={cur}>
-                  {cur}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              Símbolo
-            </label>
-            <select
-              value={formData.currencySymbol}
-              onChange={(e) => setFormData({ ...formData, currencySymbol: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-input-bg)',
-                color: 'var(--color-input-text)',
-              }}
-            >
-              {(symbolOptions[formData.currency] || symbolOptions['MXN']).map((symbol) => (
-                <option key={symbol} value={symbol}>
-                  {symbol}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Teléfono */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-            Teléfono (opcional)
-          </label>
-          <input
-            type="tel"
-            inputMode="tel"
-            maxLength={20}
-            value={formData.phone || ''}
-            onChange={(e) => {
-              // Only allow digits, spaces, hyphens, parentheses and +
-              const filtered = e.target.value.replace(/[^\d\s\-()+]/g, '')
-              setFormData({ ...formData, phone: filtered })
-            }}
-            placeholder="Ej: (55) 1234-5678"
-            className="w-full px-3 py-2 border rounded-lg"
-            style={{
-              borderColor: errors.phone ? 'var(--color-danger)' : 'var(--color-border)',
-              backgroundColor: 'var(--color-input-bg)',
-              color: 'var(--color-input-text)',
-            }}
-          />
-          {errors.phone && (
-            <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-              {errors.phone}
-            </p>
-          )}
-        </div>
-
-        {/* Dirección */}
-        <div>
-          <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-            Dirección (opcional)
-          </label>
-          <textarea
-            value={formData.address || ''}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            rows={3}
-            className="w-full px-3 py-2 border rounded-lg"
-            style={{
-              borderColor: errors.address ? 'var(--color-danger)' : 'var(--color-border)',
-              backgroundColor: 'var(--color-input-bg)',
-              color: 'var(--color-input-text)',
-            }}
-          />
-          {errors.address && (
-            <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-              {errors.address}
-            </p>
-          )}
-        </div>
-
-        {/* Botón guardar */}
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className="w-full mt-6 px-4 py-2 rounded-lg text-white font-semibold transition disabled:opacity-50"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          {isPending ? 'Guardando...' : 'Guardar preferencias'}
-        </button>
+        </section>
       </div>
-    </div>
+
+      {canEdit && (
+        <div className="flex justify-end gap-3">
+          {isDirty && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setFormData(saved)
+                setErrors({})
+              }}
+              disabled={isPending}
+            >
+              Descartar
+            </Button>
+          )}
+          <Button type="submit" variant="primary" disabled={!isDirty || isPending}>
+            {isPending ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
+        </div>
+      )}
+    </form>
   )
 }

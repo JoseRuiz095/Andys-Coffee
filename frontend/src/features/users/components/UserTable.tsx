@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { Skeleton } from '../../../shared/components/Skeleton'
-import { Input } from '../../../shared/components/Input'
-import { Button } from '../../../shared/components/Button'
-import { StatusBadge } from '../../../shared/components/StatusBadge'
-import { ActionMenu } from '../../../shared/components/ActionMenu'
-import { Card } from '../../../shared/components/Card'
-import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
-import { useUsersList, useSetUserActive } from '../hooks/useUsers'
-import { hasPermission } from '../../auth/utils/permissions'
-import { blockIfSelf } from '../utils/selfGuard'
-import { getErrorMessage } from '../../../shared/utils/errors'
 import { sileo } from 'sileo'
+import { TableSkeleton } from '../../../shared/components/TableSkeleton'
+import { StatusBadge } from '../../../shared/components/StatusBadge'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
+import { FilterBar } from '../../../shared/components/FilterBar'
+import { RowActions, type RowAction } from '../../../shared/components/RowActions'
+import { Pagination } from '../../../shared/components/Pagination'
+import { QueryErrorState } from '../../../shared/components/QueryErrorState'
+import { FILTER_FIELD_CLASS } from '../../../shared/constants/fieldStyles'
+import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
+import { useUsersList, useSetUserActive } from '../hooks/useUsers'
+import { useRolesList } from '../../roles/hooks/useRoles'
+import { hasPermission } from '../../auth/utils/permissions'
+import { isRoleAssignable } from '../../roles/utils/permissionRules'
+import { getErrorMessage } from '../../../shared/utils/errors'
 import type { UserData } from '../api/user.api'
 import type { AuthUser } from '../../auth/types/auth.types'
 
@@ -21,143 +24,191 @@ interface UserTableProps {
   onSelectUser: (userId: string, intent: UserRowIntent) => void
 }
 
+const PAGE_SIZE = 10
+type StatusFilter = '' | 'active' | 'inactive'
+
 /**
- * Clean Usuario | Correo | Rol | Estado | Acciones table. Deleting a user is
- * a heavier, less frequent action, so it is deliberately not offered here —
- * it only lives inside the user's detail drawer, reached via "Ver / editar".
+ * Usuario | Rol | Estado | Acciones. Deleting a user is a heavier, less frequent action, so it
+ * only lives inside the user's detail drawer. Your own account offers no role change nor
+ * deactivation: the backend rejects both.
  */
 export function UserTable({ currentUser, onSelectUser }: UserTableProps) {
   const canUpdateUsers = hasPermission(currentUser, 'users.update')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [roleId, setRoleId] = useState('')
+  const [status, setStatus] = useState<StatusFilter>('')
+  const debouncedSearch = useDebouncedValue(search.trim(), 300)
   const [deactivateTarget, setDeactivateTarget] = useState<UserData | null>(null)
-  const { data, isLoading, isError } = useUsersList({ page, limit: 10, search })
-  const { mutate: setActive, isPending: isTogglingActive } = useSetUserActive()
 
-  const handleToggleActive = (user: UserData) => {
-    if (user.isActive) {
-      if (blockIfSelf(currentUser, user.id, 'desactivar')) return
-      setDeactivateTarget(user)
-      return
-    }
+  const { data: roles } = useRolesList()
+  const { data, isLoading, isError, error, refetch, isFetching } = useUsersList({
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+    roleId: roleId || undefined,
+    isActive: status === '' ? undefined : status === 'active',
+  })
+  const { mutate: setActive, isPending: isTogglingActive, variables: toggling } = useSetUserActive()
+
+  const hasFilters = search !== '' || roleId !== '' || status !== ''
+  const withFirstPage = <T,>(setter: (value: T) => void) => (value: T) => {
+    setter(value)
+    setPage(1)
+  }
+
+  const activate = (user: UserData) =>
     setActive(
       { id: user.id, isActive: true },
       {
-        onError: (error: unknown) => {
-          sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al activar usuario') })
-        },
+        onSuccess: () => sileo.success({ title: 'Usuario activado', description: `${user.name} puede volver a iniciar sesión.` }),
+        onError: (err: unknown) =>
+          sileo.error({ title: 'No se pudo activar el usuario', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
       }
     )
-  }
 
   const handleConfirmDeactivate = () => {
     if (!deactivateTarget) return
+    const target = deactivateTarget
     setActive(
-      { id: deactivateTarget.id, isActive: false },
+      { id: target.id, isActive: false },
       {
-        onSuccess: () => setDeactivateTarget(null),
-        onError: (error: unknown) => {
-          sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al desactivar usuario') })
+        onSuccess: () => {
+          setDeactivateTarget(null)
+          sileo.success({ title: 'Usuario desactivado', description: `${target.name} ya no puede iniciar sesión.` })
         },
+        onError: (err: unknown) =>
+          sileo.error({ title: 'No se pudo desactivar el usuario', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
       }
     )
   }
 
-  const getRowActions = (user: UserData) => [
-    { label: 'Ver / editar', onClick: () => onSelectUser(user.id, 'view') },
-    ...(canUpdateUsers ? [{ label: 'Cambiar rol', onClick: () => onSelectUser(user.id, 'changeRole') }] : []),
-    ...(canUpdateUsers
-      ? [{
-          label: user.isActive ? 'Desactivar' : 'Activar',
-          onClick: () => handleToggleActive(user),
-          disabled: isTogglingActive,
-        }]
-      : []),
-  ]
+  // A1: the backend only lets you manage users whose role you fully cover.
+  const coversRoleOf = (user: UserData) => {
+    const role = roles?.find((r) => r.id === user.roleId)
+    return role ? isRoleAssignable(currentUser, role) : false
+  }
+
+  const getRowActions = (user: UserData): RowAction[] => {
+    const isSelf = currentUser?.id === user.id
+    const isTogglingThis = isTogglingActive && toggling?.id === user.id
+    return [
+      { label: 'Ver detalle', ariaLabel: `Ver detalle de ${user.name}`, onClick: () => onSelectUser(user.id, 'view') },
+      ...(canUpdateUsers && !isSelf && coversRoleOf(user)
+        ? [
+            { label: 'Cambiar rol', ariaLabel: `Cambiar rol de ${user.name}`, onClick: () => onSelectUser(user.id, 'changeRole') },
+            {
+              label: isTogglingThis ? 'Cambiando...' : user.isActive ? 'Desactivar' : 'Activar',
+              ariaLabel: `${user.isActive ? 'Desactivar' : 'Activar'} a ${user.name}`,
+              onClick: () => (user.isActive ? setDeactivateTarget(user) : activate(user)),
+              disabled: isTogglingActive,
+            },
+          ]
+        : []),
+    ]
+  }
 
   return (
-    <div className="space-y-4">
-      <Input
-        type="text"
-        placeholder="Buscar por nombre o correo..."
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value)
+    <div>
+      <FilterBar
+        hasFilters={hasFilters}
+        onClear={() => {
+          setSearch('')
+          setRoleId('')
+          setStatus('')
           setPage(1)
         }}
-      />
+      >
+        <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+          Buscar
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => withFirstPage(setSearch)(e.target.value)}
+            placeholder="Nombre o correo"
+            className={FILTER_FIELD_CLASS}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+          Rol
+          <select value={roleId} onChange={(e) => withFirstPage(setRoleId)(e.target.value)} className={FILTER_FIELD_CLASS}>
+            <option value="">Todos</option>
+            {roles?.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+          Estado
+          <select
+            value={status}
+            onChange={(e) => withFirstPage(setStatus)(e.target.value as StatusFilter)}
+            className={FILTER_FIELD_CLASS}
+          >
+            <option value="">Todos</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
+          </select>
+        </label>
+      </FilterBar>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-14" />
-          ))}
-        </div>
+        <TableSkeleton rows={5} columns={4} />
       ) : isError ? (
-        <Card variant="inset">
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            No se pudieron cargar los usuarios. Intenta de nuevo más tarde.
-          </p>
-        </Card>
+        <QueryErrorState error={error} subject="los usuarios" onRetry={() => void refetch()} isRetrying={isFetching} />
       ) : !data || data.data.length === 0 ? (
-        <Card variant="inset">
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            No se encontraron usuarios
-          </p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            {search ? 'Intenta buscar con otro nombre o correo.' : 'Aún no hay usuarios registrados.'}
-          </p>
-        </Card>
+        <div className="rounded-xl border px-4 py-8 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+          {hasFilters ? 'Ningún usuario coincide con los filtros.' : 'Aún no hay usuarios registrados.'}
+        </div>
       ) : (
         <>
-          {/* Desktop / tablet table */}
-          <div className="hidden rounded-lg border md:block" style={{ borderColor: 'var(--color-border)' }}>
-            <table className="w-full" style={{ backgroundColor: 'var(--color-surface)' }}>
-              <thead className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-                    Usuario
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-                    Correo
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-                    Rol
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-                    Estado
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-                    Acciones
-                  </th>
+          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+            <table className="w-full text-sm" style={{ backgroundColor: 'var(--color-surface)' }}>
+              <thead style={{ color: 'var(--color-text-secondary)' }}>
+                <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                  <th className="px-4 py-3 text-left font-semibold">Usuario</th>
+                  <th className="px-4 py-3 text-left font-semibold">Rol</th>
+                  <th className="px-4 py-3 text-left font-semibold">Estado</th>
+                  <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
                 {data.data.map((user) => (
-                  <tr key={user.id} className="border-t h-14" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-4 py-3 text-sm align-middle">
+                  <tr
+                    key={user.id}
+                    className="border-t transition-colors hover:bg-[var(--color-surface-hover)]"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <td className="px-4 py-3 align-middle">
                       <button
                         type="button"
                         onClick={() => onSelectUser(user.id, 'view')}
-                        className="truncate max-w-48 text-left font-medium hover:underline"
+                        className="max-w-64 truncate text-left font-medium hover:underline"
                         style={{ color: 'var(--color-text-primary)' }}
                       >
                         {user.name}
+                        {currentUser?.id === user.id && (
+                          <span className="ml-2 text-xs font-normal" style={{ color: 'var(--color-text-secondary)' }}>
+                            (tú)
+                          </span>
+                        )}
                       </button>
+                      <p className="max-w-64 truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                        {user.email}
+                      </p>
                     </td>
-                    <td className="truncate max-w-64 px-4 py-3 text-sm align-middle" style={{ color: 'var(--color-text-secondary)' }}>
-                      {user.email}
-                    </td>
-                    <td className="truncate max-w-48 px-4 py-3 text-sm align-middle" style={{ color: 'var(--color-text-secondary)' }}>
+                    <td className="px-4 py-3 align-middle" style={{ color: 'var(--color-text-primary)' }}>
                       {user.role.name}
                     </td>
-                    <td className="px-4 py-3 text-sm align-middle">
-                      <StatusBadge tone={user.isActive ? 'success' : 'danger'}>
+                    <td className="px-4 py-3 align-middle">
+                      <StatusBadge tone={user.isActive ? 'success' : 'neutral'}>
                         {user.isActive ? 'Activo' : 'Inactivo'}
                       </StatusBadge>
                     </td>
-                    <td className="px-4 py-3 text-right align-middle">
-                      <ActionMenu ariaLabel={`Acciones para ${user.name}`} items={getRowActions(user)} />
+                    <td className="px-4 py-3 align-middle">
+                      <RowActions actions={getRowActions(user)} />
                     </td>
                   </tr>
                 ))}
@@ -165,54 +216,23 @@ export function UserTable({ currentUser, onSelectUser }: UserTableProps) {
             </table>
           </div>
 
-          {/* Mobile stacked rows */}
-          <div className="space-y-2 md:hidden">
-            {data.data.map((user) => (
-              <Card key={user.id} variant="inset">
-                <div className="flex items-start justify-between gap-3">
-                  <button type="button" onClick={() => onSelectUser(user.id, 'view')} className="text-left">
-                    <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{user.name}</p>
-                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.email}</p>
-                  </button>
-                  <ActionMenu ariaLabel={`Acciones para ${user.name}`} items={getRowActions(user)} />
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{user.role.name}</span>
-                  <StatusBadge tone={user.isActive ? 'success' : 'danger'}>
-                    {user.isActive ? 'Activo' : 'Inactivo'}
-                  </StatusBadge>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {data.pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Página {data.pagination.page} de {data.pagination.totalPages}
-              </span>
-              <div className="flex gap-2">
-                <Button variant="ghost" className="flex-1" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-                  Anterior
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
-                  disabled={page === data.pagination.totalPages}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={data.pagination.page}
+            totalPages={data.pagination.totalPages}
+            total={data.pagination.total}
+            pageSize={data.pagination.limit}
+            itemLabel="usuarios"
+            onPageChange={setPage}
+            disabled={isFetching}
+            className="mt-4"
+          />
         </>
       )}
 
       <ConfirmDialog
         isOpen={!!deactivateTarget}
         title="Desactivar usuario"
-        message={`¿Estás seguro de que deseas desactivar a "${deactivateTarget?.name}"? Podrá reactivarse después.`}
+        message={`¿Desactivar a "${deactivateTarget?.name}"? No podrá iniciar sesión hasta que lo actives de nuevo; su historial se conserva.`}
         confirmText="Desactivar"
         cancelText="Cancelar"
         isDangerous

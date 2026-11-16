@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { Modal } from '../../../shared/components/Modal'
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 import { useCategories } from '../../products/hooks/useProducts'
-import { authStore } from '../../auth/store/auth.store'
 import { hasPermission } from '../../auth/utils/permissions'
 import { Card } from '../../../shared/components/Card'
 import { getErrorMessage } from '../../../shared/utils/errors'
 import { sileo } from 'sileo'
 import type { Category } from '../../products/types/product.types'
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
 
 interface CategoryManagerModalProps {
   isOpen: boolean
@@ -23,7 +23,7 @@ const inputStyle = {
 }
 
 export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalProps) {
-  const currentUser = authStore.getState().user
+  const currentUser = useCurrentUser()
   const { categories, create, update, setActive, remove, isCreating, isUpdating, isLoadingActive, isDeleting } =
     useCategories({ includeInactive: true })
 
@@ -87,14 +87,23 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
     })
   }
 
-  const handleToggleActive = (category: Category) => {
+  // Deactivating hides the category (and its products) from the POS menu: it is confirmed first.
+  const [categoryToDeactivate, setCategoryToDeactivate] = useState<Category | null>(null)
+
+  const changeActive = (category: Category, isActive: boolean) => {
     setActive(
-      { id: category.id, isActive: !category.isActive },
+      { id: category.id, isActive },
       {
         onError: (error: unknown) =>
           sileo.error({ title: 'Error', description: getErrorMessage(error, 'No se pudo cambiar el estado.') }),
+        onSettled: () => setCategoryToDeactivate(null),
       },
     )
+  }
+
+  const handleToggleActive = (category: Category) => {
+    if (category.isActive) setCategoryToDeactivate(category)
+    else changeActive(category, true)
   }
 
   const handleConfirmDelete = () => {
@@ -143,10 +152,11 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 </h3>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="categorymanagermodal-nombre" className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
                     Nombre *
                   </label>
                   <input
+                    id="categorymanagermodal-nombre"
                     type="text"
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -157,10 +167,11 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="categorymanagermodal-descripcion" className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
                     Descripción
                   </label>
                   <textarea
+                    id="categorymanagermodal-descripcion"
                     value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full rounded-lg border px-4 py-2 text-sm"
@@ -171,10 +182,11 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  <label htmlFor="categorymanagermodal-orden" className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
                     Orden
                   </label>
                   <input
+                    id="categorymanagermodal-orden"
                     type="number"
                     value={formData.displayOrder ?? 0}
                     onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value, 10) || 0 })}
@@ -250,7 +262,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                       <button
                         onClick={() => handleToggleActive(category)}
                         disabled={!canUpdate || isLoadingActive}
-                        className="rounded px-2 py-1 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded px-2 py-1 text-xs font-semibold text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-60"
                         style={{
                           backgroundColor: category.isActive ? 'var(--color-success)' : 'var(--color-warning)',
                         }}
@@ -270,7 +282,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                         <button
                           onClick={() => setCategoryToDelete(category)}
                           disabled={isDeleting}
-                          className="rounded px-2 py-1 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded px-2 py-1 text-xs font-semibold text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-60"
                           style={{ backgroundColor: 'var(--color-danger)' }}
                         >
                           Eliminar
@@ -284,6 +296,17 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={categoryToDeactivate !== null}
+        title="Desactivar categoría"
+        message={`"${categoryToDeactivate?.name ?? ''}" y sus productos dejarán de mostrarse en el menú de venta. Podrás activarla de nuevo cuando quieras.`}
+        confirmText="Desactivar"
+        isDangerous
+        isLoading={isLoadingActive}
+        onConfirm={() => categoryToDeactivate && changeActive(categoryToDeactivate, false)}
+        onCancel={() => setCategoryToDeactivate(null)}
+      />
 
       <ConfirmDialog
         isOpen={categoryToDelete !== null}

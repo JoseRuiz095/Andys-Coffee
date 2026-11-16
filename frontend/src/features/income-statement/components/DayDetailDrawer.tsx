@@ -1,9 +1,9 @@
-import { createPortal } from 'react-dom';
+import { useId } from 'react';
 import { useIncomeStatementDayDetail } from '../hooks/useIncomeStatement';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { CashStatusBadge } from './CashStatusBadge';
-import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
-import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
+import { Modal } from '../../../shared/components/Modal';
+import { formatPaymentMethod } from '../../../shared/constants/paymentMethods'
 
 interface DayDetailDrawerProps {
   date: string | null;
@@ -13,23 +13,17 @@ interface DayDetailDrawerProps {
 
 export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDrawerProps) {
   const { data, isLoading, error } = useIncomeStatementDayDetail(date, cashRegisterId);
-  useBodyScrollLock(Boolean(date));
-  useOverlayEscape(Boolean(date), onClose);
+  const titleId = useId();
 
   if (!date) return null;
 
-  const content = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <Modal isOpen onClose={onClose} ariaLabelledBy={titleId} maxWidthClassName="max-w-3xl">
         <div
           className="sticky top-0 flex items-center justify-between border-b px-6 py-4"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
-          <h2 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
+          <h2 id={titleId} className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
             Detalle del {date}
           </h2>
           <button
@@ -58,7 +52,7 @@ export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDraw
                     <tbody>
                       {data.paymentsBreakdown.map((p) => (
                         <tr key={p.method} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                          <td className="py-2" style={{ color: 'var(--color-text-primary)' }}>{p.method}</td>
+                          <td className="py-2" style={{ color: 'var(--color-text-primary)' }}>{formatPaymentMethod(p.method)}</td>
                           <td className="py-2 text-right" style={{ color: 'var(--color-text-secondary)' }}>{p.count} pagos</td>
                           <td className="py-2 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                             {formatCurrency(p.amount)}
@@ -123,7 +117,7 @@ export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDraw
                           <td className="py-2" style={{ color: 'var(--color-text-primary)' }}>
                             {e.description}
                             <span className="ml-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                              ({e.category} · {e.paymentMethod})
+                              ({e.category} · {formatPaymentMethod(e.paymentMethod)})
                             </span>
                           </td>
                           <td className="py-2 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
@@ -138,10 +132,6 @@ export function DayDetailDrawer({ date, cashRegisterId, onClose }: DayDetailDraw
             </>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
-
-  const portalRoot = document.getElementById('modal-root');
-  return portalRoot ? createPortal(content, portalRoot) : content;
 }

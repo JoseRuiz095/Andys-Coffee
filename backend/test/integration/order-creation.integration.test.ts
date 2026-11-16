@@ -27,7 +27,7 @@ before(async () => {
   if (!integrationEnabled) return;
 
   const unit = await prisma.inventoryUnit.create({
-    data: { name: `order-test-unit-${testId}`, abbreviation: "u" },
+    data: { name: `order-test-unit-${testId}`, abbreviation: `u-${testId}` },
   });
   unitId = unit.id;
 
@@ -104,7 +104,7 @@ after(async () => {
 });
 
 test(
-  "OrderService.create calcula el total, no toca el inventario y registra el movimiento de caja",
+  "OrderService.create calcula el total, no toca el inventario con inventory.consumeOnSale apagado y registra el movimiento de caja",
   { skip: !integrationEnabled },
   async () => {
     const quantity = 2;
@@ -123,7 +123,8 @@ test(
     assert.equal(order.items.length, 1);
     assert.equal(order.items[0].quantity.toNumber(), quantity);
 
-    // C-07: recipe-based inventory is outside the MVP, so a sale leaves stock untouched.
+    // With inventory.consumeOnSale off (the seeded default) a sale leaves stock untouched;
+    // consumption itself is covered in inventory-realtime.integration.test.ts.
     const ingredient = await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
     assert.equal(ingredient.currentStock.toNumber(), INITIAL_STOCK);
     assert.equal(await prisma.inventoryMovement.count({ where: { referenceId: order.id } }), 0);

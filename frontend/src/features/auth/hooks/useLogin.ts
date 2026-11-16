@@ -4,10 +4,10 @@ import { authStore } from '../store/auth.store'
 import type { LoginCredentials } from '../types/auth.types'
 import { loginSchema } from '../validators/login.schema'
 
-function redirectToDashboard() {
-  window.history.pushState({}, '', '/dashboard')
-  window.dispatchEvent(new PopStateEvent('popstate'))
-}
+import { navigateTo } from '../../../app/navigation'
+
+// replace: Back from the dashboard must not return to the login form.
+const redirectToDashboard = () => navigateTo('/dashboard', { replace: true })
 
 export function useLogin() {
   const [error, setError] = useState<string | null>(null)

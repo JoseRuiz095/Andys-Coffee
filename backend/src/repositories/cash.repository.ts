@@ -206,6 +206,11 @@ export const CashRepository = {
     return tx.cashSession.findUnique({ where: { id: sessionId } });
   },
 
+  /** Most recent session of a register by opening time (to only reopen the last cut). */
+  async findLatestSessionForRegister(tx: Tx, cashRegisterId: string) {
+    return tx.cashSession.findFirst({ where: { cashRegisterId }, orderBy: { openedAt: 'desc' }, select: { id: true } });
+  },
+
   /** Puts a closed session back to open, clearing its closing count. */
   async reopenSession(tx: Tx, sessionId: string): Promise<CashSessionWithDetails> {
     return tx.cashSession.update({
@@ -259,6 +264,11 @@ export const CashRepository = {
     where: { referenceType: string; referenceId: string; type: CashMovementType; cashSessionId?: string },
   ) {
     return tx.cashMovement.findMany({ where });
+  },
+
+  /** Every movement of a reference (any type), oldest first: e.g. an expense and its adjustments. */
+  async findMovementsByReference(tx: Tx, referenceType: string, referenceId: string) {
+    return tx.cashMovement.findMany({ where: { referenceType, referenceId }, orderBy: { createdAt: 'asc' } });
   },
 
   async findFirstMovement(tx: Tx, where: { referenceType: string; referenceId: string; type: CashMovementType }) {

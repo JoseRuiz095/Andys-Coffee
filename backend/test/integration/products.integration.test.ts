@@ -160,7 +160,7 @@ test("rechaza la mutación de productos sin los permisos products.*", { skip: !i
 test("permite crear, actualizar y eliminar productos con los permisos products.*", { skip: !integrationEnabled }, async () => {
   const createResponse = await requestProduct("/api/products", {
     method: "POST",
-    body: JSON.stringify({ name: "Integration Product", price: 25, cost: 8, sku: productSku }),
+    body: JSON.stringify({ name: "Integration Product", price: 25, cost: 8, sku: productSku, tracksInventory: false }),
   }, manager);
   assert.equal(createResponse.status, 201);
   const created = await createResponse.json() as { id: string; name: string };

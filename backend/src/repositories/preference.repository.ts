@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma';
+import type { DbClient } from './transaction';
 import type { GeneralPreferencesInput } from '../validators/preference.validator';
 
 const GENERAL_PREFERENCE_KEYS = {
@@ -18,8 +19,8 @@ export const PreferenceRepository = {
     });
   },
 
-  async findByKey(key: string) {
-    return prisma.systemPreference.findUnique({
+  async findByKey(key: string, client: DbClient = prisma) {
+    return client.systemPreference.findUnique({
       where: { key },
     });
   },

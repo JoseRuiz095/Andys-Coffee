@@ -1,171 +1,154 @@
 import { useState } from 'react'
-import { Card } from '../../../shared/components/Card'
+import { sileo } from 'sileo'
 import { Button } from '../../../shared/components/Button'
-import { Skeleton } from '../../../shared/components/Skeleton'
+import { PageHeader } from '../../../shared/components/PageHeader'
+import { TableSkeleton } from '../../../shared/components/TableSkeleton'
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
-import { ActionMenu } from '../../../shared/components/ActionMenu'
+import { StatusBadge } from '../../../shared/components/StatusBadge'
+import { QueryErrorState } from '../../../shared/components/QueryErrorState'
+import { RowActions, type RowAction } from '../../../shared/components/RowActions'
 import { RoleFormModal } from './RoleFormModal'
 import { RolePermissionsDrawer } from './RolePermissionsDrawer'
 import { useRolesList, useDeleteRole } from '../hooks/useRoles'
+import { getRolePermissionsAccess, isRoleAssignable } from '../utils/permissionRules'
 import { hasPermission } from '../../auth/utils/permissions'
 import { getErrorMessage } from '../../../shared/utils/errors'
-import { sileo } from 'sileo'
+import type { RoleData } from '../api/role.api'
 import type { AuthUser } from '../../auth/types/auth.types'
 
 interface RolesViewProps {
   currentUser: AuthUser | null
 }
 
+/** Why "Eliminar" is not offered for a role (the backend would reject it). */
+function deleteBlockReason(role: RoleData): string | null {
+  if (role.isSystem) return 'Rol del sistema'
+  if (role._count.users > 0) return `Tiene ${role._count.users} ${role._count.users === 1 ? 'usuario' : 'usuarios'}`
+  return null
+}
+
 /**
- * "Roles" view — answers "what types of access exist?". Shows only the roles
- * themselves (name, how many users have it, how many permissions it grants)
- * with a single primary action per row ("Editar permisos"); editing the
- * actual permission set happens in the shared RolePermissionsDrawer.
+ * "Roles y permisos" — answers "what types of access exist?". Each role shows how many users
+ * have it and how many permissions it grants; the permission set is edited (or only viewed) in
+ * the shared RolePermissionsDrawer.
  */
 export function RolesView({ currentUser }: RolesViewProps) {
   const canCreateRoles = hasPermission(currentUser, 'users.create')
   const canUpdateRoles = hasPermission(currentUser, 'users.update')
   const canDeleteRoles = hasPermission(currentUser, 'users.delete')
 
-  const { data: roles, isLoading, isError } = useRolesList()
+  const { data: roles, isLoading, isError, error, refetch, isFetching } = useRolesList()
   const { mutate: deleteRole, isPending: isDeleting } = useDeleteRole()
 
-  const [showRoleModal, setShowRoleModal] = useState(false)
-  const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
+  // 'new' = creating; a role = editing it.
+  const [form, setForm] = useState<'new' | RoleData | null>(null)
   const [permissionsRoleId, setPermissionsRoleId] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<RoleData | null>(null)
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return
-    deleteRole(deleteTarget.id, {
+    const target = deleteTarget
+    deleteRole(target.id, {
       onSuccess: () => {
-        sileo.success({ title: 'Rol eliminado', description: `El rol "${deleteTarget.name}" fue eliminado exitosamente.` })
+        sileo.success({ title: 'Rol eliminado', description: `El rol "${target.name}" fue eliminado.` })
         setDeleteTarget(null)
       },
-      onError: (error: unknown) => {
-        sileo.error({ title: 'Error', description: getErrorMessage(error, 'Error al eliminar rol') })
+      onError: (err: unknown) => {
+        sileo.error({ title: 'No se pudo eliminar el rol', description: getErrorMessage(err, 'Inténtalo de nuevo.') })
       },
     })
   }
 
+  const getActions = (role: RoleData): RowAction[] => {
+    const canEditPermissions = getRolePermissionsAccess(currentUser, role).canEdit
+    // A1: renaming or deleting a role needs every permission it grants (like editing them).
+    const coversRole = isRoleAssignable(currentUser, role)
+    const blockReason = deleteBlockReason(role)
+    return [
+      {
+        label: canEditPermissions ? 'Permisos' : 'Ver permisos',
+        ariaLabel: `${canEditPermissions ? 'Editar' : 'Ver'} permisos del rol ${role.name}`,
+        onClick: () => setPermissionsRoleId(role.id),
+      },
+      ...(canUpdateRoles && coversRole ? [{ label: 'Editar', ariaLabel: `Editar el rol ${role.name}`, onClick: () => setForm(role) }] : []),
+      ...(canDeleteRoles && coversRole && !blockReason
+        ? [{ label: 'Eliminar', ariaLabel: `Eliminar el rol ${role.name}`, onClick: () => setDeleteTarget(role), disabled: isDeleting, danger: true }]
+        : []),
+    ]
+  }
+
   return (
-    <div className="space-y-4">
-      <Card variant="panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Roles
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-              Define los tipos de acceso disponibles en el sistema
-            </p>
-          </div>
-          {canCreateRoles && (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditingRoleId(null)
-                setShowRoleModal(true)
-              }}
-            >
+    <div>
+      <PageHeader
+        title="Roles y permisos"
+        description="Cada rol define lo que pueden hacer los usuarios que lo tienen."
+        actions={
+          canCreateRoles && (
+            <Button variant="primary" onClick={() => setForm('new')}>
               + Nuevo rol
             </Button>
-          )}
+          )
+        }
+      />
+
+      {isLoading ? (
+        <TableSkeleton rows={3} columns={3} />
+      ) : isError ? (
+        <QueryErrorState error={error} subject="los roles" onRetry={() => void refetch()} isRetrying={isFetching} />
+      ) : !roles || roles.length === 0 ? (
+        <div className="rounded-xl border px-4 py-8 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+          No hay roles configurados.
         </div>
-      </Card>
-
-      <Card variant="panel">
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-16" />
-            ))}
-          </div>
-        ) : isError ? (
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            No se pudieron cargar los roles. Intenta de nuevo más tarde.
-          </p>
-        ) : !roles || roles.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            No hay roles configurados.
-          </p>
-        ) : (
-          <div>
-            {roles.map((role, index) => (
-              <div
-                key={role.id}
-                className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                style={index > 0 ? { borderTop: '1px solid var(--color-border)' } : undefined}
-              >
-                <div>
-                  <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    {role.name}
-                  </p>
+      ) : (
+        <ul className="divide-y overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+          {roles.map((role) => {
+            const blockReason = canDeleteRoles ? deleteBlockReason(role) : null
+            return (
+              <li key={role.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      {role.name}
+                    </p>
+                    {role.isSystem && <StatusBadge tone="neutral">Del sistema</StatusBadge>}
+                  </div>
+                  {role.description && (
+                    <p className="truncate text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {role.description}
+                    </p>
+                  )}
                   <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    {role._count.users} {role._count.users === 1 ? 'usuario' : 'usuarios'} ·{' '}
-                    {role.permissions.length} {role.permissions.length === 1 ? 'permiso' : 'permisos'}
+                    {role._count.users} {role._count.users === 1 ? 'usuario' : 'usuarios'} · {role.permissions.length}{' '}
+                    {role.permissions.length === 1 ? 'permiso' : 'permisos'}
+                    {blockReason && ` · No se puede eliminar: ${blockReason.toLowerCase()}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="link" onClick={() => setPermissionsRoleId(role.id)}>
-                    Editar permisos
-                  </Button>
-                  <ActionMenu
-                    ariaLabel={`Más acciones para el rol ${role.name}`}
-                    items={[
-                      ...(canUpdateRoles
-                        ? [
-                            {
-                              label: 'Editar nombre',
-                              onClick: () => {
-                                setEditingRoleId(role.id)
-                                setShowRoleModal(true)
-                              },
-                            },
-                          ]
-                        : []),
-                      ...(canDeleteRoles
-                        ? [
-                            {
-                              label: 'Eliminar',
-                              onClick: () => setDeleteTarget({ id: role.id, name: role.name }),
-                              disabled: role.isSystem || isDeleting,
-                              danger: true,
-                            },
-                          ]
-                        : []),
-                    ]}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+                <RowActions actions={getActions(role)} />
+              </li>
+            )
+          })}
+        </ul>
+      )}
 
-      <RoleFormModal
-        isOpen={showRoleModal}
-        onClose={() => {
-          setShowRoleModal(false)
-          setEditingRoleId(null)
-        }}
-        editingRoleId={editingRoleId}
-        onSuccess={() => {
-          setShowRoleModal(false)
-          setEditingRoleId(null)
-        }}
-      />
+      {form !== null && (
+        <RoleFormModal
+          key={form === 'new' ? 'new' : form.id}
+          editingRole={form === 'new' ? null : form}
+          onClose={() => setForm(null)}
+          onSuccess={(role) => {
+            setForm(null)
+            // A new role has no permissions yet: open them right away.
+            if (form === 'new') setPermissionsRoleId(role.id)
+          }}
+        />
+      )}
 
-      <RolePermissionsDrawer
-        roleId={permissionsRoleId}
-        currentUser={currentUser}
-        onClose={() => setPermissionsRoleId(null)}
-      />
+      <RolePermissionsDrawer roleId={permissionsRoleId} currentUser={currentUser} onClose={() => setPermissionsRoleId(null)} />
 
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Eliminar rol"
-        message={`¿Estás seguro de que deseas eliminar el rol "${deleteTarget?.name}"? Esta acción no se puede deshacer.`}
+        message={`¿Eliminar el rol "${deleteTarget?.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
         isDangerous

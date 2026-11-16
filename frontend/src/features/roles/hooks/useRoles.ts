@@ -1,8 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { RoleAPI, PermissionAPI } from '../api/role.api'
+import { isOwnRole, refreshSession } from '../../auth/services/refreshSession'
 
 const ROLE_KEY = 'roles'
 const PERMISSION_KEY = 'permissions'
+
+/** The users list shows each user's role name, so it is refreshed whenever a role changes. */
+function invalidateRolesAndUsers(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
+  void queryClient.invalidateQueries({ queryKey: ['users'] })
+}
 
 export const useRolesList = () => {
   return useQuery({
@@ -33,7 +40,7 @@ export const useCreateRole = () => {
   return useMutation({
     mutationFn: (data: { name: string; description?: string }) => RoleAPI.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
+      void queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
     },
   })
 }
@@ -45,7 +52,9 @@ export const useUpdateRole = () => {
       RoleAPI.update(params.id, params.data),
     onSuccess: (data) => {
       queryClient.setQueryData([ROLE_KEY, data.role.id], data.role)
-      queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
+      invalidateRolesAndUsers(queryClient)
+      // The header shows the logged-in user's role name.
+      if (isOwnRole(data.role.id)) void refreshSession()
     },
   })
 }
@@ -57,7 +66,9 @@ export const useAssignPermissions = () => {
       RoleAPI.assignPermissions(params.id, params.permissionIds),
     onSuccess: (data) => {
       queryClient.setQueryData([ROLE_KEY, data.role.id], data.role)
-      queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
+      invalidateRolesAndUsers(queryClient)
+      // Editing your own role changes what you may do right now, not in the next session check.
+      if (isOwnRole(data.role.id)) void refreshSession()
     },
   })
 }
@@ -67,7 +78,7 @@ export const useDeleteRole = () => {
   return useMutation({
     mutationFn: (roleId: string) => RoleAPI.delete(roleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
+      void queryClient.invalidateQueries({ queryKey: [ROLE_KEY, 'list'] })
     },
   })
 }

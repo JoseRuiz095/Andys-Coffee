@@ -6,6 +6,8 @@ export interface InventoryIngredient {
   sku: string | null;
   currentStock: number;
   minimumStock: number;
+  /** Restock target; null = 2 × minimumStock. */
+  maximumStock: number | null;
   averageCost: number;
   isActive: boolean;
   createdAt: string;
@@ -14,6 +16,41 @@ export interface InventoryIngredient {
     name: string;
     abbreviation: string;
   };
+}
+
+/** Unit of measure. Ingredients are stocked in base units (factor 1: gr, ml, pz). */
+export interface InventoryUnit {
+  id: string;
+  name: string;
+  abbreviation: string;
+  dimension: 'MASS' | 'VOLUME' | 'COUNT';
+  /** Conversion to the base unit of its dimension (Decimal serialized as text, e.g. "1000"). */
+  factor: string;
+}
+
+/** GET /inventory/replenishment: an ingredient to restock and how much. */
+export interface ReplenishmentSuggestion {
+  ingredientId: string;
+  name: string;
+  sku: string | null;
+  unit: string;
+  currentStock: number;
+  minimumStock: number;
+  maximumStock: number | null;
+  dailyConsumption: number;
+  coverageDays: number | null;
+  target: number;
+  suggestedQuantity: number;
+  lastSupplier: { id: string; name: string } | null;
+  lastPurchasedAt: string | null;
+  unitCost: number;
+  estimatedCost: number;
+}
+
+/** Inventory switches (GET/PATCH /inventory/settings). */
+export interface InventorySettings {
+  consumeOnSale: boolean;
+  lowStockNotify: boolean;
 }
 
 export interface InventorySummary {
@@ -30,7 +67,13 @@ export interface InventoryMovement {
   unitCost: number;
   referenceType: string | null;
   referenceId: string | null;
+  /** Exit reason (waste, damaged…). */
+  reason: string | null;
   notes: string | null;
+  /** Stock right after the movement (null on movements before 2026-11-11). */
+  balanceAfter: number | string | null;
+  /** Sale line that originated it. */
+  orderItem: { productName: string; size: 'REGULAR' | 'JUMBO'; order: { id: string; orderNumber: string } } | null;
   createdAt: string;
   createdBy: {
     id: string;
@@ -70,6 +113,35 @@ export const inventoryApi = {
   },
 
   // Get low stock ingredients
+  /** Restock suggestions from the consumption of the last `days`. */
+  getReplenishment: async (days: number) => {
+    const response = await apiClient.get<ReplenishmentSuggestion[]>('/inventory/replenishment', { params: { days } });
+    return response.data;
+  },
+
+  getSettings: async () => {
+    const response = await apiClient.get<InventorySettings>('/inventory/settings');
+    return response.data;
+  },
+
+  /** Turning consumption on is refused (409) while products lack their recipe. */
+  updateSettings: async (input: Partial<InventorySettings>) => {
+    const response = await apiClient.patch<InventorySettings>('/inventory/settings', input);
+    return response.data;
+  },
+
+  /** Active products that consume inventory but miss their recipe (per size). */
+  getProductsWithoutRecipe: async () => {
+    const response = await apiClient.get<Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string | null;
+      missing: Array<'REGULAR' | 'JUMBO'>;
+    }>>('/inventory/products-without-recipe');
+    return response.data;
+  },
+
   getLowStock: async () => {
     const response = await apiClient.get<InventoryIngredient[]>('/inventory/low-stock');
     return response.data;
@@ -143,11 +215,7 @@ export const inventoryApi = {
 
   // Get all inventory units
   getUnits: async () => {
-    const response = await apiClient.get<Array<{
-      id: string;
-      name: string;
-      abbreviation: string;
-    }>>('/inventory/units');
+    const response = await apiClient.get<InventoryUnit[]>('/inventory/units');
     return response.data;
   },
 
@@ -157,6 +225,7 @@ export const inventoryApi = {
     sku?: string;
     unitId: string;
     minimumStock?: number;
+    maximumStock?: number | null;
   }) => {
     const response = await apiClient.post<{
       success: boolean;
@@ -171,6 +240,7 @@ export const inventoryApi = {
     name?: string;
     sku?: string;
     minimumStock?: number;
+    maximumStock?: number | null;
   }) => {
     const response = await apiClient.patch<{
       success: boolean;

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
 import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation';
 import { ExpenseAPI } from '../api/expense.api';
@@ -8,9 +8,11 @@ import { getErrorMessage } from '../../../shared/utils/errors';
 export function useExpenses(filters: ExpenseListFilters = {}) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['expenses', filters],
     queryFn: () => ExpenseAPI.getAll(filters),
+    // Keeps the current page on screen while the next one loads.
+    placeholderData: keepPreviousData,
   });
 
   const createMutation = useMutation({
@@ -55,6 +57,8 @@ export function useExpenses(filters: ExpenseListFilters = {}) {
     pagination: data?.pagination,
     loading: isLoading,
     error,
+    refetch,
+    isFetching,
     create: (input: CreateExpenseInput, options?: Parameters<typeof createMutation.mutate>[1]) =>
       createMutation.mutate({ input, idempotencyKey: globalThis.crypto.randomUUID() }, options),
     update: updateMutation.mutate,

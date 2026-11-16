@@ -23,12 +23,14 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import incomeStatementRoutes from "./routes/income-statement.routes";
 import categoryRoutes from "./routes/category.routes";
 import extraRoutes from "./routes/extra.routes";
+import productFamilyRoutes from "./routes/product-family.routes";
 import { CSRF_SECRET } from "./config/csrf";
 import { CORS_ORIGINS, isProduction, TRUST_PROXY } from "./config/app";
 import { errorHandler } from "./middleware/errorHandler";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { logger } from "./utils/logger";
+import { ReadinessService } from "./services/readiness.service";
 
 // BigInt values (e.g. orderNumber) are serialized as strings in JSON responses.
 declare global {
@@ -131,6 +133,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/extras", extraRoutes);
+app.use("/api/product-families", productFamilyRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/cash-register", cashRoutes);
@@ -146,8 +149,16 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/income-statement", incomeStatementRoutes);
 
+// Liveness: the process is up (the container healthcheck uses it).
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+// Readiness: the database answers and has every migration this code needs. Point the platform's
+// health check (Render) here so a deploy made before `prisma migrate deploy` never goes live.
+app.get("/ready", async (req, res) => {
+  const { ready, status } = await ReadinessService.check();
+  res.status(ready ? 200 : 503).json({ status });
 });
 
 app.use(errorHandler);

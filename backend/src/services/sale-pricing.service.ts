@@ -1,9 +1,9 @@
-import { Prisma, type DrinkTemperature } from '@prisma/client';
+import { Prisma, type DrinkTemperature, type ProductSize } from '@prisma/client';
 import type { z } from 'zod';
 import type { orderItemSchema } from '../validators/order.validator';
 import type { OrderRepository } from '../repositories/order.repository';
 import { ValidationError } from '../utils/errors';
-import { getDrinkTemperature, isJumboLatteProduct } from '../utils/productTemperature';
+import { getDrinkTemperature, isJumboAvailable } from '../utils/productTemperature';
 import { calculateCartPromotions } from './pricing.service';
 
 /**
@@ -30,6 +30,8 @@ export type PricedLine = {
   productId: string;
   productName: string;
   temperature: Exclude<DrinkTemperature, 'BOTH'> | null;
+  /** Size whose recipe the line consumes (combo lines are always REGULAR). */
+  size: ProductSize;
   quantity: Prisma.Decimal;
   unitPrice: Prisma.Decimal;
   discount: Prisma.Decimal;
@@ -90,8 +92,9 @@ function assertCatalogCoversItems(items: SaleItemInput[], catalog: SaleCatalog) 
 
 function priceProductItem(item: SaleItemInput & { productId: string }, catalog: SaleCatalog): PricedItem {
   const product = catalog.products.find((p) => p.id === item.productId)!;
-  const availableTemperature = product.temperature ?? getDrinkTemperature(product.name, product.category?.name);
-  if (item.size === 'JUMBO' && (!product.jumboPrice || !isJumboLatteProduct(product.name, product.category?.name))) {
+  const isBeverage = product.category?.isBeverage ?? false;
+  const availableTemperature = product.temperature ?? getDrinkTemperature(product.name, isBeverage);
+  if (item.size === 'JUMBO' && !isJumboAvailable(product, isBeverage)) {
     throw new ValidationError(`El tamaño Jumbo no está disponible para ${product.name}.`);
   }
   if (availableTemperature === 'BOTH' && !item.temperature) {
@@ -123,6 +126,7 @@ function priceProductItem(item: SaleItemInput & { productId: string }, catalog: 
   const line: PricedLine = {
     productId: product.id,
     productName: item.size === 'JUMBO' ? `${product.name} Jumbo` : product.name,
+    size: item.size === 'JUMBO' ? 'JUMBO' : 'REGULAR',
     temperature: availableTemperature === 'BOTH' ? item.temperature ?? null : availableTemperature,
     quantity: new Prisma.Decimal(item.quantity),
     unitPrice,
@@ -181,6 +185,7 @@ function priceComboItem(item: SaleItemInput & { comboId: string }, catalog: Sale
     return {
       productId: comboItem.productId,
       productName: `${comboItem.product.name} (Combo: ${combo.name})`,
+      size: 'REGULAR',
       temperature: null,
       quantity,
       // Informational, rounded to cents: `subtotal` is the line's amount (unitPrice × quantity

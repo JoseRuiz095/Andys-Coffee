@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
+import { getZonedDayBoundaries } from '../utils/businessDate';
 
 type PrismaClient = Prisma.TransactionClient | typeof prisma;
 
@@ -73,14 +74,10 @@ export const InventoryCountRepository = {
     }
 
     if (date) {
-      const dateObj = new Date(date);
-      const nextDay = new Date(dateObj);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      where.createdAt = {
-        gte: dateObj,
-        lt: nextDay,
-      };
+      // INV-3: the business day in CASH_TIMEZONE (UTC midnight moved counts made after
+      // 18:00 local to the next day).
+      const { start, end } = getZonedDayBoundaries(date);
+      where.createdAt = { gte: start, lt: end };
     }
 
     const [counts, total] = await Promise.all([
@@ -195,6 +192,8 @@ export const InventoryCountRepository = {
         notes: data.notes,
       },
       update: {
+        // INV-2: a recapture is compared against the stock at that moment, so both change.
+        systemQuantity: new Prisma.Decimal(data.systemQuantity),
         countedQuantity: new Prisma.Decimal(data.countedQuantity),
         difference: new Prisma.Decimal(data.difference),
         notes: data.notes,

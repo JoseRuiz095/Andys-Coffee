@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { purchasesApi } from '../api/purchases.api'
+import { invalidateMoneyAndStockQueries } from '../../../shared/utils/queryInvalidation'
 
 export interface UsePurchasesParams {
   page?: number;
@@ -30,17 +31,13 @@ export function useReceivePurchase() {
   return useMutation({
     mutationFn: (purchaseId: string) => purchasesApi.receivePurchase(purchaseId),
     onSuccess: (data) => {
-      // Invalidate purchases list to refetch
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-
-      // Invalidate inventory queries since stock was updated
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-
-      // Invalidate dashboard since inventory changed
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-
-      // Update this specific purchase in cache
       queryClient.setQueryData(['purchases', data.purchase.id], data.purchase);
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      // A received purchase moves stock and average cost, and counts as an expense of the day
+      // in the income statement (and the drawer when paid in cash).
+      void invalidateMoneyAndStockQueries(queryClient);
+      // The recipe-based suggested cost shown in the product detail uses the average cost.
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail'] });
     },
   });
 }
@@ -50,14 +47,6 @@ export function useDraftPurchases() {
     queryKey: ['purchases', 'draft'],
     queryFn: () => purchasesApi.getAll({ status: 'draft', limit: 100 }),
     staleTime: 2 * 60 * 1000,
-  });
-}
-
-export function useReceivedPurchases() {
-  return useQuery({
-    queryKey: ['purchases', 'received'],
-    queryFn: () => purchasesApi.getAll({ status: 'received', limit: 100 }),
-    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -369,25 +369,56 @@ export const incomeStatementRepository = {
     });
   },
 
+  /**
+   * Drops the frozen snapshot of `dateStr` AND of every later day: each snapshot carries the
+   * accumulated balances chained from the previous days, so a change on `dateStr` makes all
+   * the later ones stale. They are recomputed (and frozen again) the next time they are read.
+   */
   async invalidateSnapshot(dateStr: string): Promise<number> {
     const date = new Date(`${dateStr}T00:00:00Z`);
+    // Only frozen snapshots: a manual balance correction of today (non-final row) must survive
+    // a new sale or expense of the same day.
     return prisma.incomeStatementDailySnapshot.deleteMany({
-      where: { date },
+      where: { date: { gte: date }, isFinal: true },
     }).then((result) => result.count);
   },
 
+  /**
+   * IS-3: a manual correction of today's accumulated balances. Today has no frozen snapshot
+   * (only closed past days do), so the update used to fail every time (P2025). The correction is
+   * kept as a NON-final row for the day: the sequence uses it as the day's closing balances and,
+   * when the day is frozen, the final snapshot carries them forward.
+   */
   async updateAccumulatedBalances(
     dateStr: string,
     input: { ahorroAcumulado: number; fondoNegocioAcumulado: number; surtidoAcumulado: number },
+    percentages: { savingsPercent: number; businessFundPercent: number; suppliesPercent: number },
   ) {
     const date = new Date(`${dateStr}T00:00:00Z`);
-    return prisma.incomeStatementDailySnapshot.update({
+    const balances = {
+      savingsAccumulated: new Prisma.Decimal(input.ahorroAcumulado),
+      businessFundAccumulated: new Prisma.Decimal(input.fondoNegocioAcumulado),
+      suppliesAccumulated: new Prisma.Decimal(input.surtidoAcumulado),
+    };
+    return prisma.incomeStatementDailySnapshot.upsert({
       where: { date },
-      data: {
-        savingsAccumulated: new Prisma.Decimal(input.ahorroAcumulado),
-        businessFundAccumulated: new Prisma.Decimal(input.fondoNegocioAcumulado),
-        suppliesAccumulated: new Prisma.Decimal(input.surtidoAcumulado),
+      update: balances,
+      create: {
+        date,
+        ...balances,
+        savingsPercentUsed: new Prisma.Decimal(percentages.savingsPercent),
+        businessFundPercentUsed: new Prisma.Decimal(percentages.businessFundPercent),
+        suppliesPercentUsed: new Prisma.Decimal(percentages.suppliesPercent),
+        isFinal: false,
       },
+    });
+  },
+
+  /** Manual balance corrections (non-final rows) of the days in [from, to). */
+  async findManualBalancesInRange(from: Date, to: Date) {
+    return prisma.incomeStatementDailySnapshot.findMany({
+      where: { isFinal: false, date: { gte: from, lt: to } },
+      select: { date: true, savingsAccumulated: true, businessFundAccumulated: true, suppliesAccumulated: true },
     });
   },
 };

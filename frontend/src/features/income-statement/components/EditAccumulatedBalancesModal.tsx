@@ -1,11 +1,11 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
+import React, { useId } from 'react';
 import { sileo } from 'sileo';
 import { getTodayDateString } from '../../../shared/utils/dateUtils';
 import { useUpdateAccumulatedBalances } from '../hooks/useIncomeStatement';
 import { getErrorMessage } from '../../../shared/utils/errors';
-import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
-import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
+import { Modal } from '../../../shared/components/Modal';
+import { parseNonNegativeAmount } from '../../../shared/utils/numbers';
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
 interface EditAccumulatedBalancesModalProps {
   isOpen: boolean;
@@ -27,10 +27,11 @@ export function EditAccumulatedBalancesModal({
   onClose,
 }: EditAccumulatedBalancesModalProps) {
   const { mutate: updateBalances, isPending } = useUpdateAccumulatedBalances();
-  useBodyScrollLock(isOpen);
-  useOverlayEscape(isOpen, () => {
+  const titleId = useId();
+  // Escape, the backdrop and "Cancelar" are ignored while saving.
+  const handleClose = () => {
     if (!isPending) onClose();
-  });
+  };
 
   const [ahorro, setAhorro] = React.useState(String(currentValues.ahorroAcumulado));
   const [fondo, setFondo] = React.useState(String(currentValues.fondoNegocioAcumulado));
@@ -47,9 +48,10 @@ export function EditAccumulatedBalancesModal({
     }
   }
 
-  const ahorroNum = Number(ahorro) || 0;
-  const fondoNum = Number(fondo) || 0;
-  const surtidoNum = Number(surtido) || 0;
+  // null = empty or invalid: saving it as 0 would wipe the balance.
+  const ahorroNum = parseNonNegativeAmount(ahorro);
+  const fondoNum = parseNonNegativeAmount(fondo);
+  const surtidoNum = parseNonNegativeAmount(surtido);
 
   const isToday = date === getTodayDateString();
 
@@ -61,8 +63,8 @@ export function EditAccumulatedBalancesModal({
       return;
     }
 
-    if (ahorroNum < 0 || fondoNum < 0 || surtidoNum < 0) {
-      sileo.error({ title: 'Error', description: 'Los saldos acumulados no pueden ser negativos.' });
+    if (ahorroNum === null || fondoNum === null || surtidoNum === null) {
+      sileo.error({ title: 'Error', description: 'Captura los tres saldos: deben ser números mayores o iguales a 0.' });
       return;
     }
 
@@ -97,27 +99,17 @@ export function EditAccumulatedBalancesModal({
     color: 'var(--color-input-text)',
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={() => {
-        if (!isPending) onClose();
-      }}
-      style={{ backdropFilter: 'blur(4px)' }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl p-6 shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+  return (
+    <Modal isOpen onClose={handleClose} ariaLabelledBy={titleId}>
+      <div className="p-6">
+        <h2 id={titleId} className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
           Editar Saldos Acumulados
         </h2>
 
         {!isToday && (
           <div
             className="mb-4 p-3 rounded-lg text-sm"
-            style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}
+            style={{ backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', color: 'var(--color-danger)' }}
           >
             Solo se pueden editar los saldos del día actual.
           </div>
@@ -126,9 +118,9 @@ export function EditAccumulatedBalancesModal({
         {ganciaNeta > 0 && (
           <div
             className="mb-4 p-3 rounded-lg text-sm"
-            style={{ backgroundColor: 'var(--color-info-light, #E3F2FD)', color: 'var(--color-text-primary)' }}
+            style={{ backgroundColor: 'color-mix(in srgb, var(--color-info) 12%, var(--color-surface))', color: 'var(--color-text-primary)' }}
           >
-            <strong>Ganancia Neta del día:</strong> ${ganciaNeta.toFixed(2)}
+            <strong>Ganancia Neta del día:</strong> {formatCurrency(ganciaNeta)}
           </div>
         )}
 
@@ -178,9 +170,7 @@ export function EditAccumulatedBalancesModal({
 
         <div className="flex gap-2 justify-end">
           <button
-            onClick={() => {
-              if (!isPending) onClose();
-            }}
+            onClick={handleClose}
             disabled={isPending}
             className="rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
@@ -190,14 +180,13 @@ export function EditAccumulatedBalancesModal({
           <button
             onClick={handleSave}
             disabled={!isToday || isPending}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-button-text)] transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             {isPending ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
       </div>
-    </div>,
-    document.getElementById('modal-root') ?? document.body,
+    </Modal>
   );
 }

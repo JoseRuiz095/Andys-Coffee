@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
-import { authenticateUser, createJwtToken, verifyJwtToken, type AuthUser } from "../services/auth.service";
+import { authenticateUser, createJwtToken, revokeSessionsOfToken, type AuthUser } from "../services/auth.service";
 import { getRequestToken } from "../middleware/auth.middleware";
-import { UserRepository } from "../repositories/user.repository";
 import type { z } from "zod";
 import type { changePasswordSchema, loginSchema, updateProfileSchema } from "../validators/password.validator";
 import { auditLog } from "../utils/logger";
@@ -48,16 +47,7 @@ export async function logout(req: Request, res: Response) {
   // Revoke the session server-side too (M-06): otherwise a copied token would keep
   // working until it expires. Best effort — an invalid/expired token needs no revoking.
   const token = getRequestToken(req);
-  if (token) {
-    try {
-      const userId = verifyJwtToken(token).sub;
-      if (typeof userId === "string") {
-        await UserRepository.incrementTokenVersion(userId);
-      }
-    } catch {
-      // Token already invalid: nothing to revoke.
-    }
-  }
+  if (token) await revokeSessionsOfToken(token);
 
   res.clearCookie("token", SESSION_COOKIE_OPTIONS);
 

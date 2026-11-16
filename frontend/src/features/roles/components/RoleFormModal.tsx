@@ -1,165 +1,121 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRef, useState } from 'react'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { Button } from '../../../shared/components/Button'
-import { useCreateRole, useUpdateRole, useRoleById } from '../hooks/useRoles'
+import { Input } from '../../../shared/components/Input'
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField'
+import { useCreateRole, useUpdateRole } from '../hooks/useRoles'
 import { getErrorMessage } from '../../../shared/utils/errors'
 import type { RoleData } from '../api/role.api'
 
 interface RoleFormModalProps {
-  isOpen: boolean
   onClose: () => void
   onSuccess?: (role: RoleData) => void
-  editingRoleId?: string | null
+  /** The role being edited, or null to create one. */
+  editingRole?: RoleData | null
 }
 
-export function RoleFormModal({
-  isOpen,
-  onClose,
-  onSuccess,
-  editingRoleId = null,
-}: RoleFormModalProps) {
-  const firstInputRef = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+const textareaClass =
+  'min-h-20 w-full rounded-md border px-4 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-primary)_35%,transparent)]'
 
-  const { data: editingRole } = useRoleById(editingRoleId || '')
+/** Mounted only while open and keyed by the role (see RolesView): fields start from it or empty. */
+export function RoleFormModal({ onClose, onSuccess, editingRole = null }: RoleFormModalProps) {
+  const isEditing = editingRole !== null
+  const firstInputRef = useRef<HTMLInputElement>(null)
+  const [name, setName] = useState(editingRole?.name ?? '')
+  const [description, setDescription] = useState(editingRole?.description ?? '')
+  const [nameError, setNameError] = useState<string | null>(null)
+
   const { mutate: createRole, isPending: isCreating } = useCreateRole()
   const { mutate: updateRole, isPending: isUpdating } = useUpdateRole()
-
-  useEffect(() => {
-    if (editingRole && isOpen) {
-      const timer = setTimeout(() => {
-        setName(editingRole.name)
-        setDescription(editingRole.description || '')
-      }, 0)
-      return () => clearTimeout(timer)
-    }
-  }, [editingRole, isOpen])
-
+  const isSaving = isCreating || isUpdating
+  // The backend doesn't allow renaming ADMIN or CAJERO (their description can change).
   const isBuiltIn = editingRole?.isSystem ?? false
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
+    if (isSaving) return
     if (!name.trim()) {
-      sileo.error({ title: 'Nombre requerido', description: 'Ingresa un nombre para el rol.' })
+      setNameError('Ingresa un nombre para el rol.')
       return
     }
+    setNameError(null)
 
-    const data = {
-      name: name.trim(),
-      description: description.trim() || undefined,
-    }
+    const data = { name: name.trim(), description: description.trim() || undefined }
+    const onError = (error: unknown) =>
+      sileo.error({
+        title: isEditing ? 'No se pudo actualizar el rol' : 'No se pudo crear el rol',
+        description: getErrorMessage(error, 'Inténtalo de nuevo.'),
+      })
 
-    if (editingRoleId) {
+    if (editingRole) {
       updateRole(
-        { id: editingRoleId, data },
+        { id: editingRole.id, data },
         {
           onSuccess: (response) => {
             sileo.success({ title: 'Rol actualizado', duration: 2000 })
             onSuccess?.(response.role)
-            handleClose()
           },
-          onError: (error: unknown) => {
-            const message =
-              getErrorMessage(error, 'Error actualizando rol')
-            sileo.error({ title: 'Error', description: message })
-          },
+          onError,
         }
       )
     } else {
       createRole(data, {
         onSuccess: (response) => {
-          sileo.success({ title: 'Rol creado', duration: 2000 })
+          sileo.success({ title: 'Rol creado', description: 'Ahora asígnale sus permisos.', duration: 2500 })
           onSuccess?.(response.role)
-          handleClose()
         },
-        onError: (error: unknown) => {
-          const message = getErrorMessage(error, 'Error creando rol')
-          sileo.error({ title: 'Error', description: message })
-        },
+        onError,
       })
     }
   }
 
-  const handleClose = useCallback(() => {
-    setName('')
-    setDescription('')
-    onClose()
-  }, [onClose])
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      ariaLabelledBy="role-modal-title"
-      initialFocusRef={firstInputRef}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4 p-6">
+    <Modal isOpen onClose={onClose} ariaLabelledBy="role-modal-title" initialFocusRef={firstInputRef}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 p-6">
         <h2 id="role-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          {editingRoleId ? 'Editar Rol' : 'Crear Rol'}
+          {isEditing ? 'Editar rol' : 'Nuevo rol'}
         </h2>
 
-        <div>
-          <label htmlFor="role-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Nombre *
-          </label>
-          <input
+        <FormField
+          htmlFor="role-name"
+          label="Nombre"
+          required
+          error={nameError}
+          hint={isBuiltIn ? 'Es un rol del sistema: su nombre no se puede cambiar.' : undefined}
+        >
+          <Input
             id="role-name"
             ref={firstInputRef}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: Supervisor"
+            placeholder="Ej. Supervisor"
             disabled={isBuiltIn}
-            aria-required="true"
-            className="min-h-11 w-full min-w-0 rounded-md border px-4 text-xs outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              boxShadow: 'none',
-            }}
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={fieldDescriptionId('role-name')}
           />
-          {isBuiltIn && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              No se puede renombrar un rol del sistema.
-            </p>
-          )}
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="role-description" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Descripción
-          </label>
+        <FormField htmlFor="role-description" label="Descripción" hint="Una línea sobre para qué sirve este rol.">
           <textarea
             id="role-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descripción del rol"
             rows={3}
-            className="w-full min-h-20 rounded-md border px-4 text-xs outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              boxShadow: 'none',
-            }}
+            aria-describedby={fieldDescriptionId('role-description')}
+            className={textareaClass}
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
           />
-        </div>
+        </FormField>
 
-        <div className="flex gap-3 pt-4">
-          <Button type="button" variant="ghost" onClick={handleClose} className="flex-1">
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose} className="flex-1" disabled={isSaving}>
             Cancelar
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={isCreating || isUpdating}
-            className="flex-1"
-          >
-            {isCreating || isUpdating ? (editingRoleId ? 'Actualizando...' : 'Creando...') : (editingRoleId ? 'Actualizar' : 'Crear')}
+          <Button type="submit" variant="primary" disabled={isSaving} className="flex-1">
+            {isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear rol'}
           </Button>
         </div>
       </form>

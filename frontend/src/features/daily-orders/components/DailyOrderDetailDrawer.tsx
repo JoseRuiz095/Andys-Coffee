@@ -10,6 +10,8 @@ import { useCancelDailyOrder } from '../hooks/useDailyOrders';
 import { CancelOrderDialog } from '../../orders/components/CancelOrderDialog';
 import { useRequestOrderCancellation } from '../../orders/hooks/useCancellationRequests';
 import { formatDrinkTemperature, getDrinkDisplayName } from '../../../shared/utils/productTemperature'
+import { formatDayAndTime } from '../../../shared/utils/dateUtils'
+import { formatPaymentMethod } from '../../../shared/constants/paymentMethods'
 
 interface DailyOrderDetailDrawerProps {
   isOpen: boolean;
@@ -40,25 +42,6 @@ const deliveryResponsibleLabels: Record<string, string> = {
   business_absorbs: "Andy's absorbe el mandadito",
 };
 
-function formatDateTime(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatPaymentMethod(method: string): string {
-  const methodMap: Record<string, string> = {
-    cash: 'Efectivo',
-    transfer: 'Transferencia',
-    card: 'Tarjeta',
-    pending: 'Pendiente',
-  };
-  return methodMap[method] || method;
-}
 
 export function DailyOrderDetailDrawer({
   isOpen,
@@ -123,7 +106,7 @@ export function DailyOrderDetailDrawer({
                 {statusTextMap[order.status]}
               </StatusBadge>
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                {formatDateTime(order.createdAt)}
+                {formatDayAndTime(order.createdAt)}
               </span>
               {order.createdBy && (
                 <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -224,7 +207,7 @@ export function DailyOrderDetailDrawer({
                   {order.deliveryHandedOff && (
                     <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
                       <span style={{ color: 'var(--color-success)' }}>
-                        ✓ Entregado {order.deliveryHandedOffAt && `el ${formatDateTime(order.deliveryHandedOffAt)}`}
+                        ✓ Entregado {order.deliveryHandedOffAt && `el ${formatDayAndTime(order.deliveryHandedOffAt)}`}
                       </span>
                     </div>
                   )}
@@ -291,7 +274,7 @@ export function DailyOrderDetailDrawer({
             <button
               onClick={handleCancelClick}
               disabled={isCancelling}
-              className="w-full px-4 py-3 rounded-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full px-4 py-3 rounded-lg font-semibold text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-danger)' }}
             >
               {isCancelling

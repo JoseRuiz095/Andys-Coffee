@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '../../../shared/components/Button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { cashDifferenceReasons } from '../constants'
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
 interface CashClosingDialogProps {
   open: boolean
@@ -17,13 +18,17 @@ export function CashClosingDialog({ open, expectedAmount, isLoading = false, onC
   const [reason, setReason] = useState('')
   const [comment, setComment] = useState('')
 
-  const counted = Number(closingAmount)
-  const difference = Number.isFinite(counted) ? counted - expectedAmount : 0
+  // An empty field is "not counted yet", never $0 (Number('') would be 0).
+  const hasCount = closingAmount.trim() !== ''
+  const counted = hasCount ? Number(closingAmount) : Number.NaN
+  const isValidCount = Number.isFinite(counted) && counted >= 0
+  const difference = isValidCount ? counted - expectedAmount : 0
   const hasDifference = Math.abs(difference) >= 0.005
-  const canContinue = Number.isFinite(counted) && counted >= 0 && (!hasDifference || reason.length > 0)
+  const canContinue = isValidCount && (!hasDifference || reason.length > 0)
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && step === 'count' && onClose()}>
+    // The cashier can always back out (Escape, backdrop, Cancelar/Regresar) until the close is sent.
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !isLoading && onClose()}>
       <DialogContent>
         <DialogHeader>
           <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--color-primary)' }}>Corte de caja</p>
@@ -34,7 +39,7 @@ export function CashClosingDialog({ open, expectedAmount, isLoading = false, onC
             <p className="text-sm leading-6" style={{ color: 'var(--color-text-secondary)' }}>Cuenta físicamente todo el efectivo y registra el monto contado.</p>
             <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
               Efectivo contado
-              <div className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[#5A804F]/15" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)' }}>
+              <div className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--color-primary)_15%,transparent)]" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)' }}>
                 <span style={{ color: 'var(--color-primary)' }}>$</span>
                 <input autoFocus type="number" min="0" step="0.01" value={closingAmount} onChange={(event) => setClosingAmount(event.target.value)} className="min-h-12 w-full bg-transparent px-3 text-xl font-semibold outline-none" style={{ color: 'var(--color-input-text)' }} />
               </div>
@@ -46,9 +51,9 @@ export function CashClosingDialog({ open, expectedAmount, isLoading = false, onC
         ) : (
           <div className="space-y-5 p-4 sm:p-6">
             <div className="space-y-3 rounded-xl p-4 text-sm" style={{ backgroundColor: 'var(--color-background)' }}>
-              <div className="flex justify-between"><span>Contado</span><strong>${counted.toFixed(2)}</strong></div>
-              <div className="flex justify-between"><span>Esperado</span><strong>${expectedAmount.toFixed(2)}</strong></div>
-              <div className="border-t pt-3 flex justify-between" style={{ borderColor: 'var(--color-border)' }}><span>Diferencia</span><strong style={{ color: difference < 0 ? 'var(--color-text-secondary)' : 'var(--color-primary)' }}>{difference < 0 ? '-' : ''}${Math.abs(difference).toFixed(2)}</strong></div>
+              <div className="flex justify-between"><span>Contado</span><strong>{formatCurrency(counted)}</strong></div>
+              <div className="flex justify-between"><span>Esperado</span><strong>{formatCurrency(expectedAmount)}</strong></div>
+              <div className="border-t pt-3 flex justify-between" style={{ borderColor: 'var(--color-border)' }}><span>Diferencia</span><strong style={{ color: difference < 0 ? 'var(--color-text-secondary)' : 'var(--color-primary)' }}>{formatCurrency(difference)}</strong></div>
             </div>
             {hasDifference && (
               <>
@@ -66,9 +71,14 @@ export function CashClosingDialog({ open, expectedAmount, isLoading = false, onC
           </div>
         )}
         <DialogFooter>
-          {step === 'count' && <Button variant="ghost" onClick={onClose} disabled={isLoading}>Cancelar</Button>}
           {step === 'count' ? (
-            <Button onClick={() => setStep('review')} disabled={!Number.isFinite(counted) || counted < 0}>Continuar</Button>
+            <Button variant="ghost" onClick={onClose} disabled={isLoading}>Cancelar</Button>
+          ) : (
+            // Back to the count with the typed amount kept, to fix a typo before confirming.
+            <Button variant="ghost" onClick={() => setStep('count')} disabled={isLoading}>Regresar</Button>
+          )}
+          {step === 'count' ? (
+            <Button onClick={() => setStep('review')} disabled={!isValidCount}>Continuar</Button>
           ) : (
             <Button onClick={() => onConfirm({ closingAmount: counted, reason: reason || undefined, comment: comment || undefined })} disabled={!canContinue || isLoading}>
               {isLoading ? 'Cerrando...' : 'Confirmar cierre'}

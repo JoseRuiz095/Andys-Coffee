@@ -1,7 +1,11 @@
 import { Spinner } from '../../../shared/components/Spinner';
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog';
+import { StatusBadge } from '../../../shared/components/StatusBadge';
+import { RowActions } from '../../../shared/components/RowActions';
 import type { Expense } from '../types/expense.types';
 import { useState } from 'react';
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { formatPaymentMethod } from '../../../shared/constants/paymentMethods'
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -9,9 +13,12 @@ interface ExpenseListProps {
   onEdit: (expense: Expense) => void;
   onDelete: (id: string) => Promise<void>;
   isDeleting: boolean;
+  /** expenses.update / expenses.delete: without them the row offers no action (the API answers 403). */
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
-export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }: ExpenseListProps) {
+export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting, canEdit, canDelete }: ExpenseListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   if (loading) {
@@ -27,6 +34,7 @@ export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }:
   }
 
   const cannotEdit = (expense: Expense) => expense.cashSession?.status === 'closed';
+  const hasActions = canEdit || canDelete;
 
   return (
     <>
@@ -40,7 +48,7 @@ export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }:
               <th className="p-4 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Monto</th>
               <th className="p-4 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>Método</th>
               <th className="p-4 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>Sesión</th>
-              <th className="p-4 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>Acciones</th>
+              {hasActions && <th className="p-4"><span className="sr-only">Acciones</span></th>}
             </tr>
           </thead>
           <tbody>
@@ -55,7 +63,7 @@ export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }:
                   }}
                 >
                   <td className="p-4" style={{ color: 'var(--color-text-primary)' }}>
-                    {new Date(expense.expenseDate).toLocaleDateString('es-ES')}
+                    {new Date(expense.expenseDate).toLocaleDateString('es-MX')}
                   </td>
                   <td className="p-4" style={{ color: 'var(--color-text-primary)' }}>
                     {expense.category}
@@ -64,46 +72,40 @@ export function ExpenseList({ expenses, loading, onEdit, onDelete, isDeleting }:
                     {expense.description}
                   </td>
                   <td className="p-4 text-right" style={{ color: 'var(--color-text-primary)' }}>
-                    ${Number(expense.amount).toFixed(2)}
+                    {formatCurrency(Number(expense.amount))}
                   </td>
                   <td className="p-4 text-center" style={{ color: 'var(--color-text-primary)' }}>
-                    {expense.paymentMethod === 'cash' ? 'Efectivo' : expense.paymentMethod === 'transfer' ? 'Transferencia' : 'Tarjeta'}
+                    {formatPaymentMethod(expense.paymentMethod)}
                   </td>
                   <td className="p-4 text-center">
                     {expense.cashSession ? (
-                      <span
-                        className="px-2 py-1 rounded text-xs font-medium"
-                        style={{
-                          backgroundColor: expense.cashSession.status === 'open' ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)',
-                          color: 'var(--color-text-primary)',
-                        }}
-                      >
+                      <StatusBadge tone={expense.cashSession.status === 'open' ? 'success' : 'neutral'}>
                         {expense.cashSession.status === 'open' ? 'Abierta' : 'Cerrada'}
-                      </span>
+                      </StatusBadge>
                     ) : (
                       <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
                     )}
                   </td>
-                  <td className="p-4 text-center space-x-2">
-                    <button
-                      onClick={() => onEdit(expense)}
-                      disabled={isReadOnly}
-                      title={isReadOnly ? 'No se puede editar: sesión cerrada' : ''}
-                      className="px-3 py-1 text-xs rounded hover:opacity-80 disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => setDeletingId(expense.id)}
-                      disabled={isReadOnly}
-                      title={isReadOnly ? 'No se puede eliminar: sesión cerrada' : ''}
-                      className="px-3 py-1 text-xs rounded hover:opacity-80 disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-danger)', color: 'var(--color-button-text)' }}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
+                  {hasActions && (
+                    <td className="p-4">
+                      {expense.sourceOrderId ? (
+                        <span className="block text-right text-sm" style={{ color: 'var(--color-text-secondary)' }} title="Se corrige cancelando la venta que lo generó">
+                          De una venta
+                        </span>
+                      ) : isReadOnly ? (
+                        <span className="block text-right text-sm" style={{ color: 'var(--color-text-secondary)' }} title="El corte de caja de este gasto ya se cerró">
+                          Sesión cerrada
+                        </span>
+                      ) : (
+                        <RowActions
+                          actions={[
+                            ...(canEdit ? [{ label: 'Editar', onClick: () => onEdit(expense) }] : []),
+                            ...(canDelete ? [{ label: 'Eliminar', onClick: () => setDeletingId(expense.id), danger: true }] : []),
+                          ]}
+                        />
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

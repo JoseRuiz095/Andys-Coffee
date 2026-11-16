@@ -126,6 +126,20 @@ export function getBusinessMidpointInstant(
   return getZonedInstant(dateStr, midpoint, timeZone);
 }
 
+/**
+ * First wall-clock `closeTime` ("HH:MM" in `timeZone`) strictly after `openedAt`: when the
+ * business day of a cash session opened at `openedAt` ends. Handles closing times after
+ * midnight ("01:30" closes the next night) and minutes ("22:30" is not 22:00).
+ */
+export function getBusinessDayEndAfter(openedAt: Date, closeTime: string, timeZone: string = CASH_TIMEZONE): Date {
+  const closeMinutes = timeToMinutes(closeTime);
+  const openedDate = getZonedCalendarDate(openedAt, timeZone);
+  const sameDay = getZonedInstant(openedDate, closeMinutes, timeZone);
+  return sameDay.getTime() > openedAt.getTime()
+    ? sameDay
+    : getZonedInstant(addCalendarDays(openedDate, 1), closeMinutes, timeZone);
+}
+
 /** Calendar date (YYYY-MM-DD) that `instant` falls on, in `timeZone`. */
 export function getZonedCalendarDate(instant: Date, timeZone: string = CASH_TIMEZONE): string {
   return new Intl.DateTimeFormat('en-CA', {

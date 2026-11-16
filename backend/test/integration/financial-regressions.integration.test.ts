@@ -73,7 +73,7 @@ async function openSession(openingAmount: number) {
 before(async () => {
   if (!integrationEnabled) return;
 
-  const unit = await prisma.inventoryUnit.create({ data: { name: `fin-unit-${testId}`, abbreviation: "u" } });
+  const unit = await prisma.inventoryUnit.create({ data: { name: `fin-unit-${testId}`, abbreviation: `u-${testId}` } });
   unitId = unit.id;
   const ingredient = await prisma.ingredient.create({
     data: { name: `fin-ingredient-${testId}`, unitId, currentStock: 1000, averageCost: 5 },
@@ -415,21 +415,28 @@ test("H-01: POST /api/orders exige sales.create", { skip: !integrationEnabled },
 });
 
 test("H-05: un usuario con inventory.create_ingredient puede activar y desactivar ingredientes", { skip: !integrationEnabled }, async () => {
-  await InventoryService.setIngredientActive(ingredientId, false, admin);
-  assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).isActive, false);
-  await InventoryService.setIngredientActive(ingredientId, true, admin);
-  assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).isActive, true);
+  // An ingredient outside every recipe: one used by an active product can't be deactivated
+  // (covered in inventory-normalization.integration.test.ts).
+  const spare = await prisma.ingredient.create({ data: { name: `fin-spare-${testId}`, unitId } });
+  try {
+    await InventoryService.setIngredientActive(spare.id, false, admin);
+    assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: spare.id } })).isActive, false);
+    await InventoryService.setIngredientActive(spare.id, true, admin);
+    assert.equal((await prisma.ingredient.findUniqueOrThrow({ where: { id: spare.id } })).isActive, true);
+  } finally {
+    await prisma.ingredient.delete({ where: { id: spare.id } });
+  }
 });
 
 test("R-04: el detalle del producto sugiere el costo según receta × costo promedio", { skip: !integrationEnabled }, async () => {
   const detail = await ProductService.findOne(productId);
   assert.ok(detail);
   assert.equal(detail!.cost.toNumber(), PRODUCT_COST, "the manual cost is untouched");
-  assert.equal(detail!.suggestedCost?.toNumber(), 5); // 1 unit × averageCost 5
+  assert.equal(detail!.suggestedCost, 5); // 1 unit × averageCost 5
 
   // Averages move with purchases, and the suggestion follows them.
   await prisma.ingredient.update({ where: { id: ingredientId }, data: { averageCost: 7.255 } });
-  assert.equal((await ProductService.findOne(productId))!.suggestedCost?.toNumber(), 7.26);
+  assert.equal((await ProductService.findOne(productId))!.suggestedCost, 7.26);
 });
 
 test("Dashboard: la tendencia de ventas agrupa por día de negocio (una venta a las 23:30 locales no cae al día siguiente)", { skip: !integrationEnabled }, async () => {

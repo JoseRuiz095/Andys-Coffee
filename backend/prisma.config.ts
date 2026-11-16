@@ -14,7 +14,8 @@ const destructive =
   (command === "migrate" && (subcommand === "dev" || subcommand === "reset")) ||
   (command === "db" && subcommand === "push");
 
-if (destructive && ENV_MODE === "production" && !(command === "migrate" && subcommand === "reset")) {
+// No exceptions in production: `migrate reset` drops every table (it used to be let through).
+if (destructive && ENV_MODE === "production") {
   throw new Error(`"prisma ${command} ${subcommand}" no se ejecuta contra producción: usa "npm run prisma:migrate:deploy:prod".`);
 }
 if (destructive && USES_PRODUCTION_DATABASE) {

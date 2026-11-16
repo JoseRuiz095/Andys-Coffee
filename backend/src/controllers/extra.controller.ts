@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import type { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ExtraService } from '../services/extra.service';
+import type { AuthUser } from '../services/auth.service';
 import type { createExtraSchema, setActiveSchema, setProductExtrasSchema, updateExtraSchema } from '../validators/extra.validator';
 
 export const ExtraController = {
@@ -10,11 +11,11 @@ export const ExtraController = {
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {
-    res.status(201).json(await ExtraService.create(req.body as z.infer<typeof createExtraSchema>));
+    res.status(201).json(await ExtraService.create(req.body as z.infer<typeof createExtraSchema>, req.user as AuthUser));
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
-    res.status(200).json(await ExtraService.update(String(req.params.id), req.body as z.infer<typeof updateExtraSchema>));
+    res.status(200).json(await ExtraService.update(String(req.params.id), req.body as z.infer<typeof updateExtraSchema>, req.user as AuthUser));
   }),
 
   setActive: asyncHandler(async (req: Request, res: Response) => {

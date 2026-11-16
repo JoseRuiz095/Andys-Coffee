@@ -10,8 +10,15 @@ if (!fs.existsSync(path.join(backendRoot, 'prisma/schema.prisma'))) {
   throw new Error('Ejecuta este comando desde backend/.');
 }
 
+/** `--source-env <file>` / `--target-env <file>` replace .env.development / .env.production. */
+function envFileFor(mode: 'development' | 'production') {
+  const flag = mode === 'development' ? '--source-env' : '--target-env';
+  const index = process.argv.indexOf(flag);
+  return index >= 0 && process.argv[index + 1] ? path.resolve(backendRoot, process.argv[index + 1]) : path.join(backendRoot, `.env.${mode}`);
+}
+
 function readDatabaseConfig(mode: 'development' | 'production') {
-  const envPath = path.join(backendRoot, `.env.${mode}`);
+  const envPath = envFileFor(mode);
   if (!fs.existsSync(envPath)) throw new Error(`No existe ${path.basename(envPath)}.`);
   const env = dotenv.parse(fs.readFileSync(envPath));
   const rawUrl = env.DIRECT_URL || env.DATABASE_URL;
@@ -52,9 +59,16 @@ async function appliedMigrations(db: PrismaClient) {
 }
 
 async function readMenu(db: PrismaClient) {
-  const [categories, products, extras, productExtras, combos, promotions] = await Promise.all([
+  const [categories, products, extras, productExtras, combos, promotions, families, ingredients, recipes, extraRecipes] = await Promise.all([
     db.category.findMany({ orderBy: { displayOrder: 'asc' } }),
-    db.product.findMany({ include: { category: { select: { name: true } } }, orderBy: [{ categoryId: 'asc' }, { displayOrder: 'asc' }] }),
+    db.product.findMany({
+      include: {
+        category: { select: { name: true } },
+        family: { select: { name: true } },
+        options: { select: { name: true, value: true }, orderBy: { name: 'asc' } },
+      },
+      orderBy: [{ categoryId: 'asc' }, { displayOrder: 'asc' }],
+    }),
     db.extra.findMany({ orderBy: { name: 'asc' } }),
     db.productExtra.findMany({ include: { product: { select: { sku: true } }, extra: { select: { name: true } } } }),
     db.combo.findMany({
@@ -71,8 +85,30 @@ async function readMenu(db: PrismaClient) {
       },
       orderBy: { name: 'asc' },
     }),
+    db.productFamily.findMany({ include: { category: { select: { name: true } } }, orderBy: { name: 'asc' } }),
+    // Ingredients travel by SKU; stock and average cost never do (each database has its own).
+    db.ingredient.findMany({ where: { deletedAt: null }, include: { unit: { select: { abbreviation: true } } }, orderBy: { name: 'asc' } }),
+    db.recipe.findMany({ include: { product: { select: { sku: true } }, ingredient: { select: { sku: true } } } }),
+    db.extraRecipe.findMany({ include: { extra: { select: { name: true } }, ingredient: { select: { sku: true } } } }),
   ]);
-  return { categories, products, extras, productExtras, combos, promotions };
+  return { categories, products, extras, productExtras, combos, promotions, families, ingredients, recipes, extraRecipes };
+}
+
+// Temperature (2026-11-16): HOT/COLD lines of products sold both ways; BOTH for the rest.
+const recipeLine = ({ size, temperature, ingredient, quantity }: { size: string; temperature: string; ingredient: { sku: string | null }; quantity: Prisma.Decimal }) =>
+  `${size}:${temperature}:${ingredient.sku}:${quantity.toString()}`;
+const extraRecipeLine = ({ ingredient, quantity }: { ingredient: { sku: string | null }; quantity: Prisma.Decimal }) =>
+  `${ingredient.sku}:${quantity.toString()}`;
+
+/** One sorted signature per owner (product SKU or extra name) of its recipe lines. */
+function signatures<T>(items: T[], owner: (item: T) => string, line: (item: T) => string) {
+  const byOwner = new Map<string, string[]>();
+  for (const item of items) byOwner.set(owner(item), [...(byOwner.get(owner(item)) ?? []), line(item)]);
+  return new Map([...byOwner].map(([key, lines]) => [key, lines.sort().join('|')]));
+}
+
+function signatureMismatches(keys: string[], source: Map<string, string>, destination: Map<string, string>) {
+  return keys.filter((key) => (source.get(key) ?? '') !== (destination.get(key) ?? ''));
 }
 
 function countByKey<T>(source: T[], destination: T[], key: (item: T) => string) {
@@ -97,8 +133,16 @@ function menuMismatches(source: Awaited<ReturnType<typeof readMenu>>, destinatio
   };
 
   return {
-    categories: compare(source.categories, destination.categories, ({ name }) => name, ({ description, imageUrl, displayOrder, isActive }) => ({ description, imageUrl, displayOrder, isActive })),
-    products: compare(source.products, destination.products, ({ sku }) => sku, ({ category, name, description, imageUrl, temperature, price, jumboPrice, cost, isActive, displayOrder }) => ({
+    categories: compare(source.categories, destination.categories, ({ name }) => name, ({ description, imageUrl, displayOrder, isActive, isBeverage }) => ({ description, imageUrl, displayOrder, isActive, isBeverage })),
+    families: compare(source.families, destination.families, ({ name }) => name.trim().toLowerCase(), ({ category, displayOrder, isActive }) => ({ category: category?.name ?? null, displayOrder, isActive })),
+    ingredients: compare(source.ingredients, destination.ingredients, ({ sku }) => sku ?? '', ({ name, unit, minimumStock, maximumStock, isActive }) => ({
+      name, unit: unit.abbreviation, minimumStock: minimumStock.toString(), maximumStock: maximumStock?.toString() ?? null, isActive,
+    })),
+    products: compare(source.products, destination.products, ({ sku }) => sku, ({ category, name, description, imageUrl, temperature, price, jumboPrice, cost, isActive, displayOrder, tracksInventory, family, variantLabel, options }) => ({
+      tracksInventory,
+      family: family?.name ?? null,
+      variantLabel,
+      options: options.map((option) => `${option.name}=${option.value}`),
       category: category?.name ?? null,
       name,
       description,
@@ -136,6 +180,17 @@ function menuMismatches(source: Awaited<ReturnType<typeof readMenu>>, destinatio
       products: products.map(({ product }) => product.sku).sort(),
       categories: categories.map(({ category }) => category.name).sort(),
     })),
+    // Recipes compared as a whole per product (by SKU) and per extra (by name).
+    recipes: signatureMismatches(
+      source.products.map(({ sku }) => sku),
+      signatures(source.recipes, ({ product }) => product.sku, recipeLine),
+      signatures(destination.recipes, ({ product }) => product.sku, recipeLine),
+    ),
+    extraRecipes: signatureMismatches(
+      source.extras.map(({ name }) => name),
+      signatures(source.extraRecipes, ({ extra }) => extra.name, extraRecipeLine),
+      signatures(destination.extraRecipes, ({ extra }) => extra.name, extraRecipeLine),
+    ),
   };
 }
 
@@ -200,15 +255,33 @@ async function syncMenu(source: Awaited<ReturnType<typeof readMenu>>, production
           imageUrl: category.imageUrl,
           displayOrder: category.displayOrder,
           isActive: category.isActive,
+          isBeverage: category.isBeverage,
         },
         update: {
           description: category.description,
           imageUrl: category.imageUrl,
           displayOrder: category.displayOrder,
           isActive: category.isActive,
+          isBeverage: category.isBeverage,
         },
       });
       categoryIds.set(category.name, saved.id);
+    }
+
+    // Families by name (unique ignoring case and spaces).
+    const familyIds = new Map<string, string>();
+    for (const family of source.families) {
+      const existing = await tx.productFamily.findFirst({ where: { name: { equals: family.name.trim(), mode: 'insensitive' } } });
+      const data = {
+        name: family.name,
+        categoryId: family.category ? categoryIds.get(family.category.name) ?? null : null,
+        displayOrder: family.displayOrder,
+        isActive: family.isActive,
+      };
+      const saved = existing
+        ? await tx.productFamily.update({ where: { id: existing.id }, data })
+        : await tx.productFamily.create({ data });
+      familyIds.set(family.name, saved.id);
     }
 
     const productIds = new Map<string, string>();
@@ -226,6 +299,9 @@ async function syncMenu(source: Awaited<ReturnType<typeof readMenu>>, production
         cost: product.cost,
         isActive: product.isActive,
         displayOrder: product.displayOrder,
+        tracksInventory: product.tracksInventory,
+        familyId: product.family ? familyIds.get(product.family.name) ?? null : null,
+        variantLabel: product.variantLabel,
       };
       const saved = await tx.product.upsert({
         where: { sku: product.sku },
@@ -233,6 +309,47 @@ async function syncMenu(source: Awaited<ReturnType<typeof readMenu>>, production
         update: data,
       });
       productIds.set(product.sku, saved.id);
+      await tx.productVariantOption.deleteMany({ where: { productId: saved.id } });
+      if (product.options.length) {
+        await tx.productVariantOption.createMany({ data: product.options.map((option) => ({ productId: saved.id, ...option })) });
+      }
+    }
+
+    // Ingredients by SKU (scripts/normalize-catalog.ts assigns one to each). Name, minimum,
+    // maximum and status are copied; stock and average cost are never touched, and a unit change
+    // is refused (it would change the meaning of the stock).
+    const units = new Map((await tx.inventoryUnit.findMany()).map((unit) => [unit.abbreviation, unit.id]));
+    const ingredientIds = new Map<string, string>();
+    for (const ingredient of source.ingredients) {
+      if (!ingredient.sku) throw new Error(`El insumo "${ingredient.name}" no tiene SKU en development: ejecuta scripts/normalize-catalog.ts.`);
+      const unitId = units.get(ingredient.unit.abbreviation);
+      if (!unitId) throw new Error(`Producción no tiene la unidad "${ingredient.unit.abbreviation}" del insumo ${ingredient.sku}.`);
+      const existing = await tx.ingredient.findUnique({ where: { sku: ingredient.sku } });
+      const data = { name: ingredient.name, minimumStock: ingredient.minimumStock, maximumStock: ingredient.maximumStock, isActive: ingredient.isActive };
+      if (existing && existing.unitId !== unitId) {
+        throw new Error(`El insumo ${ingredient.sku} tiene otra unidad en producción; corrígelo a mano antes de sincronizar.`);
+      }
+      const saved = existing
+        ? await tx.ingredient.update({ where: { id: existing.id }, data })
+        : await tx.ingredient.create({ data: { ...data, sku: ingredient.sku, unitId } });
+      ingredientIds.set(ingredient.sku, saved.id);
+    }
+    const ingredientIdOf = (sku: string | null, owner: string) => {
+      const id = sku ? ingredientIds.get(sku) : undefined;
+      if (!id) throw new Error(`La receta de ${owner} usa un insumo sin SKU sincronizable (${sku ?? 'sin SKU'}).`);
+      return id;
+    };
+
+    // Recipes of every synced product: replaced as a whole.
+    for (const product of source.products) {
+      const productId = productIds.get(product.sku)!;
+      await tx.recipe.deleteMany({ where: { productId } });
+      const lines = source.recipes.filter((recipe) => recipe.product.sku === product.sku);
+      if (lines.length) {
+        await tx.recipe.createMany({
+          data: lines.map((line) => ({ productId, size: line.size, temperature: line.temperature, ingredientId: ingredientIdOf(line.ingredient.sku, product.sku), quantity: line.quantity })),
+        });
+      }
     }
 
     assertUniqueNames(source.extras, 'extras de development');
@@ -248,6 +365,13 @@ async function syncMenu(source: Awaited<ReturnType<typeof readMenu>>, production
         ? await tx.extra.update({ where: { id: matches[0].id }, data })
         : await tx.extra.create({ data: { name: extra.name, ...data } });
       extraIds.set(extra.name, saved.id);
+      await tx.extraRecipe.deleteMany({ where: { extraId: saved.id } });
+      const lines = source.extraRecipes.filter((recipe) => recipe.extra.name === extra.name);
+      if (lines.length) {
+        await tx.extraRecipe.createMany({
+          data: lines.map((line) => ({ extraId: saved.id, ingredientId: ingredientIdOf(line.ingredient.sku, extra.name), quantity: line.quantity })),
+        });
+      }
     }
 
     const linksBySku = new Map<string, typeof source.productExtras>();
@@ -380,7 +504,10 @@ async function main() {
       extras: countByKey(devMenu.extras, prodMenu.extras, ({ name }) => name),
       combos: countByKey(devMenu.combos, prodMenu.combos, ({ name }) => name),
       promociones: countByKey(devMenu.promotions, prodMenu.promotions, ({ name }) => name),
+      familias: countByKey(devMenu.families, prodMenu.families, ({ name }) => name.trim().toLowerCase()),
+      insumos: countByKey(devMenu.ingredients, prodMenu.ingredients, ({ sku }) => sku ?? ''),
     });
+    console.log(`Líneas de receta en development: ${devMenu.recipes.length} de productos, ${devMenu.extraRecipes.length} de extras`);
     console.log(`Relaciones de extras en development: ${devMenu.productExtras.length}`);
 
     if (process.argv.includes('--verify')) {

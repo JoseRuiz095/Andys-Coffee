@@ -71,3 +71,11 @@ export async function checkDatabaseConnection() {
     );
   }
 }
+/** Closes the connection pool (graceful shutdown). */
+export async function disconnectDatabase() {
+  try {
+    await prisma.$disconnect();
+  } catch (error) {
+    logger.error({ err: error }, "Error al cerrar la conexión a la base de datos.");
+  }
+}

@@ -1,68 +1,57 @@
+import type { ReactNode } from 'react';
 import { useDashboardSummary, type PeriodType } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 
 interface DashboardSummaryProps {
   period: PeriodType;
+  /** Opens Inventario › Existencias from the low-stock figure (only when the user may see it). */
+  onOpenInventory?: () => void;
 }
 
-function StatCard({ label, value, unit = '', trend, hint }: { label: string; value: string | number; unit?: string; trend?: 'up' | 'down'; hint?: string }) {
-  return (
-    <div
-      className="rounded-2xl border p-5 shadow-sm"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
-      <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+function StatTile({ label, value, hint, valueColor, onClick }: { label: string; value: ReactNode; hint?: string; valueColor?: string; onClick?: () => void }) {
+  const content = (
+    <>
+      <span className="block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
         {label}
-      </p>
-      <div className="mt-3 flex items-baseline justify-between">
-        <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          {value} <span className="text-sm font-normal">{unit}</span>
-        </p>
-        {trend && (
-          <span
-            className="text-xs font-semibold px-2 py-1 rounded"
-            style={{
-              color: trend === 'up' ? 'var(--color-success)' : 'var(--color-danger)',
-              backgroundColor: trend === 'up' ? 'color-mix(in srgb, var(--color-success) 10%, transparent)' : 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
-            }}
-          >
-            {trend === 'up' ? '↑' : '↓'}
-          </span>
-        )}
-      </div>
+      </span>
+      <span className="mt-1 block text-2xl font-bold" style={{ color: valueColor ?? 'var(--color-text-primary)' }}>
+        {value}
+      </span>
       {hint && (
-        <p className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+        <span className="mt-1 block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           {hint}
-        </p>
+        </span>
       )}
+    </>
+  );
+  const className = 'rounded-xl border px-4 py-3 text-left';
+  const style = { borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' };
+  return onClick ? (
+    <button type="button" onClick={onClick} className={`${className} transition hover:bg-[var(--color-surface-hover)]`} style={style}>
+      {content}
+    </button>
+  ) : (
+    <div className={className} style={style}>
+      {content}
     </div>
   );
 }
 
-export function DashboardSummary({ period }: DashboardSummaryProps) {
-  const { data, isLoading, error } = useDashboardSummary({ period });
+/** One strip with the period's figures; the cards below explain each of them. */
+export function DashboardSummary({ period, onOpenInventory }: DashboardSummaryProps) {
+  const { data, isLoading, error, refetch, isFetching } = useDashboardSummary({ period });
 
   if (error) {
-    return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-danger)',
-          backgroundColor: 'color-mix(in srgb, var(--color-danger) 5%, var(--color-surface))',
-          color: 'var(--color-danger)',
-        }}
-      >
-        <p>Error al cargar el resumen</p>
-      </div>
-    );
+    return <QueryErrorState error={error} subject="el resumen" onRetry={() => void refetch()} isRetrying={isFetching} />;
   }
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-2xl" />
+          <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
     );
@@ -70,26 +59,26 @@ export function DashboardSummary({ period }: DashboardSummaryProps) {
 
   if (!data) return null;
 
+  const lowStock = data.lowStockProducts + data.outOfStockProducts;
+  // The sign is what matters here (the period isn't compared with a previous one).
+  const isLoss = data.profit < 0;
+
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      <StatCard label="Órdenes" value={data.ordersCount} />
-      <StatCard label="Ingresos" value={formatCurrency(data.revenue)} />
-      <StatCard label="Gastos" value={formatCurrency(data.expenses)} hint="Gastos + compras recibidas" />
-      <StatCard
-        label="Utilidad"
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+      <StatTile label="Órdenes" value={data.ordersCount} />
+      <StatTile label="Ingresos" value={formatCurrency(data.revenue)} />
+      <StatTile label="Gastos" value={formatCurrency(data.expenses)} hint="Gastos + compras recibidas" />
+      <StatTile
+        label={isLoss ? 'Pérdida' : 'Utilidad'}
         value={formatCurrency(data.profit)}
-        trend={data.profit >= 0 ? 'up' : 'down'}
-        hint={
-          data.fixedExpenses > 0
-            ? `Distribuible: ${formatCurrency(data.distributableProfit)} (tras gastos fijos)`
-            : undefined
-        }
+        valueColor={isLoss ? 'var(--color-danger)' : 'var(--color-success)'}
+        hint={data.fixedExpenses > 0 ? `Distribuible: ${formatCurrency(data.distributableProfit)}` : undefined}
       />
-      <StatCard
-        label="Stock Bajo"
-        value={data.lowStockProducts + data.outOfStockProducts}
-        unit="ítems"
+      <StatTile
+        label="Stock bajo"
+        value={`${lowStock} ${lowStock === 1 ? 'insumo' : 'insumos'}`}
         hint={data.outOfStockProducts > 0 ? `${data.outOfStockProducts} agotados` : undefined}
+        onClick={onOpenInventory}
       />
     </div>
   );

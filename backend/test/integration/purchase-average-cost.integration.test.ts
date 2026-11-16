@@ -23,7 +23,7 @@ before(async () => {
   if (!integrationEnabled) return;
 
   const unit = await prisma.inventoryUnit.create({
-    data: { name: `test-unit-${testId}`, abbreviation: "u" },
+    data: { name: `test-unit-${testId}`, abbreviation: `u-${testId}` },
   });
   unitId = unit.id;
 

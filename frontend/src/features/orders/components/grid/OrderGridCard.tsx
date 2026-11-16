@@ -14,6 +14,7 @@ import { OrderStatus as BackendOrderStatus } from '../../types/backend.types';
 import type { AuthUser } from '../../../auth/types/auth.types';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatDrinkTemperature, getDrinkDisplayName } from '@/shared/utils/productTemperature'
+import { formatShortDateTime } from '../../../../shared/utils/dateUtils'
 
 interface OrderGridCardProps {
   order: Order;
@@ -55,7 +56,7 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
   const scheduledMs = isScheduled ? new Date(order.scheduledFor as string).getTime() - now : 0;
   const remainingMinutes = Math.max(0, Math.ceil(scheduledMs / 60000));
   // Once the order is ready the wait is over: the timer stops counting against it.
-  const timerColor = isRunning ? TIMER_LEVEL_COLOR[timerLevel] : isScheduled ? '#d97706' : 'var(--color-success)';
+  const timerColor = isRunning ? TIMER_LEVEL_COLOR[timerLevel] : isScheduled ? 'var(--color-warning)' : 'var(--color-success)';
 
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const statusText = statusTextMap[frontendStatus];
@@ -66,7 +67,7 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
     <div
       className="flex h-full flex-col rounded-xl border p-4 shadow-md"
       style={{
-        borderColor: isScheduled ? '#f59e0b' : isRunning && timerLevel !== 'ok' ? timerColor : 'var(--color-border)',
+        borderColor: isScheduled ? 'var(--color-warning)' : isRunning && timerLevel !== 'ok' ? timerColor : 'var(--color-border)',
         backgroundColor: 'var(--color-surface)',
       }}
     >
@@ -83,8 +84,8 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
       </div>
 
       {isScheduled && (
-        <div className="mb-2 rounded-md border px-2 py-1 text-xs" style={{ borderColor: '#fbbf24', backgroundColor: 'rgba(245, 158, 11, 0.08)', color: '#b45309' }}>
-          <div className="font-semibold">Programada para: {new Date(order.scheduledFor as string).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</div>
+        <div className="mb-2 rounded-md border px-2 py-1 text-xs" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 50%, var(--color-border))', backgroundColor: 'color-mix(in srgb, var(--color-warning) 8%, var(--color-surface))', color: 'var(--color-text-primary)' }}>
+          <div className="font-semibold">Programada para: {formatShortDateTime(order.scheduledFor as string)}</div>
           <div className="mt-1">Faltan {remainingMinutes} min para activarse</div>
         </div>
       )}
@@ -129,6 +130,7 @@ export function OrderGridCard({ order, now, onStatusChange, currentUser, isUpdat
           onStatusChange={(status) => onStatusChange(order.id, status)}
           currentUser={currentUser}
           isUpdating={isUpdating}
+          now={now}
         />
       </div>
     </div>

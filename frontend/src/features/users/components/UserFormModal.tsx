@@ -1,266 +1,193 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRef, useState } from 'react'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { Input } from '../../../shared/components/Input'
 import { Select } from '../../../shared/components/Select'
 import { Button } from '../../../shared/components/Button'
-import { useCreateUser, useUpdateUser, useUserById } from '../hooks/useUsers'
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField'
+import { useCreateUser, useUpdateUser } from '../hooks/useUsers'
 import { getErrorMessage } from '../../../shared/utils/errors'
+import { PASSWORD_RULES, isValidEmail, validatePassword } from '../../../shared/utils/password'
+import { isRoleAssignable } from '../../roles/utils/permissionRules'
 import type { UserData } from '../api/user.api'
+import type { RoleData } from '../../roles/api/role.api'
+import type { AuthUser } from '../../auth/types/auth.types'
 
 interface UserFormModalProps {
-  isOpen: boolean
   onClose: () => void
   onSuccess?: (user: UserData) => void
-  editingUserId?: string | null
-  roles?: Array<{ id: string; name: string }>
+  /** The user being edited (name and email only), or null to create one. */
+  editingUser?: UserData | null
+  roles?: RoleData[]
+  currentUser: AuthUser | null
 }
 
-const PASSWORD_MIN_LENGTH = 8
-const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
+type FieldErrors = Partial<Record<'name' | 'email' | 'roleId' | 'password', string>>
 
-function validatePassword(password: string): string | null {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`
-  }
-  if (!PASSWORD_PATTERN.test(password)) {
-    return 'La contraseña debe contener al menos una letra y un número.'
-  }
-  return null
-}
-
-export function UserFormModal({
-  isOpen,
-  onClose,
-  onSuccess,
-  editingUserId = null,
-  roles = [],
-}: UserFormModalProps) {
+/**
+ * Mounted only while open and keyed by the edited user (see UsersView), so its fields always
+ * start from that user, or empty for a new one.
+ */
+export function UserFormModal({ onClose, onSuccess, editingUser = null, roles = [], currentUser }: UserFormModalProps) {
+  const isEditing = editingUser !== null
   const firstInputRef = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [name, setName] = useState(editingUser?.name ?? '')
+  const [email, setEmail] = useState(editingUser?.email ?? '')
   const [password, setPassword] = useState('')
-  const [roleId, setRoleId] = useState(roles[0]?.id || '')
+  const [showPassword, setShowPassword] = useState(false)
+  const [roleId, setRoleId] = useState('')
+  const [errors, setErrors] = useState<FieldErrors>({})
 
-  const { data: editingUser } = useUserById(editingUserId || '')
   const { mutate: createUser, isPending: isCreating } = useCreateUser()
   const { mutate: updateUser, isPending: isUpdating } = useUpdateUser()
+  const isSaving = isCreating || isUpdating
 
-  useEffect(() => {
-    if (editingUser && isOpen) {
-      const timer = setTimeout(() => {
-        setName(editingUser.name)
-        setEmail(editingUser.email)
-        setPassword('')
-      }, 0)
-      return () => clearTimeout(timer)
+  const validate = (): FieldErrors => {
+    const next: FieldErrors = {}
+    if (!name.trim()) next.name = 'Ingresa el nombre completo.'
+    if (!email.trim()) next.email = 'Ingresa el correo.'
+    else if (!isValidEmail(email)) next.email = 'Revisa el formato del correo (ej. usuario@ejemplo.com).'
+    if (!isEditing) {
+      if (!roleId) next.roleId = 'Selecciona el rol: define lo que podrá hacer.'
+      const passwordError = validatePassword(password)
+      if (passwordError) next.password = passwordError
     }
-  }, [editingUser, isOpen])
+    return next
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSaving) return
+    const nextErrors = validate()
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) return
 
-    if (!name.trim()) {
-      sileo.error({ title: 'Campo vacío', description: 'Por favor ingresa el nombre completo del usuario.' })
-      return
-    }
+    const onError = (error: unknown) =>
+      sileo.error({
+        title: isEditing ? 'No se pudo actualizar el usuario' : 'No se pudo crear el usuario',
+        description: getErrorMessage(error, 'Inténtalo de nuevo.'),
+      })
 
-    if (!email.trim()) {
-      sileo.error({ title: 'Campo vacío', description: 'Por favor ingresa un correo electrónico válido.' })
-      return
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      sileo.error({ title: 'Email inválido', description: 'Verifica que el email tenga el formato correcto (ej: usuario@ejemplo.com).' })
-      return
-    }
-
-    if (!editingUserId && !roleId) {
-      sileo.error({ title: 'Rol faltante', description: 'Selecciona un rol para asignar permisos al usuario.' })
-      return
-    }
-
-    if (!editingUserId) {
-      if (!password.trim()) {
-        sileo.error({ title: 'Contraseña requerida', description: 'Ingresa una contraseña segura de al menos 8 caracteres.' })
-        return
-      }
-      const passwordError = validatePassword(password.trim())
-      if (passwordError) {
-        sileo.error({ title: 'Contraseña débil', description: passwordError })
-        return
-      }
-    }
-
-    if (editingUserId) {
+    if (editingUser) {
       updateUser(
-        { id: editingUserId, data: { name: name.trim(), email: email.trim() } },
+        { id: editingUser.id, data: { name: name.trim(), email: email.trim() } },
         {
           onSuccess: (response) => {
             sileo.success({ title: 'Usuario actualizado', duration: 2000 })
             onSuccess?.(response.user)
-            handleClose()
           },
-          onError: (error: unknown) => {
-            const message =
-              getErrorMessage(error, 'Error actualizando usuario')
-            sileo.error({ title: 'Error', description: message })
-          },
+          onError,
         }
       )
     } else {
+      // The password goes exactly as typed: the login doesn't trim it either.
       createUser(
-        { name: name.trim(), email: email.trim(), password: password.trim(), roleId },
+        { name: name.trim(), email: email.trim(), password, roleId },
         {
           onSuccess: (response) => {
-            sileo.success({ title: 'Usuario creado', duration: 2000 })
+            sileo.success({ title: 'Usuario creado', description: `${response.user.name} ya puede iniciar sesión.`, duration: 2500 })
             onSuccess?.(response.user)
-            handleClose()
           },
-          onError: (error: unknown) => {
-            const message =
-              getErrorMessage(error, 'Error creando usuario')
-            sileo.error({ title: 'Error', description: message })
-          },
+          onError,
         }
       )
     }
   }
 
-  const handleClose = useCallback(() => {
-    setName('')
-    setEmail('')
-    setPassword('')
-    setRoleId('')
-    onClose()
-  }, [onClose])
-
-  const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return { level: 0, label: '', colorVar: '' }
-    let strength = 0
-    if (pwd.length >= 8) strength++
-    if (pwd.length >= 12) strength++
-    if (/[A-Z]/.test(pwd)) strength++
-    if (/[0-9]/.test(pwd)) strength++
-    if (/[^A-Za-z0-9]/.test(pwd)) strength++
-
-    if (strength <= 1) return { level: 1, label: 'Débil', colorVar: 'var(--color-danger)' }
-    if (strength <= 2) return { level: 2, label: 'Regular', colorVar: 'var(--color-warning)' }
-    if (strength <= 3) return { level: 3, label: 'Buena', colorVar: 'var(--color-info)' }
-    return { level: 4, label: 'Fuerte', colorVar: 'var(--color-success)' }
-  }
-
-  const passwordStrength = !editingUserId ? getPasswordStrength(password) : { level: 0, label: '', colorVar: '' }
+  const fieldProps = (field: keyof FieldErrors, id: string) => ({
+    id,
+    'aria-invalid': errors[field] ? true : undefined,
+    'aria-describedby': fieldDescriptionId(id),
+  })
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      ariaLabelledBy="user-modal-title"
-      initialFocusRef={firstInputRef}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4 p-6">
+    <Modal isOpen onClose={onClose} ariaLabelledBy="user-modal-title" initialFocusRef={firstInputRef}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 p-6">
         <h2 id="user-modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          {editingUserId ? 'Editar Usuario' : 'Crear Usuario'}
+          {isEditing ? 'Editar usuario' : 'Nuevo usuario'}
         </h2>
 
-        <div>
-          <label htmlFor="user-name" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Nombre *
-          </label>
-          <input
-            id="user-name"
+        <FormField htmlFor="user-name" label="Nombre completo" required error={errors.name}>
+          <Input
             ref={firstInputRef}
+            {...fieldProps('name', 'user-name')}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: Juan Pérez"
-            aria-required="true"
-            className="min-h-11 w-full min-w-0 rounded-md border px-4 text-xs outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              boxShadow: 'none',
-            }}
+            placeholder="Ej. Juan Pérez"
+            autoComplete="off"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="user-email" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Email *
-          </label>
+        <FormField htmlFor="user-email" label="Correo" required error={errors.email} hint="Con este correo inicia sesión.">
           <Input
-            id="user-email"
+            {...fieldProps('email', 'user-email')}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="usuario@ejemplo.com"
-            aria-required="true"
+            autoComplete="off"
           />
-        </div>
+        </FormField>
 
-        {!editingUserId && (
-          <div>
-            <label htmlFor="user-role" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-              Rol *
-            </label>
-            <Select
-              id="user-role"
-              value={roleId}
-              onChange={(e) => setRoleId(e.target.value)}
-              aria-required="true"
-            >
-              <option value="">Selecciona un rol</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
+        {!isEditing && (
+          <>
+            <FormField htmlFor="user-role" label="Rol" required error={errors.roleId}>
+              <Select {...fieldProps('roleId', 'user-role')} value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+                <option value="">Selecciona un rol</option>
+                {roles.map((role) => {
+                  const assignable = isRoleAssignable(currentUser, role)
+                  return (
+                    <option key={role.id} value={role.id} disabled={!assignable}>
+                      {role.name}
+                      {!assignable ? ' (incluye permisos que no tienes)' : ''}
+                    </option>
+                  )
+                })}
+              </Select>
+            </FormField>
 
-        {!editingUserId && (
-          <div>
-            <label htmlFor="user-password" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-              Contraseña *
-            </label>
-            <Input
-              id="user-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mín. 8 caracteres, 1 letra, 1 número"
-              aria-required="true"
-            />
-            {password && (
-              <div className="mt-2 space-y-1">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-1 flex-1 rounded"
-                      style={{
-                        backgroundColor: i <= passwordStrength.level ? passwordStrength.colorVar : 'var(--color-border)',
-                      }}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  Fortaleza: <span style={{ fontWeight: 'semibold', color: passwordStrength.colorVar }}>{passwordStrength.label}</span>
-                </p>
+            <FormField htmlFor="user-password" label="Contraseña inicial" required error={errors.password}>
+              <div className="flex gap-2">
+                <Input
+                  {...fieldProps('password', 'user-password')}
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-pressed={showPassword}
+                  className="min-h-11 shrink-0 rounded-md border px-3 text-sm font-medium transition hover:bg-[var(--color-surface-hover)]"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                >
+                  {showPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
               </div>
-            )}
-          </div>
+              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Requisitos de la contraseña">
+                {PASSWORD_RULES.map((rule) => {
+                  const met = rule.test(password)
+                  return (
+                    <li key={rule.id} style={{ color: met ? 'var(--color-success)' : 'var(--color-text-secondary)' }}>
+                      <span aria-hidden="true">{met ? '✓' : '○'}</span> {rule.label}
+                      <span className="sr-only">{met ? ' (cumplido)' : ' (pendiente)'}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </FormField>
+          </>
         )}
 
-        <div className="flex gap-3 pt-4">
-          <Button type="button" variant="ghost" onClick={handleClose} className="flex-1">
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose} className="flex-1" disabled={isSaving}>
             Cancelar
           </Button>
-          <Button type="submit" variant="primary" disabled={isCreating || isUpdating} className="flex-1">
-            {isCreating || isUpdating ? (editingUserId ? 'Actualizando...' : 'Creando...') : (editingUserId ? 'Actualizar' : 'Crear')}
+          <Button type="submit" variant="primary" disabled={isSaving} className="flex-1">
+            {isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear usuario'}
           </Button>
         </div>
       </form>

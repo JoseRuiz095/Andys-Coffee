@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useOverlayEscape } from '../hooks/useOverlayEscape'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface DrawerProps {
   isOpen: boolean
@@ -30,6 +31,8 @@ export function Drawer({
 }: DrawerProps) {
   useOverlayEscape(isOpen, onClose)
   useBodyScrollLock(isOpen)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(isOpen, panelRef)
 
   return createPortal(
     <AnimatePresence>
@@ -40,7 +43,9 @@ export function Drawer({
           role="presentation"
         >
           <motion.div
-            className={`h-screen w-full overflow-y-auto shadow-lg ${widthClassName}`}
+            ref={panelRef}
+            tabIndex={-1}
+            className={`h-screen w-full overflow-y-auto shadow-lg outline-none ${widthClassName}`}
             style={{ backgroundColor: 'var(--color-surface)' }}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import type { Router } from "express";
@@ -79,7 +81,16 @@ before(async () => {
     ["/api/expenses", import("../src/routes/expense.routes")],
     ["/api/dashboard", import("../src/routes/dashboard.routes")],
     ["/api/income-statement", import("../src/routes/income-statement.routes")],
+    ["/api/product-families", import("../src/routes/product-family.routes")],
   ];
+
+  // R1 (2026-11-14): every router mounted in app.ts is checked; a new one can't be left out.
+  const appSource = readFileSync(join(process.cwd(), "src", "app.ts"), "utf8");
+  const mounted = [...appSource.matchAll(/app\.use\("(\/api\/[^"]+)"/g)].map((match) => match[1]);
+  const listed = new Set(mounts.map(([mount]) => mount));
+  assert.ok(mounted.length >= 20, "no se encontraron los app.use de src/app.ts");
+  const missing = mounted.filter((mount) => !listed.has(mount));
+  assert.deepEqual(missing, [], `Routers sin revisar en route-policy: ${missing.join(", ")}`);
 
   for (const [mount, modulePromise] of mounts) {
     const router = (await modulePromise).default;

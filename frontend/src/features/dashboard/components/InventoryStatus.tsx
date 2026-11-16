@@ -1,84 +1,51 @@
+import type { ReactNode } from 'react';
 import { useDashboardInventory } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { DashboardCard, DashboardCardEmpty } from './DashboardCard';
+import { StatusBadge } from '../../../shared/components/StatusBadge';
 
 interface InventoryStatusProps {
   onlyLow?: boolean;
+  /** Link to the module with the full list. */
+  action?: ReactNode;
 }
 
-export function InventoryStatus({ onlyLow = true }: InventoryStatusProps) {
-  const { data, isLoading, error } = useDashboardInventory({ onlyLowStock: onlyLow });
+export function InventoryStatus({ onlyLow = true, action }: InventoryStatusProps) {
+  const { data, isLoading, error, refetch, isFetching } = useDashboardInventory({ onlyLowStock: onlyLow });
 
   if (error) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Estado de Inventario
-        </h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-danger)' }}>
-          Error al cargar
-        </p>
-      </div>
+      <DashboardCard title="Stock bajo" action={action}>
+        <QueryErrorState error={error} subject="el estado del inventario" onRetry={() => void refetch()} isRetrying={isFetching} />
+      </DashboardCard>
     );
   }
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Estado de Inventario
-        </h3>
+      <DashboardCard title="Stock bajo" action={action}>
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-10" />
           ))}
         </div>
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data?.items.length) {
     return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Estado de Inventario
-        </h3>
-        <p className="mt-2">{onlyLow ? 'Todos los productos tienen stock suficiente' : 'No hay datos disponibles'}</p>
-      </div>
+      <DashboardCard title="Stock bajo" action={action}>
+        <DashboardCardEmpty>{onlyLow ? 'Todos los productos tienen stock suficiente' : 'No hay datos disponibles'}</DashboardCardEmpty>
+      </DashboardCard>
     );
   }
 
   const displayItems = onlyLow ? data.items.filter((i) => i.isLow || i.isEmpty) : data.items;
 
   return (
-    <div
-      className="rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
-    >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-        Estado de Inventario
-      </h3>
+    <DashboardCard title="Stock bajo" action={action}>
       <div className="space-y-3 max-h-96 overflow-y-auto">
         {displayItems.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -101,27 +68,17 @@ export function InventoryStatus({ onlyLow = true }: InventoryStatusProps) {
                 <p style={{ color: 'var(--color-text-primary)' }} className="font-medium">
                   {item.name}
                 </p>
-                <p style={{ color: 'var(--color-text-secondary)' }} className="text-xs">
+                <p style={{ color: 'var(--color-text-secondary)' }} className="text-sm">
                   {item.stock.toFixed(2)} / {item.minimum.toFixed(2)} {item.unit}
                 </p>
               </div>
-              <span
-                className="px-2 py-1 rounded text-xs font-semibold"
-                style={{
-                  backgroundColor: item.isEmpty
-                    ? 'var(--color-danger)'
-                    : item.isLow
-                    ? 'var(--color-warning)'
-                    : 'var(--color-success)',
-                  color: 'white',
-                }}
-              >
+              <StatusBadge tone={item.isEmpty ? 'danger' : item.isLow ? 'warning' : 'success'}>
                 {item.isEmpty ? 'Agotado' : item.isLow ? 'Bajo' : 'OK'}
-              </span>
+              </StatusBadge>
             </div>
           ))
         )}
       </div>
-    </div>
+    </DashboardCard>
   );
 }

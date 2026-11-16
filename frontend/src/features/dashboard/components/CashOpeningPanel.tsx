@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Button } from '../../../shared/components/Button'
 import type { CashSession } from '../services/cash.service'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 interface CashOpeningPanelProps {
+  /** cash.open: also needed to read the active session (GET /cash-register/sessions/active). */
+  canOpen?: boolean
   session: CashSession | null | undefined
   isLoading: boolean
   error?: Error | null
@@ -11,6 +14,7 @@ interface CashOpeningPanelProps {
 }
 
 export function CashOpeningPanel({
+  canOpen = true,
   session,
   isLoading,
   error,
@@ -31,10 +35,24 @@ export function CashOpeningPanel({
     onOpen(amount)
   }
 
+  if (!canOpen) {
+    return (
+      <div
+        className="mx-auto max-w-xl rounded-[1.75rem] border p-8 text-center shadow-[var(--shadow-card)]"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>No puedes abrir la caja</h2>
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Para vender se necesita una caja abierta. Pide a un administrador que abra la caja o que te dé el permiso.
+        </p>
+      </div>
+    )
+  }
+
   if (isLoading) {
     return (
       <div
-        className="mx-auto max-w-xl rounded-[1.75rem] border p-8 text-center shadow-[0_20px_50px_rgba(45,33,29,0.06)]"
+        className="mx-auto max-w-xl rounded-[1.75rem] border p-8 text-center shadow-[var(--shadow-card)]"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Verificando el estado de la caja...</p>
@@ -45,11 +63,11 @@ export function CashOpeningPanel({
   if (error) {
     return (
       <div
-        className="mx-auto max-w-xl rounded-[1.75rem] border p-8 text-center shadow-[0_20px_50px_rgba(45,33,29,0.06)]"
+        className="mx-auto max-w-xl rounded-[1.75rem] border p-8 text-center shadow-[var(--shadow-card)]"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>No se pudo consultar la caja</h2>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{error.message}</p>
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{getErrorMessage(error, 'Revisa tu conexión e inténtalo de nuevo.')}</p>
       </div>
     )
   }
@@ -60,7 +78,7 @@ export function CashOpeningPanel({
 
   return (
     <div
-      className="mx-auto max-w-xl rounded-[1.75rem] border p-6 shadow-[0_20px_50px_rgba(45,33,29,0.06)] sm:p-8"
+      className="mx-auto max-w-xl rounded-[1.75rem] border p-6 shadow-[var(--shadow-card)] sm:p-8"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <div className="mb-8 border-b pb-6" style={{ borderColor: 'var(--color-border)' }}>
@@ -75,7 +93,7 @@ export function CashOpeningPanel({
         <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
           Fondo inicial
           <div
-            className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[#5A804F]/15"
+            className="mt-2 flex items-center rounded-xl border px-4 focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--color-primary)_15%,transparent)]"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)' }}
           >
             <span style={{ color: 'var(--color-primary)' }}>$</span>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "sileo";
 import { ThemeProvider } from "../shared/assets/theme";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
@@ -17,6 +18,8 @@ function SessionValidatorWrapper({ children }: { children: ReactNode }) {
 export function Providers({ children }: ProvidersProps) {
   return (
     <ErrorBoundary>
+      {/* Page and dialog animations follow the system "reduce motion" setting, like the CSS ones. */}
+      <MotionConfig reducedMotion="user">
       <ThemeProvider>
         <GeneralPreferencesProvider>
           <SessionValidatorWrapper>
@@ -38,6 +41,7 @@ export function Providers({ children }: ProvidersProps) {
           </SessionValidatorWrapper>
         </GeneralPreferencesProvider>
       </ThemeProvider>
+      </MotionConfig>
     </ErrorBoundary>
   );
 }

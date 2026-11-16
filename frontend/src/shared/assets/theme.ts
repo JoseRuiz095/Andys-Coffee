@@ -92,7 +92,12 @@ export const themePalettes: Record<ThemeMode, ThemePalette> = {
   },
 }
 
-const cssVariableMap = {
+/**
+ * CSS variable of each palette color. The variables themselves are defined in index.css (the only
+ * source the page uses, so the first paint is already themed); `themePalettes` mirrors them for
+ * the components that need a color in JS. theme.test.ts keeps both in sync.
+ */
+export const THEME_CSS_VARIABLES = {
   '--color-background': 'background',
   '--color-surface': 'surface',
   '--color-surface-secondary': 'surfaceSecondary',
@@ -124,15 +129,11 @@ export function applyThemeMode(mode: ThemeMode) {
     return
   }
 
-  const palette = themePalettes[mode]
   const root = document.documentElement
 
+  // index.css switches every --color-* variable on this attribute.
   root.dataset.theme = mode
   root.style.colorScheme = mode
-
-  Object.entries(cssVariableMap).forEach(([cssVar, colorKey]) => {
-    root.style.setProperty(cssVar, palette[colorKey as keyof ThemePalette])
-  })
 }
 
 const ThemeContext = createContext<ThemeContextValue>({

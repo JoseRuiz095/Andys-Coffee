@@ -47,7 +47,9 @@ Scripts de mantenimiento en `scripts/`. Se ejecutan con `npx tsx scripts/<archiv
 | ------ | -------- |
 | `export-catalog.ts` | **Solo lectura.** Exporta el catálogo de la BD a `prisma/seed-data/catalog.json` (ver [Seed](#seed-y-catálogo)) |
 | `check-enum-migration.ts` | **Solo lectura.** Verificación antes/después de las migraciones `20260923*`; `--backup` escribe un respaldo JSON en `prisma/backups/` |
-| `seed-inventory.ts`, `seed-suppliers.ts` | Cargas iniciales antiguas de ingredientes y proveedores (sustituidas por `export-catalog` + seed) |
+| `normalize-catalog.ts` | Normaliza el catálogo (unidades con factor, insumos en unidad base con SKU `INS-###`, familias y opciones de producto). **Simula por defecto**; `--apply` escribe y `--with-ingredients` crea los insumos de `prisma/ingredient-catalog.ts`. Requisito de la migración `20261111130000_catalog_normalization_constraints` |
+| `sync-sales-menu-dev-to-prod.ts` | Copia el menú de desarrollo a producción (`npm run catalog:sync-menu:dev-to-prod`): categorías, familias, productos con opciones, extras, combos, promociones, insumos (por SKU, **sin stock ni costo**) y recetas. Vista previa por defecto; `-- --apply` escribe y `-- --verify` compara. `--source-env` / `--target-env` permiten ensayarlo entre bases locales |
+| `seed-suppliers.ts` | Carga inicial antigua de proveedores (sustituida por `export-catalog` + seed) |
 | `fix-expense-dates-c01.sql` | Corrección puntual de datos aplicada en la auditoría (histórico) |
 
 ---

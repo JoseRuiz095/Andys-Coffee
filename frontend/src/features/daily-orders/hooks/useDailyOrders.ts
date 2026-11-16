@@ -11,6 +11,8 @@ export function useDailyOrders(date: string) {
   return useQuery({
     queryKey: [QUERY_KEY, date],
     queryFn: () => DailyOrdersAPI.getByDate(date),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 

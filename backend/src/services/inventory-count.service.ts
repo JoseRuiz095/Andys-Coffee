@@ -3,6 +3,8 @@ import { runInTransaction } from '../repositories/transaction';
 import { InventoryCountRepository } from '../repositories/inventory-count.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
 import { AuthUser } from './auth.service';
+import { crossedThreshold, type StockCrossing } from './inventory-consumption.service';
+import { StockAlertService } from './stock-alert.service';
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 
 export const InventoryCountService = {
@@ -177,7 +179,8 @@ export const InventoryCountService = {
       throw new AuthorizationError('No tienes permiso para aplicar ajustes.');
     }
 
-    return runInTransaction(async (tx) => {
+    const crossings: StockCrossing[] = [];
+    const applied = await runInTransaction(async (tx) => {
       const count = await InventoryCountRepository.findByIdWithItems(countId, tx);
 
       if (!count) {
@@ -188,34 +191,37 @@ export const InventoryCountService = {
         throw new ValidationError('Solo se pueden aplicar ajustes a conteos completados.');
       }
 
-      // Apply adjustments for each item with difference
+      // N-2 (2026-11-14): apply the difference MEASURED when the item was counted (counted minus
+      // the stock at that moment). Sales and exits after the count keep their effect: recomputing
+      // against the current stock used to erase the consumption between counting and applying.
       for (const item of count.items) {
-        if (item.difference.eq(0)) continue;
+        const systemQuantity = item.ingredient.currentStock;
+        const difference = item.difference;
+        if (difference.eq(0)) continue;
 
-        // L-10: stock may have dropped since the count was taken (sales/exits); an adjustment
-        // that would leave it negative is rejected with a clear message instead of a DB error.
-        const resultingStock = item.ingredient.currentStock.add(item.difference);
-        if (resultingStock.lt(0)) {
-          throw new ValidationError(
-            `El ajuste de "${item.ingredient.name}" dejaría el stock en ${resultingStock.toString()}. ` +
-            'El stock cambió desde el conteo: registra un conteo nuevo.',
-          );
+        const updated = await InventoryRepository.updateStock(item.ingredientId, difference, tx);
+        if (crossedThreshold(systemQuantity, updated.currentStock, updated.minimumStock)) {
+          crossings.push({
+            ingredientId: updated.id,
+            name: updated.name,
+            unit: updated.unit.abbreviation,
+            before: systemQuantity,
+            after: updated.currentStock,
+            minimumStock: updated.minimumStock,
+          });
         }
 
-        // Update ingredient stock
-        await InventoryRepository.updateStock(item.ingredientId, item.difference, tx);
-
-        // Create inventory movement
         await InventoryRepository.createMovement(
           {
             ingredientId: item.ingredientId,
             type: 'adjustment',
-            quantity: item.difference,
+            quantity: difference,
             unitCost: item.ingredient.averageCost,
             referenceType: 'inventory_count',
             referenceId: countId,
-            notes: `Ajuste por conteo físico: ${item.difference.toString()}`,
+            notes: `Ajuste por conteo físico: ${difference.toString()} (al contar: sistema ${item.systemQuantity.toString()}, contado ${item.countedQuantity.toString()})`,
             createdById: user.id,
+            balanceAfter: updated.currentStock,
           },
           tx,
         );
@@ -224,5 +230,8 @@ export const InventoryCountService = {
       // Update count status
       return InventoryCountRepository.updateStatus(countId, 'applied', undefined, tx);
     }, { serializable: true });
+
+    await StockAlertService.notify(crossings);
+    return applied;
   },
 };

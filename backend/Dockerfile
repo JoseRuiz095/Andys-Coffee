@@ -1,6 +1,6 @@
 # Andy's Coffee API — production image (Render builds it from backend/).
 # Configuration comes from the host's environment variables: no .env file, certificate or
-# secret is copied into the image (see .dockerignore and docs/deployment.md).
+# secret is copied into the image (see .dockerignore and docs/Project/deployment.md).
 
 # ---------- Build: dependencies, Prisma client and esbuild bundle ----------
 FROM node:22-bookworm-slim AS build

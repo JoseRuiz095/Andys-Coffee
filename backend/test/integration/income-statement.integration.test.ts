@@ -6,6 +6,7 @@ import { CashService } from "../../src/services/cash.service";
 import { OrderService } from "../../src/services/order.service";
 import { ExpenseService } from "../../src/services/expense.service";
 import { incomeStatementService } from "../../src/services/income-statement.service";
+import { incomeStatementRepository } from "../../src/repositories/income-statement.repository";
 import { getZonedDayBoundaries } from "../../src/utils/businessDate";
 
 // End-to-end coverage for the new Estado de Resultados module: a full day's cash
@@ -37,7 +38,7 @@ const PRODUCT_COST = 40;
 before(async () => {
   if (!integrationEnabled) return;
 
-  const unit = await prisma.inventoryUnit.create({ data: { name: `is-test-unit-${testId}`, abbreviation: "u" } });
+  const unit = await prisma.inventoryUnit.create({ data: { name: `is-test-unit-${testId}`, abbreviation: `u-${testId}` } });
   unitId = unit.id;
 
   const ingredient = await prisma.ingredient.create({
@@ -177,6 +178,11 @@ test(
     const { start } = getZonedDayBoundaries(TEST_DATE);
     const backdated = new Date(start.getTime() + 13 * 60 * 60 * 1000);
     await prisma.cashSession.update({ where: { id: sessionBId }, data: { openedAt: backdated } });
+    // The previous test froze TEST_DATE. Backdating a session straight in the DB bypasses the
+    // services, so drop the snapshot as every real path that changes a past day does (cash
+    // correction/reopen, expenses, cancellations, settlements, purchases). Before IS-0 the
+    // frozen snapshot was never found for its own day, which is why this used to pass without it.
+    await incomeStatementRepository.invalidateSnapshot(TEST_DATE);
 
     const summary = await incomeStatementService.getDayFinancials(TEST_DATE);
 

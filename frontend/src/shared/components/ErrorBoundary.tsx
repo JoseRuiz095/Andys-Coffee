@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react'
+import { isChunkLoadError } from '../utils/lazyWithReload'
 
 interface Props {
   children: ReactNode
@@ -47,21 +48,29 @@ export class ErrorBoundary extends React.Component<Props, State> {
               className="mt-2 text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
             >
-              {this.state.error?.message || 'Ocurrió un error inesperado'}
+              {isChunkLoadError(this.state.error)
+                ? 'Hay una versión nueva de la aplicación. Recarga la página para continuar.'
+                : 'Ocurrió un error inesperado al mostrar esta sección. Tus datos no se perdieron.'}
             </p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white transition"
-              style={{ backgroundColor: 'var(--color-danger)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-danger-hover)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-danger)'
-              }}
-            >
-              Reintentar
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="rounded-lg px-4 py-2 text-sm font-medium transition hover:opacity-90"
+                style={{ backgroundColor: 'var(--color-danger)', color: 'var(--color-button-text)' }}
+              >
+                Reintentar
+              </button>
+              {/* A view whose code failed to load stays failed until the page is reloaded. */}
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+              >
+                Recargar página
+              </button>
+            </div>
           </div>
         )
       )

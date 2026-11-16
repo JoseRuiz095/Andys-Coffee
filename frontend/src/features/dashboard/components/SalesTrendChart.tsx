@@ -1,6 +1,8 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useDashboardSalesTrend, type PeriodType } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { DashboardCard, DashboardCardEmpty } from './DashboardCard';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { formatAxisCurrency, formatChartDay } from '../utils/chartFormat';
 
@@ -9,59 +11,29 @@ interface SalesTrendChartProps {
 }
 
 export function SalesTrendChart({ period }: SalesTrendChartProps) {
-  const { data, isLoading, error } = useDashboardSalesTrend({ period });
+  const { data, isLoading, error, refetch, isFetching } = useDashboardSalesTrend({ period });
 
   if (error) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Tendencia de Ventas
-        </h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-danger)' }}>
-          Error al cargar
-        </p>
-      </div>
+      <DashboardCard title="Tendencia de ventas">
+        <QueryErrorState error={error} subject="la tendencia de ventas" onRetry={() => void refetch()} isRetrying={isFetching} />
+      </DashboardCard>
     );
   }
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Tendencia de Ventas
-        </h3>
+      <DashboardCard title="Tendencia de ventas">
         <Skeleton className="h-64" />
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data?.data.some((item) => item.ordersCount > 0)) {
     return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Tendencia de Ventas
-        </h3>
-        <p className="mt-2">No hay ventas en este periodo</p>
-      </div>
+      <DashboardCard title="Tendencia de ventas">
+        <DashboardCardEmpty>No hay ventas en este periodo</DashboardCardEmpty>
+      </DashboardCard>
     );
   }
 
@@ -74,16 +46,7 @@ export function SalesTrendChart({ period }: SalesTrendChartProps) {
   const showDots = chartData.length <= 7;
 
   return (
-    <div
-      className="min-w-0 rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
-    >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-        Tendencia de Ventas
-      </h3>
+    <DashboardCard title="Tendencia de ventas">
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -128,6 +91,6 @@ export function SalesTrendChart({ period }: SalesTrendChartProps) {
           />
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </DashboardCard>
   );
 }

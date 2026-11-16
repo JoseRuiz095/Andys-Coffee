@@ -1,9 +1,11 @@
 import { apiClient } from '../../../app/api';
 
-export type ExitReason = 'waste' | 'sample' | 'internal_consumption' | 'donation' | 'other';
+export type ExitReason = 'waste' | 'damaged' | 'expired' | 'sample' | 'internal_consumption' | 'donation' | 'other';
 
 export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
   waste: 'Merma / Desperdicio',
+  damaged: 'Dañado',
+  expired: 'Caducado',
   sample: 'Muestra / Degustación',
   internal_consumption: 'Consumo interno',
   donation: 'Donación',

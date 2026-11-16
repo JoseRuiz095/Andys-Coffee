@@ -88,7 +88,7 @@ export const dashboardRepository = {
         COUNT(*) FILTER (WHERE "currentStock" > 0 AND "currentStock" <= "minimumStock") as low,
         COUNT(*) FILTER (WHERE "currentStock" <= 0) as empty
       FROM ingredients
-      WHERE "isActive" = true
+      WHERE "isActive" = true AND "deletedAt" IS NULL
     `;
 
     return {
@@ -147,7 +147,7 @@ export const dashboardRepository = {
         SELECT i.id, i.name, i."currentStock", i."minimumStock", iu.abbreviation
         FROM ingredients i
         JOIN inventory_units iu ON i."unitId" = iu.id
-        WHERE i."isActive" = true AND i."currentStock" <= i."minimumStock"
+        WHERE i."isActive" = true AND i."deletedAt" IS NULL AND i."currentStock" <= i."minimumStock"
         ORDER BY i."currentStock" ASC
         LIMIT 100
       `;
@@ -162,7 +162,7 @@ export const dashboardRepository = {
         SELECT i.id, i.name, i."currentStock", i."minimumStock", iu.abbreviation
         FROM ingredients i
         JOIN inventory_units iu ON i."unitId" = iu.id
-        WHERE i."isActive" = true
+        WHERE i."isActive" = true AND i."deletedAt" IS NULL
         ORDER BY i."currentStock" ASC
         LIMIT 100
       `;

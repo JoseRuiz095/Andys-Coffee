@@ -9,19 +9,35 @@ export function useInventorySummary() {
   });
 }
 
-export function useInventoryValue() {
-  return useQuery({
-    queryKey: ['inventory', 'value'],
-    queryFn: () => inventoryApi.getTotalValue(),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 export function useLowStock() {
   return useQuery({
     queryKey: ['inventory', 'low-stock'],
     queryFn: () => inventoryApi.getLowStock(),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useReplenishment(days: number) {
+  return useQuery({ queryKey: ['inventory', 'replenishment', days], queryFn: () => inventoryApi.getReplenishment(days) });
+}
+
+export function useInventorySettings() {
+  return useQuery({ queryKey: ['inventory', 'settings'], queryFn: () => inventoryApi.getSettings() });
+}
+
+export function useUpdateInventorySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof inventoryApi.updateSettings>[0]) => inventoryApi.updateSettings(input),
+    onSuccess: (settings) => queryClient.setQueryData(['inventory', 'settings'], settings),
+  });
+}
+
+export function useProductsWithoutRecipe() {
+  return useQuery({
+    queryKey: ['inventory', 'products-without-recipe'],
+    queryFn: () => inventoryApi.getProductsWithoutRecipe(),
+    staleTime: 60 * 1000,
   });
 }
 
@@ -98,15 +114,6 @@ export function useInventoryById(id: string) {
     queryKey: ['inventory', id],
     queryFn: () => inventoryApi.getById(id),
     enabled: !!id,
-    staleTime: 3 * 60 * 1000,
-  });
-}
-
-export function useInventoryBySku(sku: string) {
-  return useQuery({
-    queryKey: ['inventory', 'sku', sku],
-    queryFn: () => inventoryApi.getBySku(sku),
-    enabled: !!sku,
     staleTime: 3 * 60 * 1000,
   });
 }

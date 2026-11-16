@@ -11,8 +11,11 @@ import { prisma } from "../../src/config/prisma";
 // Playwright runs from backend/ (npm scripts); __dirname is unavailable in this ESM package.
 const backendRoot = process.cwd();
 const frontendRoot = path.resolve(backendRoot, "../frontend");
-const frontendOrigin = "http://127.0.0.1:5173";
-const backendOrigin = "http://127.0.0.1:4000";
+// Same port override as support/app-harness.ts (to run next to the dev servers).
+const backendPort = Number(process.env.E2E_BACKEND_PORT ?? 4000);
+const frontendPort = Number(process.env.E2E_FRONTEND_PORT ?? 5173);
+const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
+const backendOrigin = `http://127.0.0.1:${backendPort}`;
 const testEmail = `sec006-${randomUUID()}@example.com`;
 const testPassword = `SEC006-${randomUUID()}-Password!`;
 const testRoleName = `sec006-role-${randomUUID()}`;
@@ -42,8 +45,9 @@ async function waitForHttp(url: string, process?: ChildProcess) {
 
 function startVite() {
   const vitePath = path.resolve(frontendRoot, "node_modules/vite/bin/vite.js");
-  return spawn(process.execPath, [vitePath, "--host", "127.0.0.1", "--port", "5173"], {
+  return spawn(process.execPath, [vitePath, "--host", "127.0.0.1", "--port", String(frontendPort)], {
     cwd: frontendRoot,
+    env: { ...process.env, BACKEND_PROXY_URL: backendOrigin },
     stdio: "ignore",
     windowsHide: true,
   });
@@ -81,7 +85,7 @@ test.beforeAll(async () => {
 
   const { app } = await import("../../src/app");
   backendServer = createServer(app);
-  await new Promise<void>((resolve) => backendServer.listen(4000, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => backendServer.listen(backendPort, "127.0.0.1", resolve));
 
   viteServer = startVite();
   await Promise.all([
@@ -148,8 +152,7 @@ test("SEC-006: sesión segura, refresh y logout", async ({ page, context }) => {
 
   await page.goto(`${frontendOrigin}/settings`);
   await expect(page).toHaveURL(`${frontendOrigin}/settings`);
-  // The logout button lives in the "Sesión" tab of Configuración.
-  await page.getByRole("button", { name: /^sesi[oó]n$/i }).click();
+  // The logout button lives in "Mi cuenta", the first section of Configuración.
   await page.getByRole("button", { name: /cerrar sesi[oó]n|logout/i }).click();
   await expect(page).toHaveURL(/login/);
 

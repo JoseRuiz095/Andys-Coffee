@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useOverlayEscape } from '../hooks/useOverlayEscape'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface ModalProps {
   isOpen: boolean
@@ -22,13 +23,8 @@ export function Modal({
   maxWidthClassName = 'max-w-md',
   children,
 }: ModalProps) {
-  useEffect(() => {
-    if (!isOpen) return
-    const timer = setTimeout(() => {
-      initialFocusRef?.current?.focus()
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [isOpen, initialFocusRef])
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(isOpen, panelRef, initialFocusRef)
 
   useOverlayEscape(isOpen, onClose)
   useBodyScrollLock(isOpen)
@@ -44,7 +40,9 @@ export function Modal({
       role="presentation"
     >
       <motion.div
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-lg shadow-lg ${maxWidthClassName}`}
+        ref={panelRef}
+        tabIndex={-1}
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-lg shadow-lg outline-none ${maxWidthClassName}`}
         style={{ backgroundColor: 'var(--color-surface)' }}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

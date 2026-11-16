@@ -84,11 +84,15 @@ model Category {
   imageUrl     String?
   displayOrder Int                   @default(0)
   isActive     Boolean               @default(true)
+  // Beverages require a temperature and may offer a Jumbo size (replaces detecting the
+  // category by its name "Bebidas").
+  isBeverage   Boolean               @default(false)
   createdAt    DateTime              @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   products     Product[]
   combos       Combo[]
   promotions   PromotionOnCategory[]
+  families     ProductFamily[]
 
   @@index([isActive, displayOrder], map: "categories_active_idx")
   @@map("categories")
@@ -107,18 +111,58 @@ model Product {
   cost         Decimal              @default(0) @db.Decimal(12, 2)
   isActive     Boolean              @default(true)
   displayOrder Int                  @default(0)
+  // false = sold without consuming ingredients (no recipe required).
+  tracksInventory Boolean           @default(true)
+  // POS grouping (e.g. family "Latte", variant "Vainilla") instead of parsing the name.
+  familyId     String?
+  variantLabel String?
   createdAt    DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
   comboItems   ComboItem[]
   orderItems   OrderItem[]
   extras       ProductExtra[]
   category     Category?            @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  family       ProductFamily?       @relation(fields: [familyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  options      ProductVariantOption[]
   recipes      Recipe[]
   promotions   PromotionOnProduct[]
 
   @@index([isActive, displayOrder], map: "products_active_idx")
   @@index([categoryId], map: "products_category_idx")
+  @@index([familyId], map: "products_family_idx")
+  // Raw SQL (expression index): products_name_normalized_unique UNIQUE (LOWER(TRIM(name))) WHERE "isActive" = true
   @@map("products")
+}
+
+/// Group of products shown together in the POS (e.g. "Latte", "Chilaquiles").
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model ProductFamily {
+  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name         String
+  categoryId   String?
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  products     Product[]
+
+  @@index([categoryId], map: "productFamilies_category_idx")
+  // Raw SQL (expression index, not expressible here):
+  //   productFamilies_name_normalized_unique: UNIQUE (LOWER(TRIM(name)))
+  @@map("product_families")
+}
+
+/// One attribute of a product inside its family when the family has several dimensions
+/// (e.g. Chilaquiles: Salsa = Roja, Proteína = Pollo).
+model ProductVariantOption {
+  productId String
+  name      String
+  value     String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([productId, name])
+  @@map("product_variant_options")
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
@@ -189,13 +233,32 @@ model ComboItem {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model InventoryUnit {
-  id           String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String        @id @default(dbgenerated("(gen_random_uuid())::text"))
   name         String
   abbreviation String
-  createdAt    DateTime     @default(now()) @db.Timestamptz(6)
+  // Conversion to the base unit of its dimension (gr, ml, pz have factor 1; kg and lt 1000).
+  // Ingredients are stocked in base units; other units are only for capture.
+  dimension    UnitDimension @default(COUNT)
+  factor       Decimal       @default(1) @db.Decimal(14, 6)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
   ingredients  Ingredient[]
 
+  // CHECK inventory_units_factor_positive_check: factor > 0
+  // Raw SQL (expression indexes, 20261111130000_catalog_normalization_constraints):
+  //   inventory_units_name_normalized_unique: UNIQUE (LOWER(TRIM(name)))
+  //   inventory_units_abbreviation_normalized_unique: UNIQUE (LOWER(TRIM(abbreviation)))
   @@map("inventory_units")
+}
+
+enum UnitDimension {
+  MASS
+  VOLUME
+  COUNT
+}
+
+enum ProductSize {
+  REGULAR
+  JUMBO
 }
 
 model Ingredient {
@@ -203,10 +266,15 @@ model Ingredient {
   name          String
   // Plain unique (it was a partial WHERE sku IS NOT NULL index until 20260923120000_align_ingredients_schema;
   // equivalent, since Postgres unique indexes already allow multiple NULLs).
+  // Nullable in the database, but InventoryService.createIngredient always assigns one
+  // (INS-###) and scripts/normalize-catalog.ts backfills old rows: it is the dev→prod sync key.
   sku           String?              @unique(map: "ingredients_sku_unique")
   unitId        String
+  // May be negative: a sale never fails for lack of stock (decision D-1, 2026-11-11).
   currentStock  Decimal              @default(0) @db.Decimal(14, 4)
   minimumStock  Decimal              @default(0) @db.Decimal(14, 4)
+  // Target level for restock suggestions; null = 2 × minimumStock.
+  maximumStock  Decimal?             @db.Decimal(14, 4)
   averageCost   Decimal              @default(0) @db.Decimal(14, 4)
   isActive      Boolean              @default(true)
   deletedAt     DateTime?            @db.Timestamptz(6)
@@ -229,6 +297,9 @@ model Ingredient {
   // the expression/WHERE clause would create a different, non-equivalent index.
   //   ingredients_name_normalized_unique: UNIQUE (LOWER(TRIM(name))) WHERE "isActive" = true
   //   ingredients_name_search_idx: INDEX (LOWER(TRIM(name))) WHERE "isActive" = true
+  // CHECK ingredients_stock_nonnegative_check: "minimumStock" >= 0 AND "averageCost" >= 0
+  //   (no longer requires currentStock >= 0 since 20261111120000_inventory_realtime_catalog)
+  // CHECK ingredients_maximum_stock_check: "maximumStock" IS NULL OR "maximumStock" >= "minimumStock"
   @@map("ingredients")
 }
 
@@ -236,13 +307,17 @@ model Recipe {
   id           String     @id @default(dbgenerated("(gen_random_uuid())::text"))
   productId    String
   ingredientId String
+  size         ProductSize @default(REGULAR)
+  // HOT/COLD lines apply only to that temperature; BOTH lines to either (20261116120000).
+  temperature  DrinkTemperature @default(BOTH)
+  // In the ingredient's base unit. CHECK recipes_quantity_positive_check: quantity > 0
   quantity     Decimal    @db.Decimal(14, 4)
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onUpdate: NoAction)
   product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([productId, ingredientId], map: "recipes_unique")
+  @@unique([productId, size, temperature, ingredientId], map: "recipes_unique")
   @@index([productId], map: "recipes_product_idx")
   @@map("recipes")
 }
@@ -251,6 +326,8 @@ model ExtraRecipe {
   id           String     @id @default(dbgenerated("(gen_random_uuid())::text"))
   extraId      String
   ingredientId String
+  // In the ingredient's base unit. Negative = the extra removes or substitutes that
+  // ingredient (e.g. "sin azúcar"). CHECK extra_recipes_quantity_nonzero_check: quantity <> 0
   quantity     Decimal    @db.Decimal(14, 4)
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
   extra        Extra      @relation(fields: [extraId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -272,10 +349,20 @@ model InventoryMovement {
   notes         String?
   createdById   String?
   idempotencyKey String?
+  // Ingredient stock right after this movement (null on movements before 2026-11-11).
+  balanceAfter  Decimal?   @db.Decimal(14, 4)
+  // Order line that consumed (sale) or gave back (sale_reversal) the ingredient.
+  orderItemId   String?
   createdAt     DateTime   @default(now()) @db.Timestamptz(6)
   createdBy     User?      @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   ingredient    Ingredient @relation(fields: [ingredientId], references: [id], onUpdate: NoAction)
+  orderItem     OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
+  // CHECK inventory_movements_type_check: type IN ('purchase','exit','adjustment','sale','sale_reversal')
+  // Partial unique indexes (raw SQL): one 'sale' and one 'sale_reversal' per order line and ingredient
+  //   inventoryMovements_sale_once ON ("orderItemId","ingredientId") WHERE type = 'sale' AND "orderItemId" IS NOT NULL
+  //   inventoryMovements_sale_reversal_once ON ("orderItemId","ingredientId") WHERE type = 'sale_reversal' AND "orderItemId" IS NOT NULL
+  @@index([orderItemId], map: "inventoryMovements_orderItem_idx")
   @@index([ingredientId, createdAt(sort: Desc)], map: "inventoryMovements_ingredient_idx")
   @@index([referenceType, referenceId], map: "inventoryMovements_reference_idx")
   @@index([createdAt(sort: Desc)], map: "inventoryMovements_createdAt_idx")
@@ -524,6 +611,7 @@ model OrderItem {
   productId     String
   productName   String
   temperature   DrinkTemperature?
+  size          ProductSize      @default(REGULAR)
   quantity      Decimal          @db.Decimal(12, 3)
   unitPrice     Decimal          @db.Decimal(12, 2)
   discount      Decimal          @default(0) @db.Decimal(12, 2)
@@ -536,6 +624,7 @@ model OrderItem {
   product       Product          @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   sourceComboId String?
   sourceCombo   Combo?           @relation(fields: [sourceComboId], references: [id], onDelete: SetNull)
+  inventoryMovements InventoryMovement[]
 
   @@index([orderId], map: "orderItems_order_idx")
   @@index([productId], map: "orderItems_product_idx")

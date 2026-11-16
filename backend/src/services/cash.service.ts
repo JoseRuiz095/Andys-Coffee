@@ -1,16 +1,16 @@
 import { NotificationType, Prisma } from '@prisma/client';
-import { AUTO_CLOSE_REASON, CASH_TIMEZONE } from '../config/app';
+import { AUTO_CLOSE_REASON } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
 import { AuditLogRepository } from '../repositories/audit-log.repository';
 import { runInTransaction, type Tx } from '../repositories/transaction';
-import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { UserRepository } from '../repositories/user.repository';
 import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput, CashSessionHistoryQuery } from '../validators/cash.validator';
 import { paginationMeta } from '../utils/pagination';
-import { getZonedCalendarDate } from '../utils/businessDate';
+import { getBusinessDayEndAfter, getZonedCalendarDate } from '../utils/businessDate';
 import { NotificationService } from './notification.service';
 import { logger } from '../utils/logger';
+import { invalidateSnapshotSafely } from './snapshot-invalidation';
 
 export class CashBusinessRuleError extends Error {
   constructor(message: string) {
@@ -30,12 +30,17 @@ export const CashService = {
     return { data: sessions, pagination: paginationMeta(page, limit, total) };
   },
 
-  async closeSession(closedById: string, input: CloseCashSessionInput): Promise<CashSessionWithDetails | null> {
+  async closeSession(
+    closedById: string,
+    input: CloseCashSessionInput,
+    options: { recordExpectedAmount?: boolean } = {},
+  ): Promise<CashSessionWithDetails | null> {
     const closedSession = await prismaTransaction(async (tx) => {
       const session = await CashRepository.findActiveSessionInTransaction(tx);
       if (!session) return null;
 
-      const closingAmount = new Prisma.Decimal(input.closingAmount);
+      // The auto-close records whatever is expected at this instant (see closeIfBusinessDayEnded).
+      const closingAmount = options.recordExpectedAmount ? session.expectedAmount : new Prisma.Decimal(input.closingAmount);
       const difference = closingAmount.sub(session.expectedAmount);
       if (!difference.isZero() && !input.reason) {
         throw new CashBusinessRuleError('Debes indicar un motivo cuando existe una diferencia.');
@@ -88,33 +93,34 @@ export const CashService = {
     // Invalidate any final snapshot for the day of this corrected session
     // so it recalculates with the corrected cash movement
     const dateStr = getZonedCalendarDate(correctedSession.openedAt);
-    await incomeStatementRepository.invalidateSnapshot(dateStr);
+    await invalidateSnapshotSafely(dateStr);
 
     return correctedSession;
   },
 
   async closeIfBusinessDayEnded(closedById: string, now: Date = new Date()): Promise<CashSessionWithDetails | null> {
-    const currentHour = Number(new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      hour12: false,
-      timeZone: CASH_TIMEZONE,
-    }).format(now));
-
-    // Get configured closing hour, fallback to 22:00 if not set (from SystemPreference)
-    const generalPrefs = await PreferenceRepository.getGeneralPreferences();
-    const [closeHour] = generalPrefs.businessHoursClose.split(':').map(Number);
-
-    if (currentHour < closeHour) return null;
     const session = await CashRepository.findActiveSession();
     if (!session) return null;
-    // Safety net only: nobody counted the cash, so the expected amount is recorded and the
-    // cut is labelled as uncounted. An admin should fix it from "Cortes de caja" (cash.correct)
-    // with the real count.
-    return this.closeSession(closedById, {
-      closingAmount: Number(session.expectedAmount),
-      reason: AUTO_CLOSE_REASON,
-      comment: 'Nadie contó el efectivo: se registró el monto esperado. Corrige el corte con el conteo real.',
-    });
+
+    // The business day of this session ends at the first configured closing time (hours AND
+    // minutes, in CASH_TIMEZONE) after it was opened. It used to compare only the hour, so a
+    // closing time after midnight ("00:00", "01:30") closed every drawer within 15 minutes.
+    const generalPrefs = await PreferenceRepository.getGeneralPreferences();
+    const businessDayEnd = getBusinessDayEndAfter(session.openedAt, generalPrefs.businessHoursClose);
+    if (now.getTime() < businessDayEnd.getTime()) return null;
+
+    // Safety net only: nobody counted the cash, so the expected amount (read inside the closing
+    // transaction, so a sale committed meanwhile is included) is recorded and the cut is
+    // labelled as uncounted. An admin should fix it from "Cortes de caja" (cash.correct).
+    return this.closeSession(
+      closedById,
+      {
+        closingAmount: Number(session.expectedAmount),
+        reason: AUTO_CLOSE_REASON,
+        comment: 'Nadie contó el efectivo: se registró el monto esperado. Corrige el corte con el conteo real.',
+      },
+      { recordExpectedAmount: true },
+    );
   },
 
   async openSession(input: OpenCashSessionInput, openedById: string): Promise<CashSessionWithDetails> {
@@ -169,6 +175,16 @@ export const CashService = {
       if (session.status === 'open') {
         throw new CashBusinessRuleError('Esta sesión ya está abierta.');
       }
+      // F5: only one drawer may be open (every sale, expense and close goes to "the" open
+      // session), and only the latest cut of its register: reopening an old one would put
+      // today's sales into a past day that the reconciliation job no longer checks.
+      if (await CashRepository.findActiveSessionInTransaction(tx)) {
+        throw new CashBusinessRuleError('Hay una caja abierta: ciérrala antes de reabrir un corte.');
+      }
+      const latest = await CashRepository.findLatestSessionForRegister(tx, session.cashRegisterId);
+      if (latest?.id !== session.id) {
+        throw new CashBusinessRuleError('Solo se puede reabrir el corte más reciente de la caja.');
+      }
 
       // The closing fields are wiped below, so keep the discarded cash count in the audit trail.
       await AuditLogRepository.create({
@@ -190,7 +206,7 @@ export const CashService = {
 
     // Invalidate the income statement snapshot for the day this session was in
     const dateStr = getZonedCalendarDate(reopenedSession.openedAt);
-    await incomeStatementRepository.invalidateSnapshot(dateStr);
+    await invalidateSnapshotSafely(dateStr);
 
     // Dispatch notification after transaction completes
     await createCashNotification({

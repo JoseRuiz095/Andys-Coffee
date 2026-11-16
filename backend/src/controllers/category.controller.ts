@@ -1,15 +1,13 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { CategoryService } from '../services/category.service';
-import { createCategorySchema, updateCategorySchema } from '../validators/category.validator';
+import { categoryListQuerySchema, createCategorySchema, updateCategorySchema } from '../validators/category.validator';
 import { asyncHandler } from '../utils/asyncHandler';
 
 export const CategoryController = {
   getAll: asyncHandler(async (req: Request, res: Response) => {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 100;
-    const includeInactive = req.query.includeInactive === 'true';
-    const result = await CategoryService.getAll(page, limit, includeInactive);
+    const { page, limit, includeInactive } = categoryListQuerySchema.parse(req.query);
+    const result = await CategoryService.getAll(page, limit, includeInactive ?? false);
     res.json({ categories: result.categories, total: result.total });
   }),
 

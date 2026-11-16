@@ -13,6 +13,8 @@ export interface Expense {
   paymentMethod: ExpensePaymentMethod;
   expenseDate: string;
   cashSessionId: string | null;
+  /** Set when a sale with an absorbed mandadito created it: it is managed from that sale. */
+  sourceOrderId?: string | null;
   cashSession?: { id: string; status: string } | null;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;

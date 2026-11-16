@@ -63,9 +63,10 @@ export const fixedExpenseSlugParamSchema = z.object({
 
 export const accumulatedBalancesSchema = z
   .object({
-    ahorroAcumulado: z.number().min(0),
-    fondoNegocioAcumulado: z.number().min(0),
-    surtidoAcumulado: z.number().min(0),
+    // V4 (2026-11-14): bounded to Decimal(12,2).
+    ahorroAcumulado: z.number().finite().min(0).max(99_999_999.99),
+    fondoNegocioAcumulado: z.number().finite().min(0).max(99_999_999.99),
+    surtidoAcumulado: z.number().finite().min(0).max(99_999_999.99),
   })
   .refine(
     (data) => {

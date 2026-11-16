@@ -2,135 +2,73 @@ import { useState } from 'react'
 import { sileo } from 'sileo'
 import { useChangePassword } from '../hooks/useProfile'
 import { getErrorMessage } from '../../../shared/utils/errors'
+import { validatePassword } from '../../../shared/utils/password'
+import { Input } from '../../../shared/components/Input'
+import { Button } from '../../../shared/components/Button'
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField'
 
-const PASSWORD_MIN_LENGTH = 8
-const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
-
-function validatePassword(password: string): string | null {
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`
-  }
-  if (!PASSWORD_PATTERN.test(password)) {
-    return 'La contraseña debe contener al menos una letra y un número.'
-  }
-  return null
-}
+type FieldErrors = Partial<Record<'currentPassword' | 'newPassword' | 'confirmPassword', string>>
 
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [errors, setErrors] = useState<FieldErrors>({})
   const { mutate: changePassword, isPending } = useChangePassword()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!currentPassword.trim()) {
-      sileo.error({
-        title: 'Contraseña actual requerida',
-        description: 'Ingresa tu contraseña actual.',
-      })
-      return
-    }
-
-    if (!newPassword.trim()) {
-      sileo.error({
-        title: 'Nueva contraseña requerida',
-        description: 'Ingresa una nueva contraseña.',
-      })
-      return
-    }
-
-    const passwordError = validatePassword(newPassword.trim())
-    if (passwordError) {
-      sileo.error({ title: 'Contraseña inválida', description: passwordError })
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      sileo.error({
-        title: 'Contraseñas no coinciden',
-        description: 'Las contraseñas nuevas no coinciden.',
-      })
-      return
-    }
+    if (isPending) return
+    // Passwords are used exactly as typed (login doesn't trim either): a leading or trailing
+    // space is part of the password.
+    const next: FieldErrors = {}
+    if (!currentPassword) next.currentPassword = 'Ingresa tu contraseña actual.'
+    const passwordError = validatePassword(newPassword)
+    if (passwordError) next.newPassword = passwordError
+    if (!next.newPassword && newPassword !== confirmPassword) next.confirmPassword = 'Las contraseñas nuevas no coinciden.'
+    setErrors(next)
+    if (Object.keys(next).length > 0) return
 
     changePassword(
-      { currentPassword: currentPassword.trim(), newPassword: newPassword.trim() },
+      { currentPassword, newPassword },
       {
         onSuccess: () => {
-          sileo.success({
-            title: 'Contraseña actualizada',
-            description: 'Tu contraseña ha sido cambiada exitosamente.',
-            duration: 2000,
-          })
+          sileo.success({ title: 'Contraseña actualizada', description: 'Úsala la próxima vez que inicies sesión.', duration: 2500 })
           setCurrentPassword('')
           setNewPassword('')
           setConfirmPassword('')
         },
-        onError: (error: unknown) => {
-          const message = getErrorMessage(error, 'Error al cambiar contraseña')
-          sileo.error({ title: 'Error', description: message })
-        },
+        onError: (err: unknown) => sileo.error({ title: 'No se pudo cambiar la contraseña', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
       }
     )
   }
 
+  const field = (key: keyof FieldErrors, id: string) => ({
+    id,
+    type: 'password' as const,
+    'aria-invalid': errors[key] ? true : undefined,
+    'aria-describedby': fieldDescriptionId(id),
+  })
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-lg border p-6"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
-      <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Cambiar Contraseña</h3>
-
-      <div className="space-y-4">
-        <div>
-          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Contraseña Actual *</label>
-          <input
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            placeholder="Ingresa tu contraseña actual"
-            className="w-full rounded-lg border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Nueva Contraseña *</label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Mín. 8 caracteres, 1 letra, 1 número"
-            className="w-full rounded-lg border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Confirmar Nueva Contraseña *</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Repite la nueva contraseña"
-            className="w-full rounded-lg border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
-          />
-        </div>
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <h2 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>Contraseña</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FormField htmlFor="password-current" label="Contraseña actual" required error={errors.currentPassword}>
+          <Input {...field('currentPassword', 'password-current')} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
+        </FormField>
+        <FormField htmlFor="password-new" label="Nueva contraseña" required error={errors.newPassword} hint="Mín. 8 caracteres, con una letra y un número.">
+          <Input {...field('newPassword', 'password-new')} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" />
+        </FormField>
+        <FormField htmlFor="password-confirm" label="Confirmar nueva contraseña" required error={errors.confirmPassword}>
+          <Input {...field('confirmPassword', 'password-confirm')} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" />
+        </FormField>
       </div>
-
-      <div className="mt-6 flex justify-end">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-lg px-6 py-3 text-sm font-semibold shadow-sm transition disabled:opacity-50"
-          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
-        >
-          {isPending ? 'Actualizando...' : 'Cambiar Contraseña'}
-        </button>
+      <div className="flex justify-end">
+        <Button type="submit" variant="primary" disabled={isPending}>
+          {isPending ? 'Actualizando...' : 'Cambiar contraseña'}
+        </Button>
       </div>
     </form>
   )

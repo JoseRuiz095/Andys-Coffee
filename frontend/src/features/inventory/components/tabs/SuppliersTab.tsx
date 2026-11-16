@@ -1,16 +1,20 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { sileo } from 'sileo'
-import { Modal } from '../../../../shared/components/Modal'
-import { Skeleton } from '../../../../shared/components/Skeleton'
 import { StatusBadge } from '../../../../shared/components/StatusBadge'
-import { PencilIcon } from '../../../../components/ui/PencilIcon'
-import { XIcon } from '../../../../components/ui/XIcon'
 import { PlusIcon } from '../../../../components/ui/PlusIcon'
 import { useSuppliersList, useDeleteSupplier, useSetSupplierActive } from '../../hooks/usePurchases'
 import { SupplierFormModal } from '../SupplierFormModal'
-import { authStore } from '../../../../features/auth/store/auth.store'
+import { useCurrentUser } from '../../../auth/hooks/useCurrentUser'
+import { useDebouncedValue } from '../../../../shared/hooks/useDebouncedValue'
+import { ConfirmDialog } from '../../../../shared/components/ConfirmDialog'
 import { getErrorMessage } from '../../../../shared/utils/errors'
+import { Pagination } from '../../../../shared/components/Pagination'
+import { PageHeader } from '../../../../shared/components/PageHeader'
+import { FilterBar } from '../../../../shared/components/FilterBar'
+import { FILTER_FIELD_CLASS } from '../../../../shared/constants/fieldStyles'
+import { QueryErrorState } from '../../../../shared/components/QueryErrorState'
+import { TableSkeleton } from '../../../../shared/components/TableSkeleton'
+import { RowActions, type RowAction } from '../../../../shared/components/RowActions'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 
@@ -22,28 +26,34 @@ export function SuppliersTab() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const user = authStore.getState().user
+  const user = useCurrentUser()
+  // One request once the user stops typing, not one per keystroke.
+  const debouncedSearch = useDebouncedValue(search, 300)
   const canCreateSupplier = user?.permissions?.includes('inventory.manage_suppliers') ?? false
   const canDeleteSupplier = user?.permissions?.includes('inventory.delete_supplier') ?? false
 
   const isActiveParam = statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined
 
-  const { data, isLoading, error, refetch } = useSuppliersList({
+  const { data, isLoading, error, refetch, isFetching } = useSuppliersList({
     page,
     limit: 20,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     isActive: isActiveParam,
   })
 
-  const { mutate: setActive, isPending: isTogglingActive } = useSetSupplierActive()
+  const { mutate: setActive, isPending: isTogglingActive, variables: togglingVariables } = useSetSupplierActive()
+  // Only the row being changed shows it as busy.
+  const togglingId = isTogglingActive ? togglingVariables?.id ?? null : null
+  // Deactivating is confirmed first.
+  const [toDeactivate, setToDeactivate] = useState<{ id: string; name: string } | null>(null)
   const { mutate: deleteSupplier, isPending: isDeleting } = useDeleteSupplier()
 
   const handleToggleActive = (id: string, currentActive: boolean) => {
+    if (isTogglingActive) return
     setActive(
       { id, isActive: !currentActive },
       {
         onSuccess: () => {
-          refetch()
           sileo.success({
             title: currentActive ? 'Proveedor desactivado' : 'Proveedor activado',
             duration: 2000,
@@ -55,6 +65,7 @@ export function SuppliersTab() {
             description: getErrorMessage(error, 'No se pudo actualizar el proveedor'),
           })
         },
+        onSettled: () => setToDeactivate(null),
       }
     )
   }
@@ -69,7 +80,6 @@ export function SuppliersTab() {
       {
         onSuccess: () => {
           setDeletingId(null)
-          refetch()
           sileo.success({
             title: 'Proveedor eliminado',
             duration: 2000,
@@ -96,41 +106,20 @@ export function SuppliersTab() {
     setIsModalOpen(false)
   }
 
+  // The create/update hooks already refresh the list.
   const handleModalSuccess = () => {
-    refetch()
     handleModalClose()
   }
 
-  if (error) {
-    return (
-      <motion.div
-        className="rounded-lg border p-6"
-        style={{
-          borderColor: 'var(--color-danger)',
-          backgroundColor: `color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))`,
-        }}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h1 className="mb-2 font-semibold" style={{ color: 'var(--color-danger)' }}>Error cargando proveedores</h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>
-          {error instanceof Error ? error.message : 'Error desconocido'}
-        </p>
-      </motion.div>
-    )
-  }
 
   return (
     <>
       {/* Header */}
-      <motion.div
-        className="mb-6 flex items-center justify-between"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Gestión de Proveedores</h2>
-        {canCreateSupplier && (
+      <PageHeader
+        title="Proveedores"
+        description="A quién le compras los insumos."
+        actions={
+          canCreateSupplier && (
           <button
             onClick={() => {
               setEditingId(null)
@@ -148,231 +137,155 @@ export function SuppliersTab() {
             <PlusIcon size={18} />
             Crear Proveedor
           </button>
-        )}
-      </motion.div>
+        )
+        }
+      />
 
-      {/* Búsqueda y Filtros */}
-      <motion.div
-        className="mb-6 space-y-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
+      <FilterBar
+        hasFilters={Boolean(search) || statusFilter !== 'active'}
+        onClear={() => {
+          setSearch('')
+          setStatusFilter('active')
+          setPage(1)
+        }}
       >
         <input
-          type="text"
+          type="search"
           placeholder="Buscar por nombre, email o teléfono..."
+          aria-label="Buscar proveedor"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
             setPage(1)
           }}
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-input-text)] px-4 py-2 outline-none transition placeholder:text-[var(--color-text-secondary)] focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20"
+          className={`${FILTER_FIELD_CLASS} w-full sm:w-72`}
         />
+        <select
+          aria-label="Filtrar por estado"
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value as StatusFilter)
+            setPage(1)
+          }}
+          className={FILTER_FIELD_CLASS}
+        >
+          <option value="all">Activos e inactivos</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
+      </FilterBar>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--color-text-primary)]">Estado</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as StatusFilter)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-input-text)] px-4 py-2 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[var(--color-primary)]/20 md:max-w-xs"
-          >
-            <option value="all">Todos</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-          </select>
-        </div>
-      </motion.div>
-
-      {/* Tabla */}
-      <motion.div
-        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-      >
-        {isLoading ? (
-          <div className="space-y-3 p-6">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-12" />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
-                <tr>
-                  <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Nombre</th>
-                  <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Email</th>
-                  <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Teléfono</th>
-                  <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Dirección</th>
-                  <th className="px-6 py-3 text-left font-semibold text-[var(--color-text-primary)]">Estado</th>
-                  <th className="px-6 py-3 text-right font-semibold text-[var(--color-text-primary)]">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {data?.data && data.data.length > 0 ? (
-                  data.data.map((supplier) => (
-                    <tr key={supplier.id} className="hover:bg-[var(--color-surface-hover)]">
-                      <td className="px-6 py-4 font-medium text-[var(--color-text-primary)]">{supplier.name}</td>
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)]">{supplier.email || '—'}</td>
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)]">{supplier.phone || '—'}</td>
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)] text-sm">{supplier.address || '—'}</td>
-                      <td className="px-6 py-4">
-                        <StatusBadge tone={supplier.isActive ? 'success' : 'neutral'}>
-                          {supplier.isActive ? 'Activo' : 'Inactivo'}
-                        </StatusBadge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          {canCreateSupplier && (
-                            <>
-                              <button
-                                onClick={() => handleEditClick(supplier.id)}
-                                className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 rounded transition-colors"
-                                title="Editar"
-                              >
-                                <PencilIcon size={16} />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleToggleActive(supplier.id, supplier.isActive)
-                                }
-                                disabled={isTogglingActive}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  supplier.isActive
-                                    ? 'text-[var(--color-warning)] bg-[var(--color-warning)]/10 hover:bg-[var(--color-warning)]/20'
-                                    : 'text-[var(--color-success)] bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/20'
-                                } disabled:opacity-50`}
-                                title={supplier.isActive ? 'Desactivar' : 'Activar'}
-                              >
-                                {supplier.isActive ? 'Desactivar' : 'Activar'}
-                              </button>
-                            </>
-                          )}
-                          {canDeleteSupplier && (
-                            <button
-                              onClick={() => handleDelete(supplier.id)}
-                              disabled={isDeleting || deletingId === supplier.id}
-                              className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 rounded transition-colors disabled:opacity-50"
-                              title="Eliminar"
-                            >
-                              <XIcon size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-[var(--color-text-secondary)]">
-                      {search ? `No encontramos proveedores que coincidan con "${search}"` : 'No hay proveedores registrados'}
+      {error ? (
+        <QueryErrorState error={error} subject="los proveedores" onRetry={() => void refetch()} isRetrying={isFetching} />
+      ) : isLoading ? (
+        <TableSkeleton rows={5} columns={5} />
+      ) : !data?.data?.length ? (
+        <p className="rounded-lg border p-8 text-center" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+          {search ? `No encontramos proveedores que coincidan con "${search}"` : 'No hay proveedores registrados'}
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold">Proveedor</th>
+                <th className="px-4 py-3 text-left font-semibold">Email</th>
+                <th className="px-4 py-3 text-left font-semibold">Teléfono</th>
+                <th className="px-4 py-3 text-center font-semibold">Estado</th>
+                <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {data.data.map((supplier) => {
+                const actions: RowAction[] = []
+                if (canCreateSupplier) {
+                  actions.push({ label: 'Editar', ariaLabel: `Editar ${supplier.name}`, onClick: () => handleEditClick(supplier.id) })
+                  actions.push({
+                    label: togglingId === supplier.id ? 'Cambiando...' : supplier.isActive ? 'Desactivar' : 'Activar',
+                    ariaLabel: `${supplier.isActive ? 'Desactivar' : 'Activar'} ${supplier.name}`,
+                    onClick: () => (supplier.isActive ? setToDeactivate({ id: supplier.id, name: supplier.name }) : handleToggleActive(supplier.id, false)),
+                    disabled: togglingId !== null,
+                  })
+                }
+                if (canDeleteSupplier) {
+                  actions.push({
+                    label: 'Eliminar',
+                    ariaLabel: `Eliminar ${supplier.name}`,
+                    onClick: () => handleDelete(supplier.id),
+                    disabled: isDeleting || deletingId === supplier.id,
+                    danger: true,
+                  })
+                }
+                return (
+                  <tr key={supplier.id} className="hover:bg-[var(--color-surface-hover)]">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-[var(--color-text-primary)]">{supplier.name}</div>
+                      {/* The address is kept, below the name, instead of a wide column. */}
+                      {supplier.address && <div className="text-xs text-[var(--color-text-secondary)]">{supplier.address}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{supplier.email || '—'}</td>
+                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{supplier.phone || '—'}</td>
+                    <td className="px-4 py-3 text-center">
+                      <StatusBadge tone={supplier.isActive ? 'success' : 'neutral'}>{supplier.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <RowActions actions={actions} />
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Paginación */}
       {data && data.pagination.totalPages > 1 && (
-        <motion.div
-          className="mt-6 flex items-center justify-between"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.3 }}
-        >
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Mostrando {data.pagination.limit} de {data.pagination.total} proveedores
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <div className="flex items-center gap-2">
-              {Array.from({ length: Math.min(5, data.pagination.totalPages) }).map((_, i) => {
-                const pageNum = Math.max(1, page - 2) + i
-                if (pageNum > data.pagination.totalPages) return null
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                      page === pageNum
-                        ? 'bg-[var(--color-primary)] text-[var(--color-button-text)]'
-                        : 'border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
-            </div>
-            <button
-              onClick={() => setPage(Math.min(data.pagination.totalPages, page + 1))}
-              disabled={page === data.pagination.totalPages}
-              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Siguiente
-            </button>
-          </div>
-        </motion.div>
+        <Pagination
+          className="mt-4"
+          page={page}
+          totalPages={data.pagination.totalPages}
+          total={data.pagination.total}
+          pageSize={data.pagination.limit}
+          itemLabel="proveedores"
+          onPageChange={setPage}
+        />
       )}
 
       {/* Modal de Formulario */}
+      {isModalOpen && (
       <SupplierFormModal
-        isOpen={isModalOpen}
+        key={editingId ?? 'new'}
+        isOpen
         onClose={handleModalClose}
         onSuccess={handleModalSuccess}
         editingSupplierId={editingId}
         showSimilarMatches={false}
       />
+      )}
 
       {/* Modal de Confirmación de Eliminación */}
-      {deletingId && (
-        <Modal
-          isOpen
-          onClose={() => {
-            if (!isDeleting) setDeletingId(null)
-          }}
-          ariaLabelledBy="delete-supplier-title"
-          maxWidthClassName="max-w-sm"
-        >
-          <div className="p-6">
-            <h3 id="delete-supplier-title" className="mb-2 text-lg font-semibold text-[var(--color-text-primary)]">
-              ¿Eliminar proveedor?
-            </h3>
-            <p className="mb-6 text-[var(--color-text-secondary)]">
-              Esta acción es irreversible. El proveedor será eliminado permanentemente.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeletingId(null)}
-                disabled={isDeleting}
-                className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-[var(--color-text-primary)] font-medium hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleConfirmDelete(deletingId)}
-                disabled={isDeleting}
-                className="flex-1 rounded-lg bg-[var(--color-danger)] px-4 py-2 text-white font-medium hover:bg-[var(--color-danger)] disabled:opacity-50"
-              >
-                {isDeleting ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDialog
+        isOpen={deletingId !== null}
+        title="¿Eliminar proveedor?"
+        message="Esta acción es irreversible. El proveedor será eliminado permanentemente."
+        confirmText="Eliminar"
+        isDangerous
+        isLoading={isDeleting}
+        onConfirm={() => deletingId && handleConfirmDelete(deletingId)}
+        onCancel={() => setDeletingId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={toDeactivate !== null}
+        title="Desactivar proveedor"
+        message={`"${toDeactivate?.name ?? ''}" dejará de aparecer al registrar compras. Podrás activarlo de nuevo cuando quieras.`}
+        confirmText="Desactivar"
+        isDangerous
+        isLoading={isTogglingActive}
+        onConfirm={() => toDeactivate && handleToggleActive(toDeactivate.id, true)}
+        onCancel={() => setToDeactivate(null)}
+      />
     </>
   )
 }

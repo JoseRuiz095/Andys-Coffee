@@ -85,3 +85,17 @@ export function verifyJwtToken(token: string): jwt.JwtPayload {
 
   return decoded;
 }
+/**
+ * Revokes every session of the token's user (M-06), so a copied token stops working at
+ * logout. Best effort: an invalid or expired token needs no revoking. (R4: was in the controller.)
+ */
+export async function revokeSessionsOfToken(token: string): Promise<void> {
+  try {
+    const userId = verifyJwtToken(token).sub;
+    if (typeof userId === "string") {
+      await UserRepository.incrementTokenVersion(userId);
+    }
+  } catch {
+    // Token already invalid: nothing to revoke.
+  }
+}

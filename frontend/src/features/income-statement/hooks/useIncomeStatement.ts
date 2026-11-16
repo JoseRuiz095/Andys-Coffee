@@ -72,8 +72,11 @@ export function useUpsertFixedExpenseConcept() {
   return useMutation({
     mutationFn: ({ slug, input }: { slug: string; input: { label: string; amount: number } }) =>
       IncomeStatementAPI.upsertFixedExpenseConcept(slug, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    onSuccess: (updated) => {
+      // The list updates at once; the reports (and the dashboard's distributable profit) refetch.
+      queryClient.setQueryData([QUERY_KEY, 'fixed-expense-settings'], updated);
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -82,8 +85,11 @@ export function useDeleteFixedExpenseConcept() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (slug: string) => IncomeStatementAPI.deleteFixedExpenseConcept(slug),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    onSuccess: (updated) => {
+      // The list updates at once; the reports (and the dashboard's distributable profit) refetch.
+      queryClient.setQueryData([QUERY_KEY, 'fixed-expense-settings'], updated);
+      void queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

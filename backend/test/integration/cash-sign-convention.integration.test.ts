@@ -40,7 +40,7 @@ async function sell(extra: Record<string, unknown> = {}) {
 before(async () => {
   if (!integrationEnabled) return;
 
-  const unit = await prisma.inventoryUnit.create({ data: { name: `sign-unit-${testId}`, abbreviation: "u" } });
+  const unit = await prisma.inventoryUnit.create({ data: { name: `sign-unit-${testId}`, abbreviation: `u-${testId}` } });
   unitId = unit.id;
   const ingredient = await prisma.ingredient.create({ data: { name: `sign-ingredient-${testId}`, unitId, currentStock: 1000, averageCost: 5 } });
   ingredientId = ingredient.id;

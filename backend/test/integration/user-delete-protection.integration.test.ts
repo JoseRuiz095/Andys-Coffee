@@ -21,7 +21,7 @@ let userWithoutHistoryId: string;
 before(async () => {
   if (!integrationEnabled) return;
 
-  const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: "ADMIN" } });
+  const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: "ADMIN" }, include: { permissions: { include: { permission: true } } } });
   const passwordHash = await bcrypt.hash("test-password-123", 12);
 
   const actorRecord = await prisma.user.create({
@@ -41,7 +41,9 @@ before(async () => {
     roleId: actorRecord.roleId,
     roleName: "ADMIN",
     isActive: actorRecord.isActive,
-    permissions: ["users.delete", "users.read"],
+    // The targets are ADMIN users: since A1 (2026-11-14) only someone holding every permission of
+    // their role may delete them, so the actor carries the real ADMIN permission set.
+    permissions: adminRole.permissions.map(({ permission }) => permission.name),
   };
 
   const withHistory = await prisma.user.create({

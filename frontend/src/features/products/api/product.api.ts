@@ -1,5 +1,5 @@
-import { apiClient } from '../../../app/api'
-import type { Product, CreateProductInput, UpdateProductInput, Category, ProductDetail, CreateCategoryInput, ProductImageUploadResult } from '../types/product.types'
+import { apiClient, UPLOAD_TIMEOUT_MS } from '../../../app/api'
+import type { CreateProductInput, UpdateProductInput, Category, ProductDetail, CreateCategoryInput, ProductImageUploadResult, ProductFamily, Product } from '../types/product.types'
 
 const BASE_URL = '/products'
 
@@ -26,14 +26,15 @@ export const ProductAPI = {
     return data
   },
 
+  /** Product, recipe, extras and options in one transaction; returns the full detail. */
   async create(input: CreateProductInput) {
-    const { data } = await apiClient.post<Product>(BASE_URL, input)
+    const { data } = await apiClient.post<ProductDetail>(BASE_URL, input)
     return data
   },
 
   async update(input: UpdateProductInput) {
     const { id, ...payload } = input
-    const { data } = await apiClient.patch<Product>(`${BASE_URL}/${id}`, payload)
+    const { data } = await apiClient.patch<ProductDetail>(`${BASE_URL}/${id}`, payload)
     return data
   },
 
@@ -50,12 +51,25 @@ export const ProductAPI = {
   async uploadImage(id: string, file: File) {
     const form = new FormData()
     form.append('image', file)
-    const { data } = await apiClient.patch<ProductImageUploadResult>(`${BASE_URL}/${id}/image`, form)
+    // Photos can take a while on a slow connection: longer than the default request timeout.
+    const { data } = await apiClient.patch<ProductImageUploadResult>(`${BASE_URL}/${id}/image`, form, { timeout: UPLOAD_TIMEOUT_MS })
     return data
   },
 
   async removeImage(id: string) {
     await apiClient.delete(`${BASE_URL}/${id}/image`)
+  },
+}
+
+export const ProductFamilyAPI = {
+  async getAll() {
+    const { data } = await apiClient.get<ProductFamily[]>('/product-families')
+    return data
+  },
+
+  async create(input: { name: string; categoryId?: string | null; displayOrder?: number }) {
+    const { data } = await apiClient.post<ProductFamily>('/product-families', input)
+    return data
   },
 }
 

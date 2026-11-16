@@ -40,6 +40,7 @@ export const MenuRepository = {
       select: {
         id: true,
         name: true,
+        isBeverage: true,
         products: {
           where: { isActive: true },
           select: {
@@ -48,6 +49,10 @@ export const MenuRepository = {
             name: true,
             temperature: true,
             jumboPrice: true,
+            // POS grouping stored in columns (the menu no longer guesses it from the name).
+            variantLabel: true,
+            family: { select: { id: true, name: true, displayOrder: true } },
+            options: { select: { name: true, value: true }, orderBy: { name: 'asc' } },
             description: true,
             price: true,
             imageUrl: true,

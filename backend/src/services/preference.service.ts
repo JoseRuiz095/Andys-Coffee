@@ -2,6 +2,7 @@ import { PreferenceRepository } from '../repositories/preference.repository';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import type { GeneralPreferencesInput } from '../validators/preference.validator';
+import { SETTINGS_PERMISSION } from '../config/permissions';
 
 export const PreferenceService = {
   async getAllPreferences(user: AuthUser) {
@@ -35,7 +36,7 @@ export const PreferenceService = {
     user?: AuthUser
   ) {
     // Only admins can modify system preferences
-    if (!user?.permissions?.includes('users.update')) {
+    if (!user?.permissions?.includes(SETTINGS_PERMISSION)) {
       throw new AuthorizationError('No tienes permiso para modificar preferencias del sistema.');
     }
 
@@ -52,6 +53,8 @@ export const PreferenceService = {
       'income_statement.distribution.',
       'expenses.fixed.',
       'general.',
+      // inventory.consumeOnSale can only be switched on once every product has its recipe.
+      'inventory.',
     ];
     if (RESERVED_PREFIXES.some((prefix) => key.startsWith(prefix))) {
       throw new ValidationError(
@@ -63,7 +66,7 @@ export const PreferenceService = {
   },
 
   async deletePreference(key: string, user?: AuthUser) {
-    if (!user?.permissions?.includes('users.delete')) {
+    if (!user?.permissions?.includes(SETTINGS_PERMISSION)) {
       throw new AuthorizationError('No tienes permiso para eliminar preferencias del sistema.');
     }
 
@@ -78,14 +81,14 @@ export const PreferenceService = {
   /**
    * Public business profile (name, hours, currency, phone, address) — shown on the login
    * screen and to every role, so it needs no session (N-02). Only these whitelisted fields
-   * are returned; changing them still requires users.update.
+   * are returned; changing them requires settings.manage.
    */
   async getGeneralPreferences() {
     return PreferenceRepository.getGeneralPreferences();
   },
 
   async upsertGeneralPreferences(input: GeneralPreferencesInput, user: AuthUser) {
-    if (!user.permissions?.includes('users.update')) {
+    if (!user.permissions?.includes(SETTINGS_PERMISSION)) {
       throw new AuthorizationError('No tienes permiso para modificar preferencias generales.');
     }
 

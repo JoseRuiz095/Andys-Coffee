@@ -1,16 +1,17 @@
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import type { InventoryIngredient } from '../api/inventory.api';
+import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
 interface InventoryTableProps {
   ingredients: InventoryIngredient[];
   isLoading: boolean;
-  onIngredientClick?: (id: string) => void;
+  /** Message when the (filtered) list is empty. */
+  emptyMessage?: string;
 }
 
-function getInventoryStatus(
-  currentStock: number | string,
-  minimumStock: number | string,
-): 'danger' | 'warning' | 'success' {
+type StockTone = 'danger' | 'warning' | 'success'
+
+function getInventoryStatus(currentStock: number | string, minimumStock: number | string): StockTone {
   const current = Number(currentStock);
   const minimum = Number(minimumStock);
 
@@ -19,29 +20,19 @@ function getInventoryStatus(
   return 'success';
 }
 
-function getStatusLabel(status: 'danger' | 'warning' | 'success'): string {
-  switch (status) {
-    case 'danger':
-      return 'Agotado';
-    case 'warning':
-      return 'Bajo';
-    case 'success':
-      return 'Normal';
-  }
-}
+/** Below zero: sold beyond the recorded stock (decision D-1); a physical count fixes it. */
+const isNegative = (currentStock: number | string) => Number(currentStock) < 0;
 
-function getStatusEmoji(status: 'danger' | 'warning' | 'success'): string {
-  switch (status) {
-    case 'danger':
-      return '🔴';
-    case 'warning':
-      return '🟡';
-    case 'success':
-      return '🟢';
-  }
-}
+const STATUS_LABEL: Record<StockTone, string> = { danger: 'Agotado', warning: 'Bajo', success: 'Normal' };
 
-export function InventoryTable({ ingredients, isLoading, onIngredientClick }: InventoryTableProps) {
+const formatQuantity = (value: number | string) => Number(value).toFixed(2)
+
+/**
+ * Stock of the ingredients: name (SKU below), stock, minimum, unit cost, value and status. The
+ * margin against the minimum is in the status tooltip; the inventory total lives in the summary
+ * strip (it is not the sum of this page).
+ */
+export function InventoryTable({ ingredients, isLoading, emptyMessage = 'No hay ingredientes para mostrar' }: InventoryTableProps) {
   if (isLoading) {
     return (
       <div className="rounded-lg border p-6" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
@@ -57,101 +48,62 @@ export function InventoryTable({ ingredients, isLoading, onIngredientClick }: In
   if (ingredients.length === 0) {
     return (
       <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-        <p style={{ color: 'var(--color-text-secondary)' }}>No hay ingredientes para mostrar</p>
+        <p style={{ color: 'var(--color-text-secondary)' }}>{emptyMessage}</p>
       </div>
     );
   }
 
-  const totalInventoryValue = ingredients.reduce(
-    (sum, ing) => sum + (Number(ing.currentStock) * Number(ing.averageCost)),
-    0
-  );
+  const headerCell = 'px-4 py-3 font-semibold'
 
   return (
     <div className="rounded-lg border overflow-hidden" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0" style={{ backgroundColor: 'var(--color-surface-hover)', borderBottomColor: 'var(--color-border)', borderBottomWidth: '1px' }}>
+          <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}>
             <tr>
-              <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>SKU</th>
-              <th className="px-6 py-3 text-left font-semibold" style={{ color: 'var(--color-text-primary)' }}>Ingrediente</th>
-              <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Stock Actual</th>
-              <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Mínimo</th>
-              <th className="px-6 py-3 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>Variación</th>
-              <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Costo Unit.</th>
-              <th className="px-6 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>Valor Total</th>
-              <th className="px-6 py-3 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>Estado</th>
+              <th className={`${headerCell} text-left`}>Ingrediente</th>
+              <th className={`${headerCell} text-right`}>Stock actual</th>
+              <th className={`${headerCell} text-right`}>Mínimo</th>
+              <th className={`${headerCell} hidden text-right lg:table-cell`}>Costo unit.</th>
+              <th className={`${headerCell} text-right`}>Valor</th>
+              <th className={`${headerCell} text-center`}>Estado</th>
             </tr>
           </thead>
           <tbody style={{ borderColor: 'var(--color-border)' }} className="divide-y">
             {ingredients.map((ingredient) => {
-              const status = getInventoryStatus(
-                ingredient.currentStock,
-                ingredient.minimumStock,
-              );
-              const inventoryValue = (
-                Number(ingredient.currentStock) * Number(ingredient.averageCost)
-              ).toFixed(2);
-              const variation = Number(ingredient.currentStock) - Number(ingredient.minimumStock);
+              const status = getInventoryStatus(ingredient.currentStock, ingredient.minimumStock);
+              const inventoryValue = Math.max(0, Number(ingredient.currentStock)) * Number(ingredient.averageCost);
+              const margin = Number(ingredient.currentStock) - Number(ingredient.minimumStock);
+              const unit = ingredient.unit.abbreviation;
 
               return (
-                <tr
-                  key={ingredient.id}
-                  className="cursor-pointer transition-colors"
-                  style={{
-                    backgroundColor: 'transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
-                  onClick={() => onIngredientClick?.(ingredient.id)}
-                >
-                  <td className="px-6 py-4 font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                    {ingredient.sku || '—'}
+                <tr key={ingredient.id} className="transition-colors hover:bg-[var(--color-surface-hover)]">
+                  <td className="px-4 py-3">
+                    <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{ingredient.name}</div>
+                    {ingredient.sku && <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.sku}</div>}
                   </td>
-                  <td className="px-6 py-4 font-medium" style={{ color: 'var(--color-text-primary)' }}>{ingredient.name}</td>
-                  <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-secondary)' }}>
-                    {Number(ingredient.currentStock).toFixed(2)}{' '}
-                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.unit.abbreviation}</span>
+                  <td className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                    {formatQuantity(ingredient.currentStock)} <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{unit}</span>
                   </td>
-                  <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-secondary)' }}>
-                    {Number(ingredient.minimumStock).toFixed(2)}{' '}
-                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.unit.abbreviation}</span>
+                  <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>
+                    {formatQuantity(ingredient.minimumStock)} <span className="text-xs">{unit}</span>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="text-sm font-medium" style={{ color: variation < 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                      {variation >= 0 ? '+' : ''}{variation.toFixed(2)}
-                    </span>
+                  <td className="hidden px-4 py-3 text-right lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>
+                    {formatCurrency(Number(ingredient.averageCost))}
                   </td>
-                  <td className="px-6 py-4 text-right" style={{ color: 'var(--color-text-secondary)' }}>
-                    ${Number(ingredient.averageCost).toFixed(2)}
+                  <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    {formatCurrency(inventoryValue)}
                   </td>
-                  <td className="px-6 py-4 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    ${inventoryValue}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <StatusBadge tone={status}>
-                      {getStatusEmoji(status)} {getStatusLabel(status)}
-                    </StatusBadge>
+                  <td
+                    className="px-4 py-3 text-center"
+                    title={`${margin >= 0 ? '+' : ''}${formatQuantity(margin)} ${unit} respecto al mínimo`}
+                  >
+                    <StatusBadge tone={status}>{isNegative(ingredient.currentStock) ? 'Negativo' : STATUS_LABEL[status]}</StatusBadge>
                   </td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot className="font-semibold" style={{ backgroundColor: 'var(--color-surface-hover)', borderTop: '2px solid var(--color-border)' }}>
-            <tr>
-              <td colSpan={6} className="px-6 py-4 text-right" style={{ color: 'var(--color-text-primary)' }}>
-                Valor Total del Inventario:
-              </td>
-              <td className="px-6 py-4 text-right text-lg" style={{ color: 'var(--color-text-primary)' }}>
-                ${totalInventoryValue.toFixed(2)}
-              </td>
-              <td className="px-6 py-4 text-center" />
-            </tr>
-          </tfoot>
         </table>
       </div>
     </div>

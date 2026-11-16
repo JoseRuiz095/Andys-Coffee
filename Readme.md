@@ -69,6 +69,11 @@ Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 - [`docs/GPS/`](docs/GPS/): entregables de ingeniería del proyecto (alcance, EDT, casos de uso).
 - [`docs/Project/AUDIT/`](docs/Project/AUDIT/): auditorías técnicas.
 - [`docs/Project/FIXED/`](docs/Project/FIXED/): hallazgos resueltos y cambios realizados (p. ej. la auditoría del flujo de ventas y el nuevo flujo de imágenes de productos, ambos del 20/10/2026).
+- [`docs/Project/FIXED/[FIXED] auditoria-ux-inventario 13-11-26.md`](<docs/Project/FIXED/[FIXED] auditoria-ux-inventario 13-11-26.md>): auditoría UX/UI y simplificación del módulo de Inventario (13/11/2026): navegación en 5 secciones, existencias sin saturación, formularios por secciones y pruebas E2E del módulo.
+- [`docs/Project/FIXED/[FIXED] auditoria-ux-administracion 14-11-26.md`](<docs/Project/FIXED/[FIXED] auditoria-ux-administracion 14-11-26.md>): auditoría UX/UI de Administración y Configuración (14/11/2026): 3 secciones en Administración, Configuración agrupada, permisos legibles y alineados con el backend, reapertura de cortes y pruebas E2E del módulo.
+- [`docs/Project/FIXED/[FIXED] estabilizacion-integral 14-11-26.md`](<docs/Project/FIXED/[FIXED] estabilizacion-integral 14-11-26.md>): auditoría integral y estabilización (14/11/2026): guardas contra borrar producción, cierre automático de caja, fotos del estado de resultados, movimientos de caja de mandaditos y gastos, idempotencia, permisos (`settings.manage`), validaciones y `/ready`.
+- [`docs/Project/deployment.md`](docs/Project/deployment.md): despliegue a producción: arquitectura, variables, `/ready`, orden obligatorio (respaldo → migraciones → seed de permisos → imagen → smoke test) y rollback.
+- [`docs/Project/plan-inventario-tiempo-real.md`](docs/Project/plan-inventario-tiempo-real.md): plan técnico del inventario en tiempo real y la normalización del catálogo (aprobado el 11/11/2026).
 - [`todo.md`](todo.md): estado del proyecto y pendientes.
 
 La documentación se escribe en español.

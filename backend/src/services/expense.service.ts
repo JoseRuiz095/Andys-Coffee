@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
 import { ExpenseRepository } from '../repositories/expense.repository';
-import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { CashRepository } from '../repositories/cash.repository';
 import { runInTransaction } from '../repositories/transaction';
 import { PreferenceRepository } from '../repositories/preference.repository';
@@ -9,6 +8,9 @@ import { ConflictError, NotFoundError } from '../utils/errors';
 import { getBusinessMidpointInstant, getTodayInZone, getZonedCalendarDate, getZonedDayBoundaries } from '../utils/businessDate';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import type { CreateExpenseInput, UpdateExpenseInput, ExpenseListQuery } from '../validators/expense.validator';
+import { invalidateSnapshotSafely } from './snapshot-invalidation';
+import { logger } from '../utils/logger';
+import { incomeStatementRepository } from '../repositories/income-statement.repository';
 
 function businessDayRange(startDate?: string, endDate?: string) {
   return {
@@ -57,6 +59,23 @@ export const ExpenseService = {
     return expense;
   },
 
+  /**
+   * R4 (2026-11-14, moved from the controller): payroll and utilities may already be counted as
+   * daily fixed expenses, so the user is warned about a possible double count. Best effort.
+   */
+  async fixedExpenseOverlapWarning(category: string): Promise<string | null> {
+    if (!['nomina', 'servicios'].includes(category)) return null;
+    try {
+      const { total } = await incomeStatementRepository.getFixedExpenseConcepts();
+      return total > 0
+        ? '⚠️ Aviso: Gastos fijos (nomina/servicios) ya se descuentan automáticamente. Verificar que no esté duplicando.'
+        : null;
+    } catch (err) {
+      logger.warn({ err }, 'No se pudo revisar los gastos fijos para el aviso de duplicado');
+      return null;
+    }
+  },
+
   async create(input: CreateExpenseInput, createdById: string, idempotencyKey?: string) {
     const expenseDate = input.expenseDate ? await resolveExpenseInstant(input.expenseDate) : undefined;
     try {
@@ -79,6 +98,19 @@ export const ExpenseService = {
 
         const isCash = input.paymentMethod === 'cash';
         let cashSessionId: string | null = null;
+        // N-3 (2026-11-14): cash comes out of a drawer. With no open session the expense used to
+        // be saved without touching any drawer, and the next cut showed a false surplus.
+        const openSession = isCash ? await CashRepository.findActiveSessionInTransaction(tx) : null;
+        if (isCash && !openSession) {
+          throw new CashBusinessRuleError('No hay una caja abierta: abre la caja o registra el gasto como transferencia o tarjeta.');
+        }
+        // EX-2: the cash leaves THIS drawer, so the expense belongs to its business day; another
+        // date put the money in one day's cut and the expense in another day's report.
+        if (isCash && openSession && input.expenseDate && input.expenseDate !== getZonedCalendarDate(openSession.openedAt)) {
+          throw new CashBusinessRuleError(
+            `Un gasto en efectivo sale de la caja abierta: su fecha debe ser la de esa caja (${getZonedCalendarDate(openSession.openedAt)}). Para otro día regístralo como transferencia o tarjeta.`,
+          );
+        }
 
         // Create the Expense row first with the initial data
         const expense = await ExpenseRepository.create(tx, {
@@ -94,7 +126,6 @@ export const ExpenseService = {
 
         // If cash payment, look for open session and record movement
         if (isCash) {
-          const openSession = await CashRepository.findActiveSessionInTransaction(tx);
           if (openSession) {
             cashSessionId = openSession.id;
 
@@ -127,7 +158,7 @@ export const ExpenseService = {
       // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
       if (result.expenseDate) {
         const dateStr = getZonedCalendarDate(result.expenseDate);
-        await incomeStatementRepository.invalidateSnapshot(dateStr);
+        await invalidateSnapshotSafely(dateStr);
       }
 
       return result;
@@ -148,6 +179,12 @@ export const ExpenseService = {
         const existing = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!existing) throw new NotFoundError('Gasto no encontrado.');
 
+        // F2: the mandadito expense belongs to its sale (it is reversed or kept when the sale is
+        // cancelled); editing it here left the drawer unbalanced after a later cancellation.
+        if (existing.sourceOrderId) {
+          throw new ConflictError('Este gasto lo generó una venta con mandadito: no se puede editar aquí. Si la venta no ocurrió, cancélala.');
+        }
+
         // Guard: cannot edit if linked to closed session
         if (existing.cashSession && existing.cashSession.status === 'closed') {
           throw new CashBusinessRuleError('No se puede editar un gasto asociado a una sesión de caja ya cerrada.');
@@ -166,6 +203,11 @@ export const ExpenseService = {
         let newCashSessionId: string | null = null;
         if (newPaymentMethod === 'cash') {
           newCashSessionId = oldCashSessionId ?? (await CashRepository.findActiveSessionInTransaction(tx))?.id ?? null;
+          // N-3: same rule as create — becoming a cash expense needs an open drawer. (Old cash
+          // expenses saved without a drawer, before this rule, can still be edited as they were.)
+          if (!newCashSessionId && existing.paymentMethod !== 'cash') {
+            throw new CashBusinessRuleError('No hay una caja abierta: abre la caja o deja el gasto como transferencia o tarjeta.');
+          }
         }
         const newImpact = newCashSessionId ? newAmount : new Prisma.Decimal(0);
 
@@ -215,6 +257,15 @@ export const ExpenseService = {
         // calendar day actually changes, so an unrelated edit keeps the original time.
         const previousDateStr = getZonedCalendarDate(existing.expenseDate);
         const dateChanged = input.expenseDate !== undefined && input.expenseDate !== previousDateStr;
+        if (dateChanged && newCashSessionId && newCashSessionId !== oldCashSessionId) {
+          // Newly cash-linked with another date: same rule as create (EX-2).
+          const session = await CashRepository.findActiveSessionInTransaction(tx);
+          if (session && input.expenseDate !== getZonedCalendarDate(session.openedAt)) {
+            throw new CashBusinessRuleError(
+              `Un gasto en efectivo sale de la caja abierta: su fecha debe ser la de esa caja (${getZonedCalendarDate(session.openedAt)}).`,
+            );
+          }
+        }
 
         const updated = await ExpenseRepository.update(tx, id, {
           ...(input.category !== undefined && { category: input.category }),
@@ -232,7 +283,7 @@ export const ExpenseService = {
     // Invalidate snapshots for both the old and the new expense dates
     const affectedDates = new Set([result.previousDateStr, getZonedCalendarDate(result.updated.expenseDate)]);
     for (const dateStr of affectedDates) {
-      await incomeStatementRepository.invalidateSnapshot(dateStr);
+      await invalidateSnapshotSafely(dateStr);
     }
 
     return result.updated;
@@ -243,6 +294,12 @@ export const ExpenseService = {
       async (tx) => {
         const exp = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!exp) throw new NotFoundError('Gasto no encontrado.');
+
+        // F2: the mandadito expense belongs to its sale (it is reversed or kept when the sale is
+        // cancelled); editing it here left the drawer unbalanced after a later cancellation.
+        if (exp.sourceOrderId) {
+          throw new ConflictError('Este gasto lo generó una venta con mandadito: no se puede eliminar aquí. Si la venta no ocurrió, cancélala.');
+        }
 
         // Guard: cannot delete if linked to closed session
         if (exp.cashSession && exp.cashSession.status === 'closed') {
@@ -274,7 +331,7 @@ export const ExpenseService = {
     // Invalidate snapshot for the deleted expense date (if it has a final snapshot, it will be recalculated)
     if (existing.expenseDate) {
       const dateStr = getZonedCalendarDate(existing.expenseDate);
-      await incomeStatementRepository.invalidateSnapshot(dateStr);
+      await invalidateSnapshotSafely(dateStr);
     }
   },
 };

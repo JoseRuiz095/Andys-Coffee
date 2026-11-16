@@ -1,104 +1,41 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { sileo } from 'sileo'
-import { Skeleton } from '../../../shared/components/Skeleton'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
-import { getErrorMessage } from '../../../shared/utils/errors'
-import brandLogo from '../../../shared/assets/logo/LetraAndysVector.svg'
+import { getErrorMessage, getErrorStatus } from '../../../shared/utils/errors'
 import { MenuSection } from '../../menu/components/MenuSection'
 import { OrderDetailsPanel } from '../components/OrderDetailsPanel'
-import { authStore } from '../../auth/store/auth.store'
-import type { AuthUser } from '../../auth/types/auth.types'
 import { hasPermission } from '../../auth/utils/permissions'
 import React from 'react'
+import { lazyWithReload } from '../../../shared/utils/lazyWithReload'
+import { useUrlParam } from '../../../shared/hooks/useUrlParam'
+import { usePrevious } from '../../../shared/hooks/usePrevious'
 
 // Views outside the POS are loaded on demand so the sales screen starts light
 // (MetricsPage alone pulls in the charting library).
-const OrdersPage = React.lazy(() => import('../../orders/pages/OrdersPage').then((m) => ({ default: m.OrdersPage })))
-const InventoryLayout = React.lazy(() => import('../../inventory/pages/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
-const MetricsPage = React.lazy(() => import('../pages/MetricsPage').then((m) => ({ default: m.MetricsPage })))
-import { CoffeeIcon } from '../../../components/ui/coffee'
-import type { CoffeeIconHandle } from '../../../components/ui/coffee'
-import { SettingsIcon } from '../../../components/ui/settings'
-import { APP_ROUTES } from '../../../shared/constants/routes'
+const OrdersPage = lazyWithReload(() => import('../../orders/pages/OrdersPage').then((m) => ({ default: m.OrdersPage })))
+const InventoryLayout = lazyWithReload(() => import('../../inventory/pages/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
+const MetricsPage = lazyWithReload(() => import('../pages/MetricsPage').then((m) => ({ default: m.MetricsPage })))
 import type { CreateOrderItem, CreateOrderPayload, OrderItem } from '../types/order.types'
 import type { MenuItem, SelectedExtra } from '../../menu/types/menu.types'
 import { extrasKey, extrasUnitPrice } from '../../menu/utils/extras'
 import { useMenu } from '../../menu/hooks/useMenu'
 import { useCreateOrder } from '../hooks/useCreateOrder'
 import { useOrderQuote } from '../hooks/useOrderQuote'
-import { sessionEntry, useSessionState } from '../../../shared/hooks/useSessionState'
-import { useNotifications } from '../hooks/useNotifications'
+import { useSessionState } from '../../../shared/hooks/useSessionState'
 import { LazyView } from '../../../shared/components/LazyView'
-import { NotificationCenter } from '../components/NotificationCenter'
 import { CashOpeningPanel } from '../components/CashOpeningPanel'
 import { CashPaymentDialog } from '../components/CashPaymentDialog'
 import { CashClosingDialog } from '../components/CashClosingDialog'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { useCashSession } from '../hooks/useCashSession'
-
-function navigateTo(path: string) {
-  window.history.pushState({}, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
-}
-
-function usePrevious<T>(value: T) {
-  const ref = React.useRef<T | undefined>(undefined)
-  React.useEffect(() => {
-    ref.current = value
-  })
-  // The ref intentionally exposes the value from the previous render.
-  // eslint-disable-next-line react-hooks/refs
-  return ref.current
-}
-
-/**
- * Idempotency key of the current sale attempt. It is kept while the cart (and everything else
- * that defines the sale) stays the same, so a retry after a lost response — timeout, network
- * drop — reuses it and the server returns the order it already created. Any change to the sale
- * starts a new attempt. The cash received is left out: retyping it must not create a second sale.
- */
-function useSaleAttemptKey(storageKey: string) {
-  // Kept in sessionStorage too: reloading the tab after a lost response must not start a new
-  // attempt for the same cart (the persisted cart would otherwise be charged twice).
-  const readStored = () => {
-    try {
-      const raw = sessionEntry.get(storageKey)
-      return raw ? (JSON.parse(raw) as { fingerprint: string; key: string }) : null
-    } catch {
-      return null
-    }
-  }
-
-  return {
-    keyFor(payload: CreateOrderPayload) {
-      const fingerprint = JSON.stringify({ ...payload, cashReceived: undefined })
-      const stored = readStored()
-      if (stored?.fingerprint === fingerprint) return stored.key
-      const attempt = { fingerprint, key: crypto.randomUUID() }
-      sessionEntry.set(storageKey, JSON.stringify(attempt))
-      return attempt.key
-    },
-    /** The sale went through: the next one is a new attempt. */
-    reset() {
-      sessionEntry.set(storageKey, null)
-    },
-  }
-}
-
-function getLocalDateTimeValue(date: Date = new Date(Date.now() + 60 * 60 * 1000)) {
-  const timezoneOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
-}
+import { formatShortDateTime } from '../../../shared/utils/dateUtils'
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
+import { DashboardHeader } from '../components/DashboardHeader'
+import { ScheduleOrderDialog } from '../components/ScheduleOrderDialog'
+import { useSaleAttemptKey } from '../hooks/useSaleAttemptKey'
+import { getDeliveryCashAmount, getLocalDateTimeValue, getRoleLabel, getSaleValidationError, parseScheduleInput } from '../utils/saleForm'
 
 export function DashboardPage() {
-  const [isLoading] = React.useState(false)
-  const [currentUser, setCurrentUser] = React.useState<AuthUser | null>(
-    authStore.getState().user,
-  )
-  const [isNotificationCenterOpen, setIsNotificationCenterOpen] =
-    React.useState(false)
-  const [activeView, setActiveView] = React.useState('Venta')
-  const prevActiveView = usePrevious(activeView)
+  const currentUser = useCurrentUser()
 
   // The sale being captured survives a reload of the tab (per user), so a refresh in the
   // middle of a rush doesn't lose the order.
@@ -124,24 +61,28 @@ export function DashboardPage() {
     string | undefined
   >()
   const isInitialCategorySet = React.useRef(false)
-  const coffeeIconRef = React.useRef<CoffeeIconHandle>(null)
-  const notificationContainerRef = React.useRef<HTMLDivElement>(null)
 
-  // Define menu items with required permissions
   const allMenuItems = [
-    { label: 'Venta', requiredPermission: 'sales.create' },
-    { label: 'Ordenes', requiredPermission: 'sales.read' },
-    { label: 'Inventario', requiredPermission: 'inventory.view' },
-    { label: 'Administracion', requiredPermission: 'dashboard.read' },
-  ]
+    { id: 'venta', label: 'Venta', requiredPermission: 'sales.create' },
+    { id: 'ordenes', label: 'Órdenes', requiredPermission: 'sales.read' },
+    { id: 'inventario', label: 'Inventario', requiredPermission: 'inventory.view' },
+    { id: 'admin', label: 'Administración', requiredPermission: 'dashboard.read' },
+  ] as const
+  type DashboardView = (typeof allMenuItems)[number]['id']
 
-  // Filter menu items based on user permissions
-  const visibleMenuItems = allMenuItems.filter(
-    (item) => item.requiredPermission === null || hasPermission(currentUser, item.requiredPermission)
-  )
+  const visibleMenuItems = allMenuItems.filter((item) => hasPermission(currentUser, item.requiredPermission))
+  const visibleViewIds = visibleMenuItems.map((item) => item.id)
+  // The view lives in the URL (?view=…): a reload keeps it and Back returns to the previous
+  // one. It is always one the user may open (without sales.create the POS is not the landing view).
+  const [currentView, setCurrentView] = useUrlParam<DashboardView>('view', visibleViewIds, visibleViewIds[0] ?? 'venta')
+  const prevView = usePrevious(currentView)
+  const canOpenCash = hasPermission(currentUser, 'cash.open')
+  const canCloseCash = hasPermission(currentUser, 'cash.close')
 
-  const viewOrder = allMenuItems.map((item) => item.label)
-  const direction = prevActiveView ? (viewOrder.indexOf(activeView) > viewOrder.indexOf(prevActiveView) ? 1 : -1) : 1
+  const viewOrder: string[] = allMenuItems.map((item) => item.id)
+  const direction = prevView ? (viewOrder.indexOf(currentView) > viewOrder.indexOf(prevView) ? 1 : -1) : 1
+  // Leaving a view drops its own tabs from the URL.
+  const selectView = (view: DashboardView) => setCurrentView(view, { clear: ['admin', 'inv', 'gestion'] })
 
   const {
     data: menuData,
@@ -169,14 +110,12 @@ export function DashboardPage() {
       })),
     [orderItems],
   )
-  const { quote, lastQuote, error: quoteError } = useOrderQuote(saleItems)
+  const { quote, lastQuote, error: quoteError, retry: retryQuote, isRetrying: isRetryingQuote } = useOrderQuote(saleItems)
+  const quoteErrorMessage = quoteError ? getErrorMessage(quoteError, 'No se pudo calcular el total con el servidor.') : null
 
   // Mandadito the customer pays to Andy's in cash: not revenue, but it goes into the drawer
   // together with the sale, so the cash dialog charges both.
-  const deliveryCashAmount =
-    hasDelivery && deliveryResponsible === 'customer_to_business' && deliveryPaymentMethod === 'cash'
-      ? Number(deliveryAmount) || 0
-      : 0
+  const deliveryCashAmount = getDeliveryCashAmount({ hasDelivery, deliveryResponsible, deliveryPaymentMethod, deliveryAmount })
   const takesCash = paymentMethod === 'cash' || deliveryCashAmount > 0
   const {
     data: cashSession,
@@ -185,9 +124,7 @@ export function DashboardPage() {
     refetch: refetchCashSession,
     openSession,
     closeSession,
-  } = useCashSession()
-  const { unreadCount } = useNotifications()
-  const hasUnreadNotifications = unreadCount > 0
+  } = useCashSession({ enabled: canOpenCash })
 
   const submitOrder = (cashReceived?: number) => {
     if (isCreatingOrder) return
@@ -213,7 +150,7 @@ export function DashboardPage() {
         setIsScheduleDialogOpen(false)
         handleClearOrder()
         if (orderPayload.scheduledFor) {
-          sileo.success({ title: 'Pedido programado.', description: `Se activará el ${new Date(orderPayload.scheduledFor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 4000 })
+          sileo.success({ title: 'Pedido programado.', description: `Se activará el ${formatShortDateTime(orderPayload.scheduledFor)}.`, duration: 4000 })
           return
         }
         // Confirm with the server's numbers: they are the ones recorded.
@@ -227,6 +164,25 @@ export function DashboardPage() {
         })
       },
       onError: (error) => {
+        const status = getErrorStatus(error)
+        if (status === undefined) {
+          // No answer: the sale may have been recorded. Retrying with the same key is safe.
+          saleAttempt.pin()
+          sileo.error({
+            title: 'No sabemos si la venta se registró',
+            description: 'Se perdió la conexión. Vuelve a cobrar: si ya se había registrado, no se duplicará. Revisa Órdenes si tienes dudas.',
+          })
+          return
+        }
+        if (status === 409 && /clave de idempotencia/i.test(getErrorMessage(error, ''))) {
+          // The pinned attempt was recorded with another cart: don't charge it again blindly.
+          saleAttempt.reset()
+          sileo.error({
+            title: 'Esa venta ya se había registrado',
+            description: 'Se registró antes de que cambiaras la orden. Revisa Órdenes antes de volver a cobrar.',
+          })
+          return
+        }
         sileo.error({
           title: 'No se pudo registrar la venta',
           description: getErrorMessage(error, 'Revisa tu conexión e intenta de nuevo: la orden sigue en pantalla.'),
@@ -238,52 +194,18 @@ export function DashboardPage() {
   const handleProcessOrder = () => {
     if (isCreatingOrder) return
 
-    if (orderItems.length === 0) {
-      sileo.error({
-        title: 'La orden está vacía',
-        description: 'Agrega al menos un producto.',
-      })
+    const problem = getSaleValidationError({
+      itemCount: orderItems.length,
+      paymentMethod,
+      customerName,
+      hasDelivery,
+      deliveryAmount,
+      deliveryResponsible,
+      deliveryPaymentMethod,
+    })
+    if (problem) {
+      sileo.error(problem)
       return
-    }
-
-    if (!paymentMethod) {
-      sileo.error({
-        title: 'Falta el método de pago',
-        description: 'Selecciona cómo paga el cliente.',
-      })
-      return
-    }
-
-    if (paymentMethod === 'pending' && !customerName.trim()) {
-      sileo.error({
-        title: 'Revisa la orden',
-        description: 'Debes ingresar el nombre del cliente para registrar un pago pendiente.',
-      })
-      return
-    }
-
-    if (hasDelivery) {
-      if (!deliveryAmount || Number(deliveryAmount) <= 0) {
-        sileo.error({
-          title: 'Revisa la orden',
-          description: 'Ingresa el costo del mandadito.',
-        })
-        return
-      }
-      if (!deliveryResponsible) {
-        sileo.error({
-          title: 'Revisa la orden',
-          description: 'Indica quién recibe/paga el mandadito.',
-        })
-        return
-      }
-      if (deliveryResponsible === 'customer_to_business' && !deliveryPaymentMethod) {
-        sileo.error({
-          title: 'Revisa la orden',
-          description: 'Indica el método de pago del mandadito.',
-        })
-        return
-      }
     }
 
     if (takesCash) {
@@ -307,37 +229,6 @@ export function DashboardPage() {
       isInitialCategorySet.current = true
     }
   }, [categoryNames])
-
-  React.useEffect(() => {
-    const syncUser = () => setCurrentUser(authStore.getState().user)
-
-    syncUser()
-    window.addEventListener('auth:changed', syncUser)
-
-    return () => window.removeEventListener('auth:changed', syncUser)
-  }, [])
-
-  React.useEffect(() => {
-    if (hasUnreadNotifications) {
-      coffeeIconRef.current?.startAnimation()
-      return
-    }
-
-    coffeeIconRef.current?.stopAnimation()
-  }, [hasUnreadNotifications])
-
-  React.useEffect(() => {
-    if (!isNotificationCenterOpen) return
-
-    const handleOutsidePointerDown = (event: PointerEvent) => {
-      if (!notificationContainerRef.current?.contains(event.target as Node)) {
-        setIsNotificationCenterOpen(false)
-      }
-    }
-
-    document.addEventListener('pointerdown', handleOutsidePointerDown)
-    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown)
-  }, [isNotificationCenterOpen])
 
   const handleAddToOrder = (menuItem: MenuItem, quantity: number, extras: SelectedExtra[] = []) => {
     setOrderItems((prevItems) => {
@@ -446,25 +337,15 @@ export function DashboardPage() {
   }
 
   const handleScheduleOrderConfirmation = () => {
-    if (!scheduleInputValue) {
-      sileo.error({ title: 'Fecha inválida', description: 'Selecciona una fecha y hora futura para programar la orden.' })
+    const parsed = parseScheduleInput(scheduleInputValue)
+    if ('error' in parsed) {
+      sileo.error({ title: 'Fecha inválida', description: parsed.error })
       return
     }
 
-    const selectedDate = new Date(scheduleInputValue)
-    if (Number.isNaN(selectedDate.getTime())) {
-      sileo.error({ title: 'Fecha inválida', description: 'La fecha y hora programada no son válidas.' })
-      return
-    }
-
-    if (selectedDate.getTime() <= Date.now()) {
-      sileo.error({ title: 'Fecha inválida', description: 'La programación debe estar en el futuro.' })
-      return
-    }
-
-    setScheduledFor(selectedDate.toISOString())
+    setScheduledFor(parsed.date.toISOString())
     setIsScheduleDialogOpen(false)
-    sileo.success({ title: 'Pedido programado', description: `Se activará el ${selectedDate.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.`, duration: 3000 })
+    sileo.success({ title: 'Pedido programado', description: `Se activará el ${formatShortDateTime(parsed.date)}.`, duration: 3000 })
   }
 
   // Server pricing when available (the last one while a new quote is on its way); the menu
@@ -476,28 +357,16 @@ export function DashboardPage() {
   const lineTotals = lastQuote?.items.map((line) => ({ gross: Number(line.gross), net: Number(line.net) }))
 
   const displayName = currentUser?.name ?? 'Usuario'
-  const rawRoleName = currentUser?.roleName ?? currentUser?.roleId ?? ''
-  const roleLabel =
-    rawRoleName.toUpperCase() === 'ADMIN'
-      ? 'Administrador'
-      : rawRoleName.toUpperCase() === 'CAJERO'
-      ? 'Cajero'
-      : rawRoleName.toUpperCase() === 'ADMINISTRADOR'
-      ? 'Administrador'
-      : rawRoleName.toUpperCase() === 'CAJERO'
-      ? 'Cajero'
-      : currentUser?.roleId
-      ? 'Usuario'
-      : 'Usuario'
-
-  const toggleNotificationCenter = () => {
-    setIsNotificationCenterOpen((isOpen) => !isOpen)
-  }
+  const roleLabel = getRoleLabel(currentUser?.roleName)
 
   const handleCloseCashSession = () => {
     if (closeSession.isPending || isCashClosingOpen) return
     void (async () => {
       const result = await refetchCashSession()
+      if (result.isError) {
+        sileo.error({ title: 'No se pudo consultar la caja', description: getErrorMessage(result.error, 'Revisa tu conexión e inténtalo de nuevo.') })
+        return
+      }
       if (!result.data) {
         sileo.error({ title: 'La caja ya no está abierta', description: 'Actualiza la pantalla para continuar.' })
         return
@@ -525,7 +394,7 @@ export function DashboardPage() {
 
     return (
       <AnimatePresence mode="wait" custom={direction}>
-        {activeView === 'Venta' &&
+        {currentView === 'venta' &&
           (!cashSession || cashSession.status !== 'open' ? (
             <motion.div
               key="cash-opening"
@@ -537,6 +406,7 @@ export function DashboardPage() {
               transition={{ duration: 0.3 }}
             >
               <CashOpeningPanel
+                canOpen={canOpenCash}
                 session={cashSession}
                 isLoading={isCashSessionLoading}
                 error={cashSessionError as Error | null}
@@ -566,12 +436,16 @@ export function DashboardPage() {
               animate="center"
               exit="exit"
               transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 gap-6 lg:grid-cols-[56fr_44fr]"
+              className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,56fr)_minmax(0,44fr)]"
             >
               {isError ? (
-                <div className="rounded-lg border border-red-400 bg-red-100 p-8 text-center text-red-700">
+                <div
+                  role="alert"
+                  className="rounded-lg border p-8 text-center"
+                  style={{ borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', color: 'var(--color-danger)' }}
+                >
                   <p className="font-bold">¡Error al cargar el menú!</p>
-                  <p>{error.message}</p>
+                  <p>{getErrorMessage(error, 'Revisa tu conexión e inténtalo de nuevo.')}</p>
                 </div>
               ) : (
                 <MenuSection
@@ -584,7 +458,6 @@ export function DashboardPage() {
                 />
               )}
               <OrderDetailsPanel
-                isLoading={false}
                 isProcessing={isCreatingOrder}
                 items={orderItems}
                 subtotal={subtotal}
@@ -592,7 +465,9 @@ export function DashboardPage() {
                 total={total}
                 lineTotals={lineTotals}
                 isPricing={orderItems.length > 0 && !quote}
-                pricingError={quoteError ? getErrorMessage(quoteError, 'No se pudo calcular el total con el servidor.') : null}
+                pricingError={quoteErrorMessage}
+                isRetryingPricing={isRetryingQuote}
+                onRetryPricing={retryQuote}
                 deliveryCharge={hasDelivery && deliveryResponsible === 'customer_to_business' ? Number(deliveryAmount) || 0 : 0}
                 orderNotes={orderNotes}
                 customerName={customerName}
@@ -612,7 +487,6 @@ export function DashboardPage() {
                 onRemoveItem={handleRemoveItem}
                 onIncrementItem={handleIncrementItem}
                 onDeleteItem={handleDeleteItem}
-                onClearOrder={handleClearOrder}
                 onUpdateItemNote={handleUpdateItemNote}
                 onProcessTransaction={handleProcessOrder}
                 onScheduleOrder={() => {
@@ -620,40 +494,13 @@ export function DashboardPage() {
                   setIsScheduleDialogOpen(true)
                 }}
               />
-              <Dialog open={isScheduleDialogOpen} onOpenChange={(open) => setIsScheduleDialogOpen(open)}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Programar pedido</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <label className="block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      Fecha y hora programada
-                      <input
-                        type="datetime-local"
-                        value={scheduleInputValue}
-                        onChange={(event) => setScheduleInputValue(event.target.value)}
-                        className="mt-2 w-full rounded-xl border px-3 py-2"
-                        style={{
-                          borderColor: 'var(--color-border)',
-                          backgroundColor: 'var(--color-input-bg)',
-                          color: 'var(--color-text-primary)',
-                        }}
-                      />
-                    </label>
-                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
-                      {scheduleInputValue ? `Se activará el ${new Date(scheduleInputValue).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.` : 'Selecciona una fecha y hora futura.'}
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <button type="button" className="rounded-xl px-3 py-2 text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }} onClick={() => setIsScheduleDialogOpen(false)}>
-                      Cancelar
-                    </button>
-                    <button type="button" className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)' }} onClick={handleScheduleOrderConfirmation}>
-                      Confirmar
-                    </button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <ScheduleOrderDialog
+                open={isScheduleDialogOpen}
+                value={scheduleInputValue}
+                onChange={setScheduleInputValue}
+                onCancel={() => setIsScheduleDialogOpen(false)}
+                onConfirm={handleScheduleOrderConfirmation}
+              />
               <CashPaymentDialog
                 key={isCashPaymentOpen ? 'cash-payment-open' : 'cash-payment-closed'}
                 open={isCashPaymentOpen}
@@ -661,13 +508,16 @@ export function DashboardPage() {
                 saleAmount={paymentMethod === 'cash' ? (quote ? Number(quote.total) : null) : 0}
                 deliveryAmount={deliveryCashAmount}
                 isLoading={isCreatingOrder}
+                pricingError={paymentMethod === 'cash' ? quoteErrorMessage : null}
+                isRetryingPricing={isRetryingQuote}
+                onRetryPricing={retryQuote}
                 onClose={() => setIsCashPaymentOpen(false)}
                 onConfirm={(cashReceived) => submitOrder(cashReceived)}
               />
             </motion.div>
           ))}
 
-        {activeView === 'Ordenes' && (
+        {currentView === 'ordenes' && (
           <motion.div
             key="ordenes-view"
             custom={direction}
@@ -683,7 +533,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {activeView === 'Inventario' && (
+        {currentView === 'inventario' && (
           <motion.div
             key="inventario-view"
             custom={direction}
@@ -699,7 +549,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {activeView === 'Administracion' && (
+        {currentView === 'admin' && (
           <motion.div
             key="admin-view"
             custom={direction}
@@ -725,189 +575,16 @@ export function DashboardPage() {
         background: 'radial-gradient(circle at top, var(--color-surface) 0%, var(--color-background) 100%)',
       }}
     >
-      <header
-        className="relative z-50 border-b px-4 py-4 shadow-[0_8px_30px_rgba(45,33,29,0.05)] backdrop-blur sm:px-6"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'color-mix(in srgb, var(--color-surface) 96%, transparent)',
-        }}
-      >
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {isLoading ? (
-              <>
-                <Skeleton className="h-8 w-8 rounded-full" />
-                <Skeleton className="h-6 w-24" />
-              </>
-            ) : (
-              <>
-                <div
-                  className="flex h-15 w-15 items-center justify-center rounded-2xl border p-2 shadow-sm"
-                  style={{
-                    borderColor: 'var(--color-border)',
-                    backgroundColor: 'var(--color-background)',
-                  }}
-                >
-                  <img
-                    src={brandLogo}
-                    alt="Andys Coffee"
-                    className="h-8 w-auto object-contain"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    {displayName}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{roleLabel}</div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <nav
-            className="flex flex-wrap items-center gap-2 rounded-full border px-3 py-2 shadow-sm sm:gap-3"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'color-mix(in srgb, var(--color-surface) 80%, transparent)',
-            }}
-          >
-            {visibleMenuItems.map((item) =>
-              isLoading ? (
-                <Skeleton key={item.label} className="h-4 w-20" />
-              ) : (
-                <button
-                  key={item.label}
-                  onClick={() => setActiveView(item.label)}
-                  className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
-                  style={{
-                    backgroundColor: activeView === item.label ? 'var(--color-primary)' : 'transparent',
-                    color: activeView === item.label ? 'var(--color-button-text)' : 'var(--color-text-primary)',
-                  }}
-                >
-                  {item.label}
-                </button>
-              ),
-            )}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {cashSession && (
-              <button
-                type="button"
-                onClick={handleCloseCashSession}
-                disabled={closeSession.isPending}
-                className="rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition disabled:opacity-60"
-                style={{
-                  borderColor: 'var(--color-danger)',
-                  backgroundColor: 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))',
-                  color: 'var(--color-danger)',
-                  border: '1px solid var(--color-danger)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-danger) 15%, var(--color-surface))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))';
-                }}
-              >
-                {closeSession.isPending ? 'Cerrando...' : 'Cerrar caja'}
-              </button>
-            )}
-            {isLoading ? (
-              <>
-                <Skeleton className="h-6 w-6" />
-                <Skeleton className="h-10 w-10 rounded-full" />
-              </>
-            ) : (
-              <>
-                <div ref={notificationContainerRef} className="relative">
-                  <button
-                    type="button"
-                    aria-label="Abrir notificaciones del proyecto"
-                    aria-expanded={isNotificationCenterOpen}
-                    onClick={toggleNotificationCenter}
-                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2`}
-                style={hasUnreadNotifications ? {
-                  borderColor: 'var(--color-warning)',
-                  backgroundColor: 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))',
-                  color: 'var(--color-warning)',
-                  boxShadow: '0 0 0 4px rgba(217, 119, 6, 0.14), 0 10px 24px rgba(217, 119, 6, 0.18)',
-                  '--tw-ring-color': 'var(--color-warning)'
-                } as React.CSSProperties : {
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: 'var(--color-surface)',
-                  color: 'var(--color-primary)',
-                  '--tw-ring-color': 'var(--color-primary)'
-                } as React.CSSProperties}
-                onMouseEnter={(e) => {
-                  if (hasUnreadNotifications) {
-                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-warning) 16%, var(--color-surface))';
-                  } else {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (hasUnreadNotifications) {
-                    e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))';
-                  } else {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface)';
-                  }
-                }}
-
-                  >
-                    {hasUnreadNotifications && (
-                      <>
-                        <span className="absolute inset-0 rounded-full border-2 animate-ping" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 50%, transparent)' }} />
-                        <span className="absolute -inset-1.5 rounded-full border" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 30%, transparent)' }} />
-                      </>
-                    )}
-                    <CoffeeIcon
-                      ref={coffeeIconRef}
-                      className="relative z-10"
-                      size={23}
-                      aria-hidden="true"
-                    />
-                    {hasUnreadNotifications && (
-                      <span className="absolute -right-2 -top-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full border-2 px-1 text-[10px] font-bold leading-none text-white" style={{
-                        borderColor: 'var(--color-surface)',
-                        backgroundColor: 'var(--color-danger)',
-                        boxShadow: '0 4px 10px rgba(220, 38, 38, 0.35)'
-                      }}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {isNotificationCenterOpen && <NotificationCenter onClose={() => setIsNotificationCenterOpen(false)} />}
-                  </AnimatePresence>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Abrir configuracion del proyecto"
-                  onClick={() => navigateTo(APP_ROUTES.settings)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition focus:outline-none focus:ring-2"
-                  style={{
-                    borderColor: 'var(--color-border)',
-                    backgroundColor: 'var(--color-surface)',
-                    color: 'var(--color-primary)',
-                    '--tw-ring-color': 'var(--color-primary)'
-                  } as React.CSSProperties}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--color-primary) 40%, transparent)';
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-border)';
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface)';
-                  }}
-                >
-                  <SettingsIcon size={22} aria-hidden="true" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <DashboardHeader
+        displayName={displayName}
+        roleLabel={roleLabel}
+        items={visibleMenuItems}
+        currentView={currentView}
+        onSelectView={selectView}
+        showCloseCash={cashSession?.status === 'open' && canCloseCash}
+        isClosingCash={closeSession.isPending}
+        onCloseCash={handleCloseCashSession}
+      />
 
       <div className="mx-auto max-w-7xl p-4 sm:p-6">
         {renderContent()}

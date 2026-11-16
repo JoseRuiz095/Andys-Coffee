@@ -1,6 +1,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useDashboardExpensesByCategory, type PeriodType } from '../hooks/useDashboard';
 import { Skeleton } from '../../../shared/components/Skeleton';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { DashboardCard, DashboardCardEmpty } from './DashboardCard';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
 import { formatAxisCurrency } from '../utils/chartFormat';
 
@@ -21,59 +23,29 @@ interface ExpensesByCategoryProps {
 }
 
 export function ExpensesByCategory({ period }: ExpensesByCategoryProps) {
-  const { data, isLoading, error } = useDashboardExpensesByCategory({ period });
+  const { data, isLoading, error, refetch, isFetching } = useDashboardExpensesByCategory({ period });
 
   if (error) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Gastos por Categoría
-        </h3>
-        <p className="mt-2 text-sm" style={{ color: 'var(--color-danger)' }}>
-          Error al cargar
-        </p>
-      </div>
+      <DashboardCard title="Gastos por categoría">
+        <QueryErrorState error={error} subject="los gastos por categoría" onRetry={() => void refetch()} isRetrying={isFetching} />
+      </DashboardCard>
     );
   }
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
-      >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-          Gastos por Categoría
-        </h3>
+      <DashboardCard title="Gastos por categoría">
         <Skeleton className="h-64" />
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data?.categories.length) {
     return (
-      <div
-        className="rounded-2xl border p-5 text-center"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          Gastos por Categoría
-        </h3>
-        <p className="mt-2">No hay datos disponibles</p>
-      </div>
+      <DashboardCard title="Gastos por categoría">
+        <DashboardCardEmpty>No hay datos disponibles</DashboardCardEmpty>
+      </DashboardCard>
     );
   }
 
@@ -83,16 +55,7 @@ export function ExpensesByCategory({ period }: ExpensesByCategoryProps) {
   }));
 
   return (
-    <div
-      className="min-w-0 rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--color-border)',
-        backgroundColor: 'var(--color-surface)',
-      }}
-    >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-        Gastos por Categoría
-      </h3>
+    <DashboardCard title="Gastos por categoría">
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -109,6 +72,6 @@ export function ExpensesByCategory({ period }: ExpensesByCategoryProps) {
           <Bar dataKey="amount" fill="var(--color-warning)" name="Monto (MXN)" />
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </DashboardCard>
   );
 }

@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser';
 import { OrdersHeader } from '../components/OrdersHeader';
 import { OrderStatus } from '../types/orders.types';
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types';
@@ -8,8 +10,6 @@ import { OrdersFilters } from '../components/OrdersFilters';
 import { MaximizeIcon } from '../../../components/ui/MaximizeIcon';
 import { useOrders } from '../hooks/useOrders';
 import { TableSkeleton } from '../../../shared/components/TableSkeleton';
-import { authStore } from '../../auth/store/auth.store';
-import type { AuthUser } from '../../auth/types/auth.types';
 import { CancelOrderDialog } from '../components/CancelOrderDialog';
 import { CancellationRequestsPanel } from '../components/CancellationRequestsPanel';
 import {
@@ -22,25 +22,19 @@ import { hasPermission } from '../../auth/utils/permissions';
 type ViewMode = 'grid' | 'list';
 
 export function OrdersPage() {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(authStore.getState().user);
+  const currentUser = useCurrentUser();
 
   const {
     orders,
     loading,
     error,
+    refetch,
+    isFetching,
     updateStatus,
-    updatingOrderId,
+    isUpdatingOrder,
     setSearch,
     setStatus,
   } = useOrders();
-
-  useEffect(() => {
-    const handleAuthChange = () => {
-      setCurrentUser(authStore.getState().user);
-    };
-    window.addEventListener('auth:changed', handleAuthChange);
-    return () => window.removeEventListener('auth:changed', handleAuthChange);
-  }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   // Order waiting for the cashier to confirm its cancellation.
@@ -116,7 +110,7 @@ export function OrdersPage() {
         backgroundColor: 'var(--color-surface)',
         border: isFullScreen ? 'none' : '1px solid var(--color-border)',
         borderRadius: isFullScreen ? undefined : '1.5rem',
-        boxShadow: isFullScreen ? 'none' : '0 20px 50px rgba(45,33,29,0.06)',
+        boxShadow: isFullScreen ? 'none' : 'var(--shadow-card)',
       }}
     >
       <OrdersHeader pendingOrders={pendingOrders} />
@@ -178,11 +172,11 @@ export function OrdersPage() {
       {loading ? (
         <TableSkeleton rows={6} columns={5} />
       ) : error ? (
-        <div className="text-red-500 text-center">{error}</div>
+        <QueryErrorState error={error} subject="las órdenes" onRetry={() => void refetch()} isRetrying={isFetching} />
       ) : viewMode === 'grid' ? (
-        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} updatingOrderId={updatingOrderId} />
+        <OrdersGridView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} isUpdatingOrder={isUpdatingOrder} />
       ) : (
-        <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} updatingOrderId={updatingOrderId} />
+        <OrderListView orders={orders} onStatusChange={handleStatusChange} currentUser={currentUser} isUpdatingOrder={isUpdatingOrder} />
       )}
 
       <CancelOrderDialog
@@ -190,7 +184,7 @@ export function OrdersPage() {
         isOpen={Boolean(orderToCancel)}
         orderNumber={orderToCancel?.orderNumber ?? null}
         mode={orderToCancel?.completed ? (canApproveCancellation ? 'approve-own' : 'request') : 'cancel'}
-        isLoading={Boolean(orderToCancel) && (updatingOrderId === orderToCancel?.id || requestCancellation.isPending)}
+        isLoading={Boolean(orderToCancel) && ((orderToCancel ? isUpdatingOrder(orderToCancel.id) : false) || requestCancellation.isPending)}
         onConfirm={handleConfirmCancel}
         onCancel={() => setOrderToCancel(null)}
       />

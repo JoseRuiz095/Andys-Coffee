@@ -24,11 +24,13 @@ async function main() {
   const host = (process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? '').replace(/\/\/[^@]*@/, '//***@');
   process.stdout.write(`Exportando catálogo de: ${host}\n`);
 
-  const [units, categories, products, ingredients, recipes, extras, extraRecipes, productExtras, combos, comboItems, promotions, suppliers, preferences] =
+  const [units, categories, productFamilies, products, productVariantOptions, ingredients, recipes, extras, extraRecipes, productExtras, combos, comboItems, promotions, suppliers, preferences] =
     await Promise.all([
       prisma.inventoryUnit.findMany({ orderBy: { name: 'asc' } }),
       prisma.category.findMany({ orderBy: { displayOrder: 'asc' } }),
+      prisma.productFamily.findMany({ orderBy: { displayOrder: 'asc' } }),
       prisma.product.findMany({ orderBy: [{ categoryId: 'asc' }, { displayOrder: 'asc' }] }),
+      prisma.productVariantOption.findMany(),
       prisma.ingredient.findMany({ where: { deletedAt: null }, orderBy: { name: 'asc' } }),
       prisma.recipe.findMany(),
       prisma.extra.findMany({ orderBy: { name: 'asc' } }),
@@ -46,21 +48,25 @@ async function main() {
 
   const catalog = {
     exportedAt: new Date().toISOString(),
-    units: units.map(({ id, name, abbreviation }) => ({ id, name, abbreviation })),
-    categories: categories.map(({ id, name, description, imageUrl, displayOrder, isActive }) => ({ id, name, description, imageUrl, displayOrder, isActive })),
+    units: units.map(({ id, name, abbreviation, dimension, factor }) => ({ id, name, abbreviation, dimension, factor: decimal(factor) })),
+    categories: categories.map(({ id, name, description, imageUrl, displayOrder, isActive, isBeverage }) => ({ id, name, description, imageUrl, displayOrder, isActive, isBeverage })),
+    productFamilies: productFamilies.map(({ id, name, categoryId, displayOrder, isActive }) => ({ id, name, categoryId, displayOrder, isActive })),
     products: products.map((p) => ({
       id: p.id, categoryId: p.categoryId, name: p.name, description: p.description, sku: p.sku, imageUrl: p.imageUrl,
       temperature: p.temperature,
       jumboPrice: p.jumboPrice === null ? null : decimal(p.jumboPrice),
       price: decimal(p.price), cost: decimal(p.cost), isActive: p.isActive, displayOrder: p.displayOrder,
+      tracksInventory: p.tracksInventory, familyId: p.familyId, variantLabel: p.variantLabel,
     })),
+    productVariantOptions: productVariantOptions.map(({ productId, name, value }) => ({ productId, name, value })),
     ingredients: ingredients.map((i) => ({
       id: i.id, name: i.name, sku: i.sku, unitId: i.unitId, isActive: i.isActive,
       currentStock: decimal(i.currentStock), minimumStock: decimal(i.minimumStock), averageCost: decimal(i.averageCost),
+      maximumStock: i.maximumStock === null ? null : decimal(i.maximumStock),
     })),
     recipes: recipes
       .filter((r) => ingredientIds.has(r.ingredientId))
-      .map((r) => ({ productId: r.productId, ingredientId: r.ingredientId, quantity: decimal(r.quantity) })),
+      .map((r) => ({ productId: r.productId, ingredientId: r.ingredientId, size: r.size, temperature: r.temperature, quantity: decimal(r.quantity) })),
     extras: extras.map((e) => ({ id: e.id, name: e.name, description: e.description, price: decimal(e.price), cost: decimal(e.cost), isActive: e.isActive })),
     extraRecipes: extraRecipes
       .filter((r) => ingredientIds.has(r.ingredientId))
@@ -90,6 +96,7 @@ async function main() {
   console.table({
     unidades: catalog.units.length,
     categorías: catalog.categories.length,
+    familias: catalog.productFamilies.length,
     productos: catalog.products.length,
     ingredientes: catalog.ingredients.length,
     recetas: catalog.recipes.length,

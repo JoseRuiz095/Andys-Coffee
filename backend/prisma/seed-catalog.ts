@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Prisma, type DrinkTemperature, type PromotionType } from "@prisma/client";
+import { Prisma, type DrinkTemperature, type ProductSize, type PromotionType, type UnitDimension } from "@prisma/client";
 import { prisma } from "../src/config/prisma";
 
 /**
@@ -13,19 +13,28 @@ type Nullable<T> = T | null;
 
 export interface CatalogExport {
   exportedAt: string;
-  units: { id: string; name: string; abbreviation: string }[];
-  categories: { id: string; name: string; description: Nullable<string>; imageUrl: Nullable<string>; displayOrder: number; isActive: boolean }[];
+  // Fields marked optional were added later (2026-11-11); older exports don't have them.
+  units: { id: string; name: string; abbreviation: string; dimension?: UnitDimension; factor?: string }[];
+  categories: {
+    id: string; name: string; description: Nullable<string>; imageUrl: Nullable<string>; displayOrder: number; isActive: boolean;
+    isBeverage?: boolean;
+  }[];
+  productFamilies?: { id: string; name: string; categoryId: Nullable<string>; displayOrder: number; isActive: boolean }[];
   products: {
     id: string; categoryId: Nullable<string>; name: string; description: Nullable<string>; sku: string; imageUrl: Nullable<string>;
     temperature?: Nullable<DrinkTemperature>;
     price: string; cost: string; isActive: boolean; displayOrder: number;
     jumboPrice?: Nullable<string>;
+    tracksInventory?: boolean; familyId?: Nullable<string>; variantLabel?: Nullable<string>;
   }[];
+  productVariantOptions?: { productId: string; name: string; value: string }[];
   ingredients: {
     id: string; name: string; sku: Nullable<string>; unitId: string; isActive: boolean;
     currentStock: string; minimumStock: string; averageCost: string;
+    maximumStock?: Nullable<string>;
   }[];
-  recipes: { productId: string; ingredientId: string; quantity: string }[];
+  // `temperature` was added on 2026-11-16; older exports don't have it (= BOTH).
+  recipes: { productId: string; ingredientId: string; quantity: string; size?: ProductSize; temperature?: DrinkTemperature }[];
   extras: { id: string; name: string; description: Nullable<string>; price: string; cost: string; isActive: boolean }[];
   extraRecipes: { extraId: string; ingredientId: string; quantity: string }[];
   productExtras: { productId: string; extraId: string; isDefault: boolean }[];
@@ -65,8 +74,21 @@ export async function seedCatalogFromExport(catalog: CatalogExport, adminUserId:
     await prisma.category.upsert({ where: { id: category.id }, update: category, create: category });
   }
 
+  // Families before products (products.familyId references them).
+  for (const family of catalog.productFamilies ?? []) {
+    await prisma.productFamily.upsert({ where: { id: family.id }, update: family, create: family });
+  }
+
   for (const product of catalog.products) {
     await prisma.product.upsert({ where: { id: product.id }, update: product, create: product });
+  }
+
+  for (const option of catalog.productVariantOptions ?? []) {
+    await prisma.productVariantOption.upsert({
+      where: { productId_name: { productId: option.productId, name: option.name } },
+      update: { value: option.value },
+      create: option,
+    });
   }
 
   let initialBalances = 0;
@@ -87,6 +109,7 @@ export async function seedCatalogFromExport(catalog: CatalogExport, adminUserId:
             quantity: stock,
             unitCost: averageCost,
             referenceType: "initial_balance",
+            balanceAfter: stock,
             notes: `Saldo inicial al recargar el catálogo (${catalog.exportedAt.slice(0, 10)})`,
             createdById: adminUserId,
           },
@@ -96,11 +119,11 @@ export async function seedCatalogFromExport(catalog: CatalogExport, adminUserId:
     if (!stock.isZero()) initialBalances += 1;
   }
 
-  for (const recipe of catalog.recipes) {
+  for (const { size = "REGULAR", temperature = "BOTH", ...recipe } of catalog.recipes) {
     await prisma.recipe.upsert({
-      where: { productId_ingredientId: { productId: recipe.productId, ingredientId: recipe.ingredientId } },
+      where: { productId_size_temperature_ingredientId: { productId: recipe.productId, size, temperature, ingredientId: recipe.ingredientId } },
       update: { quantity: recipe.quantity },
-      create: recipe,
+      create: { ...recipe, size, temperature },
     });
   }
 

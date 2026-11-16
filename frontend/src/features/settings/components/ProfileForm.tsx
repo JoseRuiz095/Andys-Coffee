@@ -3,6 +3,10 @@ import { sileo } from 'sileo'
 import { useUpdateProfile } from '../hooks/useProfile'
 import type { AuthUser } from '../../auth/types/auth.types'
 import { getErrorMessage } from '../../../shared/utils/errors'
+import { Input } from '../../../shared/components/Input'
+import { Button } from '../../../shared/components/Button'
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField'
 
 interface ProfileFormProps {
   currentUser: AuthUser | null
@@ -10,69 +14,44 @@ interface ProfileFormProps {
 
 export function ProfileForm({ currentUser }: ProfileFormProps) {
   const [name, setName] = useState(currentUser?.name || '')
+  const [error, setError] = useState<string | null>(null)
   const { mutate: updateProfile, isPending } = useUpdateProfile()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
     if (!name.trim()) {
-      sileo.error({ title: 'Nombre requerido', description: 'Ingresa tu nombre.' })
+      setError('Ingresa tu nombre.')
       return
     }
-
+    setError(null)
     updateProfile(name.trim(), {
-      onSuccess: () => {
-        sileo.success({ title: 'Perfil actualizado', duration: 2000 })
-      },
-      onError: (error: unknown) => {
-        const message = getErrorMessage(error, 'Error al actualizar perfil')
-        sileo.error({ title: 'Error', description: message })
-      },
+      onSuccess: () => sileo.success({ title: 'Perfil actualizado', duration: 2000 }),
+      onError: (err: unknown) => sileo.error({ title: 'No se pudo actualizar el perfil', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
     })
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-lg border p-6"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
-      <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Mi Perfil</h3>
-
-      <div className="space-y-4">
-        <div>
-          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Nombre</label>
-          <input
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <h2 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>Perfil</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField htmlFor="profile-name" label="Nombre" required error={error}>
+          <Input
+            id="profile-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-input-bg)', color: 'var(--color-input-text)' }}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={fieldDescriptionId('profile-name')}
           />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Email</label>
-          <input
-            type="email"
-            value={currentUser?.email || ''}
-            disabled
-            className="w-full rounded-lg border px-4 py-3 text-sm cursor-not-allowed"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-text-secondary)' }}
-          />
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>El email no puede ser modificado.</p>
-        </div>
+        </FormField>
+        <FormField htmlFor="profile-email" label="Correo" required hint="El correo no se puede cambiar desde aquí.">
+          <Input id="profile-email" type="email" value={currentUser?.email || ''} disabled aria-describedby={fieldDescriptionId('profile-email')} />
+        </FormField>
       </div>
-
-      <div className="mt-6 flex justify-end">
-        <button
-          type="submit"
-          disabled={isPending || name.trim() === currentUser?.name}
-          className="rounded-lg px-6 py-3 text-sm font-semibold shadow-sm transition disabled:opacity-50"
-          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
-        >
-          {isPending ? 'Guardando...' : 'Guardar Cambios'}
-        </button>
+      <div className="flex justify-end">
+        <Button type="submit" variant="primary" disabled={isPending || name.trim() === currentUser?.name}>
+          {isPending ? 'Guardando...' : 'Guardar nombre'}
+        </Button>
       </div>
     </form>
   )

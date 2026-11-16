@@ -2,7 +2,7 @@
  * Deletes the OPERATIONAL data of the database in .env.<NODE_ENV> so the business starts
  * clean, keeping the catalog and the configuration.
  *
- *   cd backend && npm run db:reset-operations:prod -- --yes      # production
+ *   cd backend && npm run db:reset-operations:prod -- --yes --confirm-host=<host de la BD>   # production
  *   cd backend && npm run db:reset-operations -- --yes           # development
  *
  * Deleted: orders (+ items, extras, payments), cash sessions and movements, expenses,
@@ -18,7 +18,8 @@
  * take a backup (e.g. `npm run db:replicate-prod-to-dev -- --yes` keeps a copy in backups/).
  */
 import { Prisma } from '@prisma/client';
-import { ENV_MODE, databaseIdentity } from '../src/config/env';
+import { ENV_MODE, USES_PRODUCTION_DATABASE, databaseIdentity } from '../src/config/env';
+import { assertOperationalResetAllowed, databaseHostOf } from '../prisma/seed-guards';
 import { prisma } from '../src/config/prisma';
 
 const OPERATIONAL_TABLES = [
@@ -50,9 +51,13 @@ async function countRows() {
 }
 
 async function main() {
-  if (!process.argv.includes('--yes')) {
-    throw new Error('Esto BORRA ventas, cajas, gastos, compras y movimientos de la BD. Vuelve a ejecutar con --yes.');
-  }
+  // Against production (NODE_ENV=production or a .env pointing at it) the host must be typed too.
+  assertOperationalResetAllowed({
+    envMode: ENV_MODE,
+    usesProductionDatabase: USES_PRODUCTION_DATABASE,
+    argv: process.argv,
+    databaseHost: databaseHostOf(process.env.DIRECT_URL ?? process.env.DATABASE_URL),
+  });
   const target = databaseIdentity(process.env.DIRECT_URL ?? process.env.DATABASE_URL) ?? '(sin DATABASE_URL)';
   process.stdout.write(`Modo: ${ENV_MODE}\nBase de datos: ${target.replace(/^([^@]{0,14})[^@]*@/, '$1…@')}\n`);
 

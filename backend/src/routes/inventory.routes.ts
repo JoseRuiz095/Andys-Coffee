@@ -3,8 +3,9 @@ import { InventoryController } from '../controllers/inventory.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
 import { validate } from '../middleware/validate';
-import { ingredientCreateSchema, ingredientUpdateSchema, inventoryExitSchema } from '../validators/inventory.validator';
+import { ingredientCreateSchema, ingredientUpdateSchema, inventoryExitSchema, inventorySettingsSchema } from '../validators/inventory.validator';
 import { setActiveSchema } from '../validators/common.validator';
+import { SETTINGS_PERMISSION } from '../config/permissions';
 
 const router = express.Router();
 
@@ -23,11 +24,19 @@ router.get('/units', canView, InventoryController.getUnits);
 router.get('/summary', canView, InventoryController.getSummary);
 router.get('/value', canView, InventoryController.getTotalValue);
 router.get('/low-stock', canView, InventoryController.getLowStock);
+// Active products that consume inventory but miss their (regular or Jumbo) recipe.
+router.get('/products-without-recipe', canView, InventoryController.getProductsWithoutRecipe);
 
 // Movements history
 router.get('/movements', canView, InventoryController.getMovements);
 
 // Create manual exit
+// Inventory switches (consumption on sale, low-stock alerts). Declared before '/:id'.
+router.get('/settings', canView, InventoryController.getSettings);
+// Restock suggestions (drafts are created with POST /api/purchases).
+router.get('/replenishment', canView, InventoryController.getReplenishment);
+router.patch('/settings', checkPermission(SETTINGS_PERMISSION), validate(inventorySettingsSchema), InventoryController.updateSettings);
+
 router.post('/exits', checkPermission('inventory.create_exit'), validate(inventoryExitSchema), InventoryController.createExit);
 
 // Create ingredient

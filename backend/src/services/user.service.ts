@@ -23,6 +23,20 @@ async function assertCanAssignRole(roleId: string, actor: AuthUser) {
   }
 }
 
+/**
+ * A1 (estabilización 2026-11-14): editing, (de)activating or deleting a user is only allowed when
+ * the actor holds every permission of that user's CURRENT role. Before, someone with
+ * users.update but not an admin could demote or deactivate an ADMIN or change its email.
+ */
+async function assertCanManageUser(targetRoleId: string, actor: AuthUser) {
+  const role = await RoleRepository.findById(targetRoleId);
+  if (!role) return;
+  const missing = role.permissions.map(({ permission }) => permission.name).filter((name) => !actor.permissions?.includes(name));
+  if (missing.length > 0) {
+    throw new AuthorizationError(`No puedes modificar a un usuario con el rol "${role.name}": tiene permisos que tú no tienes.`);
+  }
+}
+
 export const UserService = {
   async findAll(user: AuthUser, page: number = 1, limit: number = 20, isActive?: boolean, search?: string, roleId?: string) {
     if (!user.permissions?.includes('users.read')) {
@@ -103,6 +117,8 @@ export const UserService = {
       throw new NotFoundError('Usuario no encontrado.');
     }
 
+    if (id !== user.id) await assertCanManageUser(existingUser.roleId, user);
+
     // Prevent self role change
     if (data.roleId && id === user.id) {
       throw new ValidationError('No puedes cambiar tu propio rol.');
@@ -150,6 +166,7 @@ export const UserService = {
     if (!isActive && id === user.id) {
       throw new ValidationError('No puedes desactivar tu propia cuenta.');
     }
+    await assertCanManageUser(existingUser.roleId, user);
 
     // Prevent deactivating the last active admin
     if (!isActive && existingUser.role?.name === 'ADMIN') {
@@ -176,6 +193,7 @@ export const UserService = {
     if (id === user.id) {
       throw new ValidationError('No puedes eliminar tu propia cuenta.');
     }
+    await assertCanManageUser(existingUser.roleId, user);
 
     // Prevent deleting the last active admin
     if (existingUser.role?.name === 'ADMIN') {

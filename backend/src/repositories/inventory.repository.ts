@@ -14,6 +14,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         createdAt: true,
@@ -68,6 +69,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         unit: {
@@ -99,6 +101,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         unit: {
@@ -140,6 +143,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         unit: {
@@ -161,10 +165,18 @@ export const InventoryRepository = {
     page: number,
     limit: number,
     where: Prisma.IngredientWhereInput = {},
+    stockStatus: 'all' | 'normal' | 'low_stock' | 'out_of_stock' = 'all',
   ) {
     const skip = paginationOffset(page, limit);
+    // The stock status compares two columns, so it is filtered in the query (before paging).
+    const minimum = prisma.ingredient.fields.minimumStock;
+    const stockWhere: Prisma.IngredientWhereInput =
+      stockStatus === 'out_of_stock' ? { currentStock: { lte: 0 } }
+      : stockStatus === 'low_stock' ? { AND: [{ currentStock: { gt: 0 } }, { currentStock: { lte: minimum } }] }
+      : stockStatus === 'normal' ? { currentStock: { gt: minimum } }
+      : {};
     // Exclude soft-deleted ingredients
-    const whereWithDeleted = { ...where, deletedAt: null };
+    const whereWithDeleted = { AND: [where, stockWhere], deletedAt: null };
 
     const [ingredients, total] = await Promise.all([
       prisma.ingredient.findMany({
@@ -177,6 +189,7 @@ export const InventoryRepository = {
           sku: true,
           currentStock: true,
           minimumStock: true,
+          maximumStock: true,
           averageCost: true,
           isActive: true,
           createdAt: true,
@@ -214,6 +227,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         unit: {
           select: {
@@ -237,12 +251,15 @@ export const InventoryRepository = {
     page: number = 1,
     limit: number = 50,
     search?: string,
+    orderId?: string,
   ) {
     const skip = paginationOffset(page, limit);
 
     const where: Prisma.InventoryMovementWhereInput = {
       ...(ingredientId && { ingredientId }),
       ...(type && { type }),
+      // Movements of one sale: its consumption, and the reversal/waste of its cancellation.
+      ...(orderId && { referenceId: orderId, referenceType: { in: ['order', 'order_cancellation'] } }),
       ...(startDate || endDate
         ? {
           createdAt: {
@@ -273,8 +290,12 @@ export const InventoryRepository = {
           unitCost: true,
           referenceType: true,
           referenceId: true,
+          reason: true,
           notes: true,
+          balanceAfter: true,
           createdAt: true,
+          // Sale line that originated it: product, size and order number.
+          orderItem: { select: { productName: true, size: true, order: { select: { id: true, orderNumber: true } } } },
           createdBy: {
             select: {
               id: true,
@@ -318,8 +339,9 @@ export const InventoryRepository = {
       },
     });
 
+    // Negative stock (a sale beyond the recorded stock, decision D-1) is worth 0, not less.
     const totalValue = ingredients.reduce(
-      (sum, ing) => sum.add(new Prisma.Decimal(ing.currentStock).mul(ing.averageCost)),
+      (sum, ing) => sum.add(Prisma.Decimal.max(ing.currentStock, 0).mul(ing.averageCost)),
       new Prisma.Decimal(0),
     );
 
@@ -360,16 +382,18 @@ export const InventoryRepository = {
 
   async create(data: {
     name: string;
-    sku?: string;
+    sku: string;
     unitId: string;
     minimumStock?: Prisma.Decimal | number;
+    maximumStock?: Prisma.Decimal | number | null;
   }) {
     return prisma.ingredient.create({
       data: {
         name: data.name.trim(),
-        sku: data.sku?.trim() || null,
+        sku: data.sku.trim(),
         unitId: data.unitId,
         minimumStock: data.minimumStock ? new Prisma.Decimal(data.minimumStock) : new Prisma.Decimal(0),
+        maximumStock: data.maximumStock === undefined || data.maximumStock === null ? null : new Prisma.Decimal(data.maximumStock),
         currentStock: new Prisma.Decimal(0),
         averageCost: new Prisma.Decimal(0),
         isActive: true,
@@ -380,6 +404,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         createdAt: true,
@@ -400,14 +425,19 @@ export const InventoryRepository = {
       name?: string;
       sku?: string;
       minimumStock?: Prisma.Decimal | number;
+      maximumStock?: Prisma.Decimal | number | null;
     },
   ) {
     return prisma.ingredient.update({
       where: { id },
       data: {
         ...(data.name && { name: data.name.trim() }),
-        ...(data.sku !== undefined && { sku: data.sku?.trim() || null }),
+        // A blank SKU keeps the current one: every ingredient has a SKU (dev→prod sync key).
+        ...(data.sku?.trim() && { sku: data.sku.trim() }),
         ...(data.minimumStock !== undefined && { minimumStock: new Prisma.Decimal(data.minimumStock) }),
+        ...(data.maximumStock !== undefined && {
+          maximumStock: data.maximumStock === null ? null : new Prisma.Decimal(data.maximumStock),
+        }),
       },
       select: {
         id: true,
@@ -415,6 +445,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         createdAt: true,
@@ -440,6 +471,7 @@ export const InventoryRepository = {
         sku: true,
         currentStock: true,
         minimumStock: true,
+        maximumStock: true,
         averageCost: true,
         isActive: true,
         createdAt: true,
@@ -486,9 +518,43 @@ export const InventoryRepository = {
         id: true,
         name: true,
         abbreviation: true,
+        dimension: true,
+        factor: true,
       },
       orderBy: { name: 'asc' },
     });
+  },
+
+  async findUnitById(id: string, client: PrismaClient = prisma) {
+    return client.inventoryUnit.findUnique({
+      where: { id },
+      select: { id: true, name: true, abbreviation: true, dimension: true, factor: true },
+    });
+  },
+
+  /** Highest SKU with the given prefix (e.g. "INS-"), to number the next ingredient. */
+  async findLastSkuWithPrefix(prefix: string) {
+    const rows = await prisma.ingredient.findMany({
+      where: { sku: { startsWith: prefix } },
+      select: { sku: true },
+    });
+    return rows.map(({ sku }) => sku).filter((sku): sku is string => sku !== null);
+  },
+
+  /** Active products and extras whose recipe uses the ingredient. */
+  async findActiveRecipeUsage(ingredientId: string) {
+    const [products, extras] = await Promise.all([
+      prisma.recipe.findMany({
+        where: { ingredientId, product: { isActive: true } },
+        select: { product: { select: { name: true } } },
+        distinct: ['productId'],
+      }),
+      prisma.extraRecipe.findMany({
+        where: { ingredientId, extra: { isActive: true } },
+        select: { extra: { select: { name: true } } },
+      }),
+    ]);
+    return [...products.map(({ product }) => product.name), ...extras.map(({ extra }) => extra.name)];
   },
 
   async updateStock(
@@ -503,8 +569,10 @@ export const InventoryRepository = {
         id: true,
         name: true,
         currentStock: true,
+        minimumStock: true,
         averageCost: true,
         isActive: true,
+        unit: { select: { abbreviation: true } },
       },
     });
   },
@@ -521,6 +589,9 @@ export const InventoryRepository = {
       notes?: string;
       createdById?: string;
       idempotencyKey?: string;
+      /** Ingredient stock right after this movement (as returned by updateStock). */
+      balanceAfter?: Prisma.Decimal | number;
+      orderItemId?: string;
     },
     client: PrismaClient = prisma,
   ) {
@@ -536,6 +607,8 @@ export const InventoryRepository = {
         notes: data.notes,
         createdById: data.createdById,
         idempotencyKey: data.idempotencyKey,
+        balanceAfter: data.balanceAfter === undefined ? undefined : new Prisma.Decimal(data.balanceAfter),
+        orderItemId: data.orderItemId,
       },
       select: {
         id: true,
@@ -543,6 +616,7 @@ export const InventoryRepository = {
         quantity: true,
         reason: true,
         notes: true,
+        balanceAfter: true,
         createdAt: true,
       },
     });

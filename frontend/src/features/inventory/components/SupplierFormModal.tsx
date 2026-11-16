@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { useCreateSupplier, useSearchSuppliers, useUpdateSupplier, useSupplierById } from '../hooks/usePurchases'
@@ -27,7 +27,8 @@ export function SupplierFormModal({
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
-  const [similarSearch, setSimilarSearch] = useState('')
+  // Starts with the name typed in the search that opened the modal, so matches show at once.
+  const [similarSearch, setSimilarSearch] = useState(initialName)
 
   const { data: editingSupplier } = useSupplierById(editingSupplierId || '')
   const { data: similarResults, isLoading: isSearching } = useSearchSuppliers(
@@ -36,17 +37,16 @@ export function SupplierFormModal({
   const { mutate: createSupplier, isPending: isCreating } = useCreateSupplier()
   const { mutate: updateSupplier, isPending: isUpdating } = useUpdateSupplier()
 
-  useEffect(() => {
-    if (editingSupplier && isOpen) {
-      const timer = setTimeout(() => {
-        setName(editingSupplier.name)
-        setPhone(editingSupplier.phone || '')
-        setEmail(editingSupplier.email || '')
-        setAddress(editingSupplier.address || '')
-      }, 0)
-      return () => clearTimeout(timer)
-    }
-  }, [editingSupplier, isOpen])
+  // Callers mount the modal per opening (keyed by the supplier), so the form is filled once
+  // when the edited supplier arrives, during render instead of in an effect.
+  const [loadedSupplierId, setLoadedSupplierId] = useState<string | null>(null)
+  if (editingSupplier && editingSupplier.id === editingSupplierId && loadedSupplierId !== editingSupplier.id) {
+    setLoadedSupplierId(editingSupplier.id)
+    setName(editingSupplier.name)
+    setPhone(editingSupplier.phone || '')
+    setEmail(editingSupplier.email || '')
+    setAddress(editingSupplier.address || '')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -122,7 +122,7 @@ export function SupplierFormModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       ariaLabelledBy="supplier-modal-title"
       initialFocusRef={firstInputRef}
     >
@@ -134,13 +134,13 @@ export function SupplierFormModal({
           {/* Búsqueda de similares */}
           {showSimilarMatches && !editingSupplierId && name.length >= 2 && (
             <div className="rounded-lg border border-[var(--color-info)]/40 bg-[var(--color-info)]/10 p-3">
-              <p className="mb-2 text-xs font-medium text-[var(--color-text-primary)]">Proveedores similares encontrados:</p>
+              <p className="mb-2 text-sm font-medium text-[var(--color-text-primary)]">Proveedores similares encontrados:</p>
               {isSearching ? (
-                <p className="text-xs text-[var(--color-text-secondary)]">Buscando...</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">Buscando...</p>
               ) : similarResults && similarResults.length > 0 ? (
                 <ul className="space-y-1">
                   {similarResults.map((supplier) => (
-                    <li key={supplier.id} className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                    <li key={supplier.id} className="flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
                       <span>{supplier.name}</span>
                       <button
                         type="button"
@@ -148,7 +148,7 @@ export function SupplierFormModal({
                           handleClose()
                           onSuccess?.(supplier)
                         }}
-                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-[var(--color-button-text)] hover:opacity-90"
                       >
                         Usar este
                       </button>
@@ -156,7 +156,7 @@ export function SupplierFormModal({
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-[var(--color-text-secondary)]">No hay similares</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">No hay similares</p>
               )}
             </div>
           )}
@@ -187,8 +187,9 @@ export function SupplierFormModal({
 
           {/* Teléfono */}
           <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Teléfono (opcional)</label>
+            <label htmlFor="supplierformmodal-telefono-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Teléfono (opcional)</label>
             <input
+              id="supplierformmodal-telefono-opcional"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -204,8 +205,9 @@ export function SupplierFormModal({
 
           {/* Email */}
           <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Email (opcional)</label>
+            <label htmlFor="supplierformmodal-email-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Email (opcional)</label>
             <input
+              id="supplierformmodal-email-opcional"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -221,8 +223,9 @@ export function SupplierFormModal({
 
           {/* Dirección */}
           <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Dirección (opcional)</label>
+            <label htmlFor="supplierformmodal-direccion-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Dirección (opcional)</label>
             <input
+              id="supplierformmodal-direccion-opcional"
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -252,7 +255,7 @@ export function SupplierFormModal({
             <button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-button-text)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
               {isCreating || isUpdating ? (editingSupplierId ? 'Actualizando...' : 'Creando...') : (editingSupplierId ? 'Actualizar' : 'Crear')}
             </button>

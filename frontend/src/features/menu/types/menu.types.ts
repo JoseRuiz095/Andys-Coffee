@@ -15,6 +15,10 @@ export interface MenuItem {
   size?: 'JUMBO';
   /** Extras offered with a product (charged per unit of the product). */
   extras?: MenuExtra[];
+  /** POS grouping stored on the product (older products may not have it yet). */
+  family?: { id: string; name: string; displayOrder: number } | null;
+  variantLabel?: string | null;
+  options?: { name: string; value: string }[];
 }
 
 export interface MenuExtra {

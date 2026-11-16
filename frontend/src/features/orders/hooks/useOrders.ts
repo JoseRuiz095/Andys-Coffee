@@ -24,9 +24,22 @@ export function useOrders() {
     refetchInterval: 15_000,
   });
 
+  // Orders whose status change is in flight. Several orders can change at once (a rush on the
+  // board): only a second click on the same order is ignored.
+  const [updatingIds, setUpdatingIds] = useState<ReadonlySet<string>>(() => new Set());
   const statusMutation = useMutation({
     mutationFn: ({ id, newStatus, reason }: { id: string; newStatus: OrderStatus; reason?: string }) =>
       updateOrderStatus(id, newStatus, reason),
+    onMutate: ({ id }) => {
+      setUpdatingIds((current) => new Set(current).add(id));
+    },
+    onSettled: (_data, _error, { id }) => {
+      setUpdatingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    },
     onSuccess: () => {
       void invalidateMoneyAndStockQueries(queryClient);
       sileo.success({ title: 'Estatus de orden actualizada correctamente' });
@@ -41,18 +54,21 @@ export function useOrders() {
     orders: query.data?.data ?? [],
     pagination: query.data?.pagination,
     loading: query.isLoading,
-    error: query.isError ? 'Error al obtener las órdenes, contacta al administrador' : null,
+    // The raw error: the page shows the server's message and a retry.
+    error: query.isError ? query.error : null,
+    refetch: query.refetch,
+    isFetching: query.isFetching,
     setPage,
     setStatus,
     setSearch,
     updateStatus: (id: string, newStatus: OrderStatus, options?: { reason?: string; onSuccess?: () => void }) => {
-      // One request at a time: a second click while the first is in flight would be rejected
-      // by the server anyway (the transition is no longer valid).
-      if (statusMutation.isPending) return;
+      // A second click on the same order while its change is in flight would be rejected by the
+      // server anyway (the transition is no longer valid).
+      if (updatingIds.has(id)) return;
       statusMutation.mutate({ id, newStatus, reason: options?.reason }, { onSuccess: options?.onSuccess });
     },
-    /** Order whose status change is in flight (its buttons are disabled meanwhile). */
-    updatingOrderId: statusMutation.isPending ? statusMutation.variables?.id ?? null : null,
+    /** Whether this order's status change is in flight (its buttons are disabled meanwhile). */
+    isUpdatingOrder: (id: string) => updatingIds.has(id),
   };
 }
 

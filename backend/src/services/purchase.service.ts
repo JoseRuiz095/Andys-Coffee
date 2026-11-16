@@ -4,11 +4,11 @@ import { runInTransaction } from '../repositories/transaction';
 import { PurchaseRepository } from '../repositories/purchase.repository';
 import { SupplierRepository } from '../repositories/supplier.repository';
 import { InventoryRepository } from '../repositories/inventory.repository';
-import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import { createPurchaseSchema } from '../validators/purchase.validator';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 import { getZonedCalendarDate } from '../utils/businessDate';
+import { invalidateSnapshotSafely } from './snapshot-invalidation';
 
 export const PurchaseService = {
   async findAll(user: AuthUser, status?: string, page: number = 1, limit: number = 20) {
@@ -66,7 +66,7 @@ export const PurchaseService = {
     const ingredients = await PurchaseRepository.findIngredientsForPurchase(ingredientIds);
 
     if (ingredients.length !== uniqueIngredientIds.size) {
-      throw new ValidationError('Algunos ingredientes no existen.');
+      throw new ValidationError('Algunos ingredientes no existen o están inactivos.');
     }
 
     // Calculate totals
@@ -178,7 +178,7 @@ export const PurchaseService = {
         });
 
         // Update ingredient stock and cost
-        await InventoryRepository.updateStockAndCost(ingredient.id, item.quantity, newAverageCost, tx);
+        const updated = await InventoryRepository.updateStockAndCost(ingredient.id, item.quantity, newAverageCost, tx);
 
         // Create inventory movement record
         inventoryMovements.push({
@@ -190,6 +190,7 @@ export const PurchaseService = {
           referenceId: purchase.id,
           notes: `Recepción de compra de ${item.quantity} ${ingredient.id}`,
           createdById: user.id,
+          balanceAfter: updated.currentStock,
         });
       }
 
@@ -197,14 +198,18 @@ export const PurchaseService = {
       await InventoryRepository.createMovements(inventoryMovements, tx);
 
       // Update purchase status
-      const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx);
+      // IS-4 (2026-11-14): the purchase becomes an expense the day it is RECEIVED (when the
+      // money and the goods actually move). It used to keep the draft's creation date, so
+      // receiving on Wednesday a draft made on Monday rewrote Monday, already closed.
+      const receivedAt = new Date();
+      const updatedPurchase = await PurchaseRepository.updateStatusAndReturn(purchaseId, 'received', tx, { purchasedAt: receivedAt });
 
-      return updatedPurchase;
-    }, { serializable: true }).then(async (updatedPurchase) => {
+      return { updatedPurchase, draftDate: purchase.purchasedAt };
+    }, { serializable: true }).then(async ({ updatedPurchase, draftDate }) => {
       // A newly-received purchase may now count as a variable expense (if made during business
-      // hours) — invalidate any frozen snapshot for that day so it gets recalculated.
-      const dateStr = getZonedCalendarDate(updatedPurchase.purchasedAt);
-      await incomeStatementRepository.invalidateSnapshot(dateStr);
+      // hours) — invalidate the frozen snapshots from the earliest affected day.
+      const dates = [getZonedCalendarDate(draftDate), getZonedCalendarDate(updatedPurchase.purchasedAt)].sort();
+      await invalidateSnapshotSafely(dates[0]);
       return updatedPurchase;
     });
   },
@@ -225,6 +230,11 @@ export const PurchaseService = {
       throw new ConflictError('Esta compra ya fue recibida y actualizó el inventario; no se puede eliminar.');
     }
 
-    await PurchaseRepository.delete(id);
+    // INV-4: delete only while it is still a draft — a reception committed after the check above
+    // would otherwise delete a received purchase (stock and movements stay, the expense vanishes).
+    const deleted = await PurchaseRepository.deleteDraft(id);
+    if (deleted === 0) {
+      throw new ConflictError('Esta compra ya fue recibida y actualizó el inventario; no se puede eliminar.');
+    }
   },
 };

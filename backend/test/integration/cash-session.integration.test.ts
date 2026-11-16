@@ -5,7 +5,8 @@ import { prisma } from "../../src/config/prisma";
 import { CashService } from "../../src/services/cash.service";
 import { AUTO_CLOSE_REASON } from "../../src/config/app";
 import { incomeStatementService } from "../../src/services/income-statement.service";
-import { getZonedCalendarDate } from "../../src/utils/businessDate";
+import { getBusinessDayEndAfter, getZonedCalendarDate } from "../../src/utils/businessDate";
+import { PreferenceRepository } from "../../src/repositories/preference.repository";
 
 // Coverage for CashService, which had zero prior tests. Also exercises the FASE 3 fix:
 // notification dispatch for open/close now happens after the transaction commits instead
@@ -118,10 +119,16 @@ test(
   "R-08: el cierre automático de fin de jornada queda marcado como 'sin conteo'",
   { skip: !integrationEnabled },
   async () => {
-    await CashService.openSession({ openingAmount: 40, cashRegisterId }, userId);
+    const opened = await CashService.openSession({ openingAmount: 40, cashRegisterId }, userId);
 
-    // 23:30 in America/Mexico_City (UTC-6): always after any configured closing hour.
-    const closed = await CashService.closeIfBusinessDayEnded(userId, new Date("2026-09-23T05:30:00Z"));
+    // F1: nothing happens before the business day of THIS session ends (the old check compared
+    // only the hour, so a closing time after midnight closed every drawer within 15 minutes).
+    const { businessHoursClose } = await PreferenceRepository.getGeneralPreferences();
+    const dayEnd = getBusinessDayEndAfter(opened.openedAt, businessHoursClose);
+    assert.equal(await CashService.closeIfBusinessDayEnded(userId, new Date(dayEnd.getTime() - 60_000)), null);
+
+    // Once it has ended, the drawer is closed with the expected amount and marked uncounted.
+    const closed = await CashService.closeIfBusinessDayEnded(userId, new Date(dayEnd.getTime() + 60_000));
 
     assert.ok(closed);
     assert.equal(closed?.status, "closed");

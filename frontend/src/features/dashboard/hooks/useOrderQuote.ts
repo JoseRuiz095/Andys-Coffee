@@ -30,5 +30,10 @@ export function useOrderQuote(items: CreateOrderItem[]) {
     lastQuote: items.length > 0 ? query.data : undefined,
     isCurrent,
     error: debouncedKey === cartKey ? query.error : null,
+    /** Asks the server again (the quote is not retried automatically). */
+    retry: () => {
+      void query.refetch()
+    },
+    isRetrying: query.isFetching,
   }
 }

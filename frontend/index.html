@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/LogoAndysVector.svg" />
@@ -10,12 +10,14 @@
         try {
           const savedTheme = localStorage.getItem('andy-theme')
 
-          // Default to light theme, prefer saved theme if it exists
-          let preferredTheme = 'light'
-
-          if (savedTheme === 'light' || savedTheme === 'dark') {
-            preferredTheme = savedTheme
-          }
+          // Same choice as ThemeProvider: the saved theme, else the system preference (otherwise
+          // a dark-mode system shows a light first paint and then switches).
+          const preferredTheme =
+            savedTheme === 'light' || savedTheme === 'dark'
+              ? savedTheme
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
 
           document.documentElement.dataset.theme = preferredTheme
           document.documentElement.style.colorScheme = preferredTheme

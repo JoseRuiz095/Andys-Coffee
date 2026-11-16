@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { sileo } from 'sileo'
 import { Modal } from '../../../shared/components/Modal'
 import { useCreateIngredient, useUpdateIngredient, useSearchIngredients, useInventoryUnits, useInventoryById } from '../hooks/useInventory'
@@ -26,10 +26,14 @@ export function IngredientFormModal({
   const [name, setName] = useState(initialName)
   const [sku, setSku] = useState('')
   const [minimumStock, setMinimumStock] = useState('')
+  const [maximumStock, setMaximumStock] = useState('')
   const [unitId, setUnitId] = useState('')
-  const [similarSearch, setSimilarSearch] = useState('')
+  // Starts with the name typed in the search that opened the modal, so matches show at once.
+  const [similarSearch, setSimilarSearch] = useState(initialName)
 
-  const { data: units, isLoading: isLoadingUnits } = useInventoryUnits()
+  const { data: allUnits, isLoading: isLoadingUnits } = useInventoryUnits()
+  // Stock is kept in base units (gr, ml, pz); kg and lt are only for capturing purchases.
+  const units = allUnits?.filter((unit) => Number(unit.factor) === 1)
   const { data: similarResults, isLoading: isSearching } = useSearchIngredients(
     showSimilarMatches && similarSearch.length >= 2 ? similarSearch : ''
   )
@@ -39,17 +43,21 @@ export function IngredientFormModal({
   const { mutate: createIngredient, isPending: isCreating } = useCreateIngredient()
   const { mutate: updateIngredient, isPending: isUpdating } = useUpdateIngredient()
 
-  useEffect(() => {
-    if (editingIngredient && isOpen) {
-      const timer = setTimeout(() => {
-        setName(editingIngredient.name)
-        setSku(editingIngredient.sku || '')
-        setMinimumStock(editingIngredient.minimumStock ? Number(editingIngredient.minimumStock).toString() : '')
-        setUnitId(editingIngredient.unit?.id || '')
-      }, 0)
-      return () => clearTimeout(timer)
-    }
-  }, [editingIngredient, isOpen])
+  // Callers mount the modal per opening (keyed by the ingredient), so the form is filled once
+  // when the edited ingredient arrives, during render instead of in an effect.
+  const [loadedIngredientId, setLoadedIngredientId] = useState<string | null>(null)
+  if (editingIngredient && editingIngredient.id === editingIngredientId && loadedIngredientId !== editingIngredient.id) {
+    setLoadedIngredientId(editingIngredient.id)
+    setName(editingIngredient.name)
+    setSku(editingIngredient.sku || '')
+    setMinimumStock(editingIngredient.minimumStock ? Number(editingIngredient.minimumStock).toString() : '')
+    setMaximumStock(
+      editingIngredient.maximumStock !== null && editingIngredient.maximumStock !== undefined
+        ? Number(editingIngredient.maximumStock).toString()
+        : '',
+    )
+    setUnitId(editingIngredient.unit?.id || '')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,11 +72,28 @@ export function IngredientFormModal({
       return
     }
 
+    // Empty minimum = 0 (also when editing: clearing it must be able to set it back to 0).
+    const minimum = minimumStock.trim() ? Number(minimumStock) : 0
+    const maximum = maximumStock.trim() ? Number(maximumStock) : null
+    if (!Number.isFinite(minimum) || minimum < 0) {
+      sileo.error({ title: 'Stock mínimo inválido', description: 'El stock mínimo debe ser un número mayor o igual a 0.' })
+      return
+    }
+    if (maximum !== null && (!Number.isFinite(maximum) || maximum < 0)) {
+      sileo.error({ title: 'Stock máximo inválido', description: 'El stock máximo debe ser un número mayor o igual a 0.' })
+      return
+    }
+    if (maximum !== null && maximum < minimum) {
+      sileo.error({ title: 'Stock máximo inválido', description: 'El stock máximo no puede ser menor que el mínimo.' })
+      return
+    }
+
     const data = {
       name: name.trim(),
       sku: sku.trim() || undefined,
       unitId,
-      minimumStock: minimumStock ? parseFloat(minimumStock) : undefined,
+      minimumStock: minimum,
+      maximumStock: maximum,
     }
 
     if (editingIngredientId) {
@@ -79,6 +104,7 @@ export function IngredientFormModal({
             name: data.name,
             sku: data.sku,
             minimumStock: data.minimumStock,
+            maximumStock: data.maximumStock,
           },
         },
         {
@@ -102,14 +128,9 @@ export function IngredientFormModal({
           handleClose()
         },
         onError: (error: unknown) => {
-          const status = getErrorStatus(error)
-          let message = getErrorMessage(error, 'Error creando ingrediente')
-
-          if (status === 409) {
-            message = 'Este SKU ya existe. Verifica los ingredientes existentes o usa un SKU diferente.'
-          }
-
-          sileo.error({ title: 'Error', description: message })
+          // 409 = duplicate name or SKU; the server message says which one.
+          const title = getErrorStatus(error) === 409 ? 'Ingrediente duplicado' : 'Error'
+          sileo.error({ title, description: getErrorMessage(error, 'Error creando ingrediente') })
         },
       })
     }
@@ -118,6 +139,7 @@ export function IngredientFormModal({
   const handleClose = () => {
     setName('')
     setSku('')
+    setMaximumStock('')
     setMinimumStock('')
     setUnitId('')
     setSimilarSearch('')
@@ -127,7 +149,7 @@ export function IngredientFormModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       ariaLabelledBy="ingredient-modal-title"
       initialFocusRef={firstInputRef}
     >
@@ -139,13 +161,13 @@ export function IngredientFormModal({
           {/* Búsqueda de similares */}
           {showSimilarMatches && !editingIngredientId && name.length >= 2 && (
             <div className="rounded-lg border border-[var(--color-info)]/40 bg-[var(--color-info)]/10 p-3">
-              <p className="mb-2 text-xs font-medium text-[var(--color-text-primary)]">Ingredientes similares encontrados:</p>
+              <p className="mb-2 text-sm font-medium text-[var(--color-text-primary)]">Ingredientes similares encontrados:</p>
               {isSearching ? (
-                <p className="text-xs text-[var(--color-text-secondary)]">Buscando...</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">Buscando...</p>
               ) : similarResults && similarResults.length > 0 ? (
                 <ul className="space-y-1">
                   {similarResults.map((ing) => (
-                    <li key={ing.id} className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                    <li key={ing.id} className="flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
                       <span>
                         {ing.name} ({ing.sku || 'sin SKU'})
                       </span>
@@ -155,7 +177,7 @@ export function IngredientFormModal({
                           handleClose()
                           onSuccess?.(ing)
                         }}
-                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-[var(--color-button-text)] hover:opacity-90"
                       >
                         Usar este
                       </button>
@@ -163,7 +185,7 @@ export function IngredientFormModal({
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-[var(--color-text-secondary)]">No hay similares</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">No hay similares</p>
               )}
             </div>
           )}
@@ -194,12 +216,13 @@ export function IngredientFormModal({
 
           {/* SKU */}
           <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>SKU (opcional)</label>
+            <label htmlFor="ingredientformmodal-sku-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>SKU (opcional)</label>
             <input
+              id="ingredientformmodal-sku-opcional"
               type="text"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
-              placeholder="Ej: CAF-001"
+              placeholder="Se asigna INS-### si lo dejas vacío"
               className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
               style={{
                 borderColor: 'var(--color-border)',
@@ -212,8 +235,9 @@ export function IngredientFormModal({
           {/* Unidad */}
           {!editingIngredientId && (
             <div>
-              <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Unidad *</label>
+              <label htmlFor="ingredientformmodal-unidad" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Unidad *</label>
               <select
+                id="ingredientformmodal-unidad"
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
@@ -241,8 +265,9 @@ export function IngredientFormModal({
 
           {/* Stock mínimo */}
           <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Mínimo (opcional)</label>
+            <label htmlFor="ingredientformmodal-stock-minimo-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Mínimo (opcional)</label>
             <input
+              id="ingredientformmodal-stock-minimo-opcional"
               type="number"
               value={minimumStock}
               onChange={(e) => setMinimumStock(e.target.value)}
@@ -256,6 +281,29 @@ export function IngredientFormModal({
                 color: 'var(--color-text-primary)'
               }}
             />
+          </div>
+
+          {/* Stock máximo */}
+          <div>
+            <label htmlFor="ingredientformmodal-stock-maximo-opcional" className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Stock Máximo (opcional)</label>
+            <input
+              id="ingredientformmodal-stock-maximo-opcional"
+              type="number"
+              value={maximumStock}
+              onChange={(e) => setMaximumStock(e.target.value)}
+              placeholder="Sin definir (2 × mínimo)"
+              step="0.01"
+              min="0"
+              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-[var(--color-primary)]/20"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }}
+            />
+            <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+              Nivel al que se sugiere reabastecer.
+            </p>
           </div>
 
           {/* Botones */}
@@ -274,7 +322,7 @@ export function IngredientFormModal({
             <button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-button-text)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
               {isCreating || isUpdating ? 'Guardando...' : editingIngredientId ? 'Actualizar' : 'Crear'}
             </button>

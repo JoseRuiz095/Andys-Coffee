@@ -447,7 +447,9 @@ async function computeDaySequence(
   cashRegisterId?: string,
   options: { persistSnapshots?: boolean } = {},
 ): Promise<DayFinancialSummary[]> {
-  const persistSnapshots = options.persistSnapshots ?? true;
+  // Snapshots are one per date for ALL registers: a view filtered by register must never write
+  // (nor read) them, or the global view would later show a single register's numbers.
+  const persistSnapshots = (options.persistSnapshots ?? true) && !cashRegisterId;
   if (dateStrs.length === 0) return [];
 
   const { start } = getZonedDayBoundaries(dateStrs[0]);
@@ -465,10 +467,16 @@ async function computeDaySequence(
     incomeStatementRepository.getDailyFixedExpenseTotal(),
     PreferenceRepository.getGeneralPreferences(),
   ]);
+  // Manual corrections of a day's closing balances (IS-3); global view only, like snapshots.
+  const manualBalances = cashRegisterId ? [] : await incomeStatementRepository.findManualBalancesInRange(start, end);
+  const manualBalancesByDate = new Map(manualBalances.map((row) => [row.date.toISOString().slice(0, 10), row]));
 
   const businessHours = parseBusinessHours(generalPrefs.businessHoursOpen, generalPrefs.businessHoursClose);
   const byDay = bucketRows(dateStrs, sessions, payments, cogsRows, expenses, purchases);
-  const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [getZonedCalendarDate(s.date), s]));
+  // `date` is a DATE column (UTC midnight): its calendar day is the UTC date. Converting it to
+  // CASH_TIMEZONE shifted every key one day back, so a day never found its own frozen snapshot
+  // (it was recomputed and overwritten) and range views could show the next day's numbers.
+  const finalSnapshotsByDate = new Map(finalSnapshots.map((s) => [s.date.toISOString().slice(0, 10), s]));
   const today = getTodayInZone();
 
   let runningSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
@@ -478,7 +486,7 @@ async function computeDaySequence(
   const summaries: DayFinancialSummary[] = [];
 
   for (const dateStr of dateStrs) {
-    const existingFinalSnapshot = finalSnapshotsByDate.get(dateStr);
+    const existingFinalSnapshot = cashRegisterId ? undefined : finalSnapshotsByDate.get(dateStr);
     let summary: DayFinancialSummary;
 
     if (existingFinalSnapshot && existingFinalSnapshot.isFinal) {
@@ -498,6 +506,13 @@ async function computeDaySequence(
         runningSavings = runningSavings.plus(core.savingsAmount);
         runningBusinessFund = runningBusinessFund.plus(core.businessFundAmount);
         runningSupplies = runningSupplies.plus(core.suppliesAmount);
+      }
+
+      const manual = manualBalancesByDate.get(dateStr);
+      if (manual) {
+        runningSavings = manual.savingsAccumulated;
+        runningBusinessFund = manual.businessFundAccumulated;
+        runningSupplies = manual.suppliesAccumulated;
       }
 
       const accumulated = {
@@ -612,9 +627,12 @@ export const incomeStatementService = {
     ]);
 
     let summary: DayFinancialSummary;
-    if (finalSnapshot && finalSnapshot.isFinal) {
+    // The stored row is global (all registers): with a register filter it is neither used nor
+    // applied (IS-1). A non-final row is a manual balance correction of the day (IS-3).
+    const globalRow = cashRegisterId ? null : finalSnapshot;
+    if (globalRow && globalRow.isFinal) {
       // Use frozen final snapshot for movimientos/distribucion/saldos, but fetch live session/expense details
-      summary = snapshotToSummary(dateStr, finalSnapshot);
+      summary = snapshotToSummary(dateStr, globalRow);
     } else {
       const businessHours = parseBusinessHours(generalPrefs.businessHoursOpen, generalPrefs.businessHoursClose);
       const core = computeDayCore({ sessions, payments, cogsRows, expenses, purchases }, percentages, fixedExpenseRate, businessHours);
@@ -622,11 +640,17 @@ export const incomeStatementService = {
       const prevSavings = prevSnapshot?.savingsAccumulated ?? ZERO;
       const prevBusinessFund = prevSnapshot?.businessFundAccumulated ?? ZERO;
       const prevSupplies = prevSnapshot?.suppliesAccumulated ?? ZERO;
-      const accumulated = {
-        savingsAccumulated: carryForward ? prevSavings : prevSavings.plus(core.savingsAmount),
-        businessFundAccumulated: carryForward ? prevBusinessFund : prevBusinessFund.plus(core.businessFundAmount),
-        suppliesAccumulated: carryForward ? prevSupplies : prevSupplies.plus(core.suppliesAmount),
-      };
+      const accumulated = globalRow
+        ? {
+            savingsAccumulated: globalRow.savingsAccumulated,
+            businessFundAccumulated: globalRow.businessFundAccumulated,
+            suppliesAccumulated: globalRow.suppliesAccumulated,
+          }
+        : {
+            savingsAccumulated: carryForward ? prevSavings : prevSavings.plus(core.savingsAmount),
+            businessFundAccumulated: carryForward ? prevBusinessFund : prevBusinessFund.plus(core.businessFundAmount),
+            suppliesAccumulated: carryForward ? prevSupplies : prevSupplies.plus(core.suppliesAmount),
+          };
       summary = buildSummaryDto(dateStr, core, percentages, accumulated);
     }
 
@@ -755,7 +779,8 @@ export const incomeStatementService = {
       );
     }
 
-    await incomeStatementRepository.updateAccumulatedBalances(dateStr, input);
+    const percentages = await incomeStatementRepository.getDistributionPreferences();
+    await incomeStatementRepository.updateAccumulatedBalances(dateStr, input, percentages);
     return this.getDayFinancials(dateStr);
   },
 };

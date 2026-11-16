@@ -2,163 +2,150 @@ import React from 'react';
 import { sileo } from 'sileo';
 import { useDistributionSettings, useUpdateDistributionSettings } from '../hooks/useIncomeStatement';
 import { getErrorMessage } from '../../../shared/utils/errors';
+import { Button } from '../../../shared/components/Button';
+import { Input } from '../../../shared/components/Input';
+import { FormField } from '../../../shared/components/FormField'
+import { fieldDescriptionId } from '../../../shared/utils/formField';
+import { QueryErrorState } from '../../../shared/components/QueryErrorState';
+import { Skeleton } from '../../../shared/components/Skeleton';
+import type { DistributionSettings } from '../api/income-statement.api';
+import { parsePercent } from '../utils/distribution';
 
-export function DistributionSettingsForm() {
-  const { data, isLoading } = useDistributionSettings();
+const FIELDS = [
+  { key: 'savingsPercent', id: 'distribution-savings', label: 'Ahorro' },
+  { key: 'businessFundPercent', id: 'distribution-business', label: 'Fondo del negocio' },
+  { key: 'suppliesPercent', id: 'distribution-supplies', label: 'Surtido' },
+] as const;
+
+type FieldKey = (typeof FIELDS)[number]['key'];
+
+/**
+ * Split of the daily net profit. Never shows (nor saves) default values: while the saved split
+ * is loading or failed to load there is nothing to edit, so a failed GET can't overwrite it.
+ */
+export function DistributionSettingsForm({ canEdit }: { canEdit: boolean }) {
+  const { data, isLoading, isError, error, refetch, isFetching } = useDistributionSettings();
+
+  return (
+    <section aria-labelledby="distribution-title">
+      <h2 id="distribution-title" className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        Distribución de la ganancia
+      </h2>
+      <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+        Porcentaje de la ganancia neta diaria que va a cada destino en el Estado de Resultados. Deben sumar 100%.
+      </p>
+      {isError ? (
+        <QueryErrorState error={error} subject="la distribución" onRetry={() => void refetch()} isRetrying={isFetching} />
+      ) : isLoading || !data ? (
+        <Skeleton className="h-24 rounded-xl" />
+      ) : (
+        <DistributionEditor key={JSON.stringify(data)} saved={data} canEdit={canEdit} />
+      )}
+    </section>
+  );
+}
+
+function DistributionEditor({ saved, canEdit }: { saved: DistributionSettings; canEdit: boolean }) {
   const { mutate: updateSettings, isPending } = useUpdateDistributionSettings();
+  const [values, setValues] = React.useState<Record<FieldKey, string>>({
+    savingsPercent: String(saved.savingsPercent),
+    businessFundPercent: String(saved.businessFundPercent),
+    suppliesPercent: String(saved.suppliesPercent),
+  });
 
-  const [savingsPercent, setSavingsPercent] = React.useState('10');
-  const [businessFundPercent, setBusinessFundPercent] = React.useState('20');
-  const [suppliesPercent, setSuppliesPercent] = React.useState('70');
-
-  // Load the saved values into the form whenever fresh data arrives (adjusting state during
-  // render instead of in an effect, as recommended by React).
-  const [loadedData, setLoadedData] = React.useState<typeof data>(undefined);
-  if (data && data !== loadedData) {
-    setLoadedData(data);
-    setSavingsPercent(String(data.savingsPercent));
-    setBusinessFundPercent(String(data.businessFundPercent));
-    setSuppliesPercent(String(data.suppliesPercent));
-  }
-
-  const savings = Number(savingsPercent) || 0;
-  const business = Number(businessFundPercent) || 0;
-  const supplies = Number(suppliesPercent) || 0;
-  const sum = savings + business + supplies;
+  const parsed = {
+    savingsPercent: parsePercent(values.savingsPercent),
+    businessFundPercent: parsePercent(values.businessFundPercent),
+    suppliesPercent: parsePercent(values.suppliesPercent),
+  };
+  const allValid = FIELDS.every((field) => parsed[field.key] !== null);
+  const sum = FIELDS.reduce((total, field) => total + (parsed[field.key] ?? 0), 0);
   const sumIsValid = Math.abs(sum - 100) < 0.01;
+  const isDirty = FIELDS.some((field) => values[field.key] !== String(saved[field.key]));
+  const canSave = canEdit && allValid && sumIsValid && isDirty && !isPending;
 
-  // Per-field validation
-  const isSavingsValid = savings >= 0 && savings <= 100;
-  const isBusinessValid = business >= 0 && business <= 100;
-  const isSuppliesValid = supplies >= 0 && supplies <= 100;
-  const allFieldsValid = isSavingsValid && isBusinessValid && isSuppliesValid && sumIsValid;
-
-  const handleSave = () => {
-    if (!allFieldsValid) {
-      sileo.error({ title: 'Error', description: 'Corrige los errores antes de guardar.' });
-      return;
-    }
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSave) return;
     updateSettings(
       {
-        savingsPercent: savings,
-        businessFundPercent: business,
-        suppliesPercent: supplies,
+        savingsPercent: parsed.savingsPercent!,
+        businessFundPercent: parsed.businessFundPercent!,
+        suppliesPercent: parsed.suppliesPercent!,
       },
       {
-        onSuccess: () => sileo.success({ title: 'Guardado', description: 'Porcentajes de distribución actualizados.' }),
-        onError: (error: unknown) =>
-          sileo.error({
-            title: 'Error',
-            description: getErrorMessage(error, 'No se pudieron guardar los porcentajes.'),
-          }),
+        onSuccess: () => sileo.success({ title: 'Distribución guardada' }),
+        onError: (err: unknown) =>
+          sileo.error({ title: 'No se pudo guardar la distribución', description: getErrorMessage(err, 'Inténtalo de nuevo.') }),
       },
     );
   };
 
-  if (isLoading) {
-    return <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>Cargando…</div>;
-  }
-
-  const fieldStyle: React.CSSProperties = {
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-input-bg)',
-    color: 'var(--color-input-text)',
-  };
+  const remaining = 100 - sum;
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-        Distribución del Estado de Resultados
-      </h2>
-      <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-        Porcentaje de la ganancia neta diaria destinado a cada categoría. Deben sumar 100%.
-      </p>
-
+    <form onSubmit={handleSave} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Ahorro (%)
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={savingsPercent}
-              onChange={(e) => setSavingsPercent(e.target.value)}
-              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-              style={{ ...fieldStyle, borderColor: !isSavingsValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
-            />
-          </label>
-          {!isSavingsValid && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
-              Debe estar entre 0 y 100
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Fondo del Negocio (%)
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={businessFundPercent}
-              onChange={(e) => setBusinessFundPercent(e.target.value)}
-              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-              style={{ ...fieldStyle, borderColor: !isBusinessValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
-            />
-          </label>
-          {!isBusinessValid && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
-              Debe estar entre 0 y 100
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Surtido (%)
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={suppliesPercent}
-              onChange={(e) => setSuppliesPercent(e.target.value)}
-              className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-              style={{ ...fieldStyle, borderColor: !isSuppliesValid ? 'var(--color-danger)' : fieldStyle.borderColor }}
-            />
-          </label>
-          {!isSuppliesValid && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
-              Debe estar entre 0 y 100
-            </p>
-          )}
-        </div>
+        {FIELDS.map((field) => {
+          const invalid = parsed[field.key] === null;
+          return (
+            <FormField
+              key={field.key}
+              htmlFor={field.id}
+              label={`${field.label} (%)`}
+              required
+              error={invalid ? 'Ingresa un valor entre 0 y 100.' : null}
+            >
+              <Input
+                id={field.id}
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={values[field.key]}
+                onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                disabled={!canEdit || isPending}
+                aria-invalid={invalid ? true : undefined}
+                aria-describedby={fieldDescriptionId(field.id)}
+              />
+            </FormField>
+          );
+        })}
       </div>
 
-      <div className="flex items-center gap-4">
-        <span
-          className="text-sm font-semibold"
-          style={{ color: sumIsValid ? 'var(--color-success)' : 'var(--color-danger)' }}
-        >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold" role="status" style={{ color: sumIsValid ? 'var(--color-success)' : 'var(--color-danger)' }}>
           Suma: {sum.toFixed(2)}%
-        </span>
-        {!sumIsValid && (
-          <span className="text-sm" style={{ color: 'var(--color-danger)' }}>
-            Los porcentajes deben sumar exactamente 100%.
-          </span>
+          {allValid && !sumIsValid && (
+            <span className="ml-2 font-normal">
+              {remaining > 0 ? `Faltan ${remaining.toFixed(2)}%` : `Sobran ${Math.abs(remaining).toFixed(2)}%`}
+            </span>
+          )}
+        </p>
+        {canEdit && (
+          <div className="flex gap-3">
+            {isDirty && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isPending}
+                onClick={() =>
+                  setValues({
+                    savingsPercent: String(saved.savingsPercent),
+                    businessFundPercent: String(saved.businessFundPercent),
+                    suppliesPercent: String(saved.suppliesPercent),
+                  })
+                }
+              >
+                Descartar
+              </Button>
+            )}
+            <Button type="submit" variant="primary" disabled={!canSave}>
+              {isPending ? 'Guardando...' : 'Guardar distribución'}
+            </Button>
+          </div>
         )}
       </div>
-
-      <button
-        onClick={handleSave}
-        disabled={!allFieldsValid || isPending}
-        className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
-        style={{ backgroundColor: 'var(--color-primary)' }}
-      >
-        {isPending ? 'Guardando…' : 'Guardar'}
-      </button>
-    </div>
+    </form>
   );
 }

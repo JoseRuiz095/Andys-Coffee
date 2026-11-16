@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { CategoryController } from '../controllers/category.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/authorization';
@@ -7,8 +7,20 @@ import { createCategorySchema, updateCategorySchema, setActiveSchema } from '../
 
 const router = Router();
 
+/**
+ * R3 (2026-11-14): the menu needs the active categories without a session; inactive ones
+ * (?includeInactive=true, used by the category manager) are only for categories.update.
+ */
+const inactiveNeedsPermission: RequestHandler = (req, res, next) => {
+  if (req.query.includeInactive !== 'true') return next();
+  return requireAuth(req, res, (error?: unknown) => {
+    if (error) return next(error);
+    return checkPermission('categories.update')(req, res, next);
+  });
+};
+
 // Public routes
-router.get('/', CategoryController.getAll);
+router.get('/', inactiveNeedsPermission, CategoryController.getAll);
 router.get('/:id', CategoryController.getById);
 
 // Admin routes

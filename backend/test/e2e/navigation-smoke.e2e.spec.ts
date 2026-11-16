@@ -10,8 +10,11 @@ import { prisma } from "../../src/config/prisma";
 // hitting the error boundary or logging console errors. Uses the seeded admin.
 
 const frontendRoot = path.resolve(process.cwd(), "../frontend");
-const frontendOrigin = "http://127.0.0.1:5173";
-const backendOrigin = "http://127.0.0.1:4000";
+// Same port override as support/app-harness.ts (to run next to the dev servers).
+const backendPort = Number(process.env.E2E_BACKEND_PORT ?? 4000);
+const frontendPort = Number(process.env.E2E_FRONTEND_PORT ?? 5173);
+const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
+const backendOrigin = `http://127.0.0.1:${backendPort}`;
 
 let backendServer: Server;
 let viteServer: ChildProcess;
@@ -36,8 +39,9 @@ test.beforeAll(async () => {
   process.env.NODE_ENV = "development";
   const { app } = await import("../../src/app");
   backendServer = createServer(app);
-  await new Promise<void>((resolve) => backendServer.listen(4000, "127.0.0.1", resolve));
-  viteServer = spawn(process.execPath, [path.resolve(frontendRoot, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "5173"], {
+  await new Promise<void>((resolve) => backendServer.listen(backendPort, "127.0.0.1", resolve));
+  viteServer = spawn(process.execPath, [path.resolve(frontendRoot, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(frontendPort)], {
+    env: { ...process.env, BACKEND_PROXY_URL: backendOrigin },
     cwd: frontendRoot,
     stdio: "ignore",
     windowsHide: true,
@@ -67,19 +71,22 @@ test("las vistas cargadas bajo demanda se muestran sin errores", async ({ page }
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
   await expect(page).toHaveURL(`${frontendOrigin}/dashboard`);
 
-  for (const view of ["Ordenes", "Inventario", "Administracion"]) {
+  for (const view of ["Órdenes", "Inventario", "Administración"]) {
     await page.getByRole("button", { name: view, exact: true }).first().click();
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Reintentar")).toHaveCount(0);
   }
 
   await page.goto(`${frontendOrigin}/settings`);
-  await expect(page.getByRole("button", { name: "Mi Perfil" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mi cuenta" })).toBeVisible();
 
-  // N-03/N-04: expenses can be registered from Configuración → Gastos (the page was not
-  // mounted anywhere and POST /api/expenses always answered 500).
+  // N-03/N-04: expenses can be registered from Administración › Finanzas › Gastos (the page was
+  // not mounted anywhere and POST /api/expenses always answered 500). The old Configuración
+  // link (?tab=expenses) now leads there.
   const description = `Gasto E2E ${Date.now()}`;
-  await page.getByRole("button", { name: "Gastos", exact: true }).click();
+  await page.goto(`${frontendOrigin}/settings?tab=expenses`);
+  await expect(page).toHaveURL(/view=admin&admin=expenses/);
+  await expect(page.getByRole("tab", { name: "Gastos", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "Nuevo gasto" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.locator("select").first().selectOption("insumos");

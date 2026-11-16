@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Order, OrderStatus } from '../types/orders.types'
 import { mapOrderStatusToFrontend } from '../types/orders.types'
 import { OrderStatus as BackendOrderStatus } from '../types/backend.types'
 import type { AuthUser } from '../../auth/types/auth.types'
 import { hasPermission } from '../../auth/utils/permissions'
-import { useTheme } from '../../../shared/assets/theme'
 
 interface OrderActionsProps {
   order: Order
@@ -13,13 +11,15 @@ interface OrderActionsProps {
   currentUser: AuthUser | null
   /** True while this order's status change is being sent: the buttons are locked. */
   isUpdating?: boolean
+  /** Shared clock of the board (ms): a scheduled order can start 20 min before its time. */
+  now: number
 }
 
 const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disabled }: { onClick: () => void; className: string; children: ReactNode; ariaLabel?: string; bgVar: string; hoverVar: string; disabled?: boolean }) => (
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-white disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-[var(--color-button-text)] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     style={{ backgroundColor: `var(${bgVar})` }}
     onMouseEnter={(e) => {
       e.currentTarget.style.backgroundColor = `var(${hoverVar})`
@@ -34,37 +34,26 @@ const Button = ({ onClick, className, children, ariaLabel, bgVar, hoverVar, disa
   </button>
 )
 
-export function OrderActions({ order, onStatusChange, currentUser, isUpdating = false }: OrderActionsProps) {
+export function OrderActions({ order, onStatusChange, currentUser, isUpdating = false, now }: OrderActionsProps) {
   const frontendStatus = mapOrderStatusToFrontend(order.status as BackendOrderStatus);
   const canCancelOrder = hasPermission(currentUser, 'sales.cancel');
+  // Advancing the status needs sales.create on the server (the target status decides the permission).
+  const canAdvanceOrder = hasPermission(currentUser, 'sales.create');
   // A completed sale is only cancelled with an admin's approval (approvers cancel it directly).
   const canRequestCancellation = hasPermission(currentUser, 'sales.create');
   const canApproveCancellation = hasPermission(currentUser, 'sales.approve_cancellation');
   const latestCancellationRequest = order.cancellationRequests?.[0];
   const isScheduled = Boolean(order.scheduledFor) && order.status === 'pending';
-  const [currentTime, setCurrentTime] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isScheduled) return;
-
-    const updateCurrentTime = () => setCurrentTime(Date.now());
-    const initialUpdate = window.setTimeout(updateCurrentTime, 0);
-    const interval = window.setInterval(updateCurrentTime, 30_000);
-
-    return () => {
-      window.clearTimeout(initialUpdate);
-      window.clearInterval(interval);
-    };
-  }, [isScheduled, order.scheduledFor]);
 
   const scheduledAt = order.scheduledFor ? Date.parse(order.scheduledFor as string) : null;
-  const diffMs = scheduledAt !== null && currentTime !== null ? scheduledAt - currentTime : null;
+  const diffMs = scheduledAt !== null ? scheduledAt - now : null;
   const canStartPreparing = !isScheduled || (diffMs !== null && diffMs <= 20 * 60 * 1000 && diffMs >= 0);
-  useTheme();
 
   return (
     <div className="flex gap-2">
       {frontendStatus === 'PENDING' && (
         <>
+          {canAdvanceOrder && (
           <Button
             onClick={() => onStatusChange('PREPARING')}
             className="text-xs px-2 py-1"
@@ -75,6 +64,7 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
           >
             {isScheduled && !canStartPreparing ? 'Esperando horario' : 'Preparando'}
           </Button>
+          )}
           {canCancelOrder && (
             <Button
               onClick={() => onStatusChange('CANCELLED')}
@@ -92,6 +82,7 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
 
       {frontendStatus === 'PREPARING' && (
         <>
+          {canAdvanceOrder && (
           <Button
             onClick={() => onStatusChange('READY')}
             className="text-xs px-2 py-1"
@@ -102,6 +93,7 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
           >
             Lista
           </Button>
+          )}
           {canCancelOrder && (
             <Button
               onClick={() => onStatusChange('CANCELLED')}
@@ -145,6 +137,7 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
 
       {frontendStatus === 'READY' && (
         <>
+          {canAdvanceOrder && (
           <Button
             onClick={() => onStatusChange('COMPLETED')}
             className="text-xs px-2 py-1"
@@ -155,6 +148,7 @@ export function OrderActions({ order, onStatusChange, currentUser, isUpdating = 
           >
             Entregar
           </Button>
+          )}
           {canCancelOrder && (
             <Button
               onClick={() => onStatusChange('CANCELLED')}

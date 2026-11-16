@@ -6,6 +6,7 @@ import { CashService } from "../../src/services/cash.service";
 import { ExtraService } from "../../src/services/extra.service";
 import { MenuService } from "../../src/services/menu.service";
 import { OrderService } from "../../src/services/order.service";
+import type { AuthUser } from "../../src/services/auth.service";
 
 // C-09: extras are managed in the catalog, linked to products, offered by the menu and sold
 // from the POS (priced per unit of the product).
@@ -19,6 +20,8 @@ let productId: string;
 let registerId: string;
 let sessionId: string;
 const extraIds: string[] = [];
+// Catalog editor without recipe permission: these extras carry no recipe.
+const editor: AuthUser = { id: "editor", name: "Editor", email: "editor@test.local", roleId: "role", roleName: "ADMIN", isActive: true, permissions: ["products.create"] };
 const orderIds: string[] = [];
 
 before(async () => {
@@ -56,11 +59,11 @@ const menuProduct = async () =>
     | undefined;
 
 test("un extra se crea, se vincula al producto y aparece en el menú", { skip: !integrationEnabled }, async () => {
-  const cheese = await ExtraService.create({ name: `Queso ${testId}`, price: 12, cost: 4 });
-  const bacon = await ExtraService.create({ name: `Tocino ${testId}`, price: 18, cost: 7 });
+  const cheese = await ExtraService.create({ name: `Queso ${testId}`, price: 12, cost: 4 }, editor);
+  const bacon = await ExtraService.create({ name: `Tocino ${testId}`, price: 18, cost: 7 }, editor);
   extraIds.push(cheese.id, bacon.id);
 
-  await assert.rejects(ExtraService.create({ name: ` queso ${testId} `.toUpperCase(), price: 1, cost: 0 }), { name: "ConflictError" });
+  await assert.rejects(ExtraService.create({ name: ` queso ${testId} `.toUpperCase(), price: 1, cost: 0 }, editor), { name: "ConflictError" });
 
   const product = await ExtraService.setProductExtras(productId, [cheese.id, bacon.id]);
   assert.equal(product?.extras.length, 2);

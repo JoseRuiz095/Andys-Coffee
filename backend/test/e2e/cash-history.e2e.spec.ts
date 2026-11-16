@@ -8,13 +8,17 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { prisma } from "../../src/config/prisma";
 
-// M-11: the cash-cut history and closing correction are reachable from Configuración,
-// and the "Corregir" action only appears with cash.correct.
+// M-11: the cash-cut history and closing correction are reachable from Administración ›
+// Finanzas (or from Configuración for users without Administración), and "Corregir" only
+// appears with cash.correct.
 
 const backendRoot = process.cwd();
 const frontendRoot = path.resolve(backendRoot, "../frontend");
-const frontendOrigin = "http://127.0.0.1:5173";
-const backendOrigin = "http://127.0.0.1:4000";
+// Same port override as support/app-harness.ts (to run next to the dev servers).
+const backendPort = Number(process.env.E2E_BACKEND_PORT ?? 4000);
+const frontendPort = Number(process.env.E2E_FRONTEND_PORT ?? 5173);
+const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
+const backendOrigin = `http://127.0.0.1:${backendPort}`;
 const testId = randomUUID();
 const password = `CashE2E-${testId}-Password!`;
 const correctorEmail = `cash-corrector-${testId}@example.com`;
@@ -69,6 +73,7 @@ async function login(page: Page, email: string) {
 
 async function openCashHistory(page: Page) {
   await page.goto(`${frontendOrigin}/settings`);
+  // Neither user has dashboard.read: the cuts stay in Configuración › Operación.
   await page.getByRole("button", { name: "Cortes de caja", exact: true }).click();
   await expect(page.getByRole("cell", { name: "$300.00" }).first()).toBeVisible();
 }
@@ -119,9 +124,10 @@ test.beforeAll(async () => {
 
   const { app } = await import("../../src/app");
   backendServer = createServer(app);
-  await new Promise<void>((resolve) => backendServer.listen(4000, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => backendServer.listen(backendPort, "127.0.0.1", resolve));
 
-  viteServer = spawn(process.execPath, [path.resolve(frontendRoot, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "5173"], {
+  viteServer = spawn(process.execPath, [path.resolve(frontendRoot, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(frontendPort)], {
+    env: { ...process.env, BACKEND_PROXY_URL: backendOrigin },
     cwd: frontendRoot,
     stdio: "ignore",
     windowsHide: true,
@@ -140,15 +146,20 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test("M-11: con cash.correct se corrige un corte desde Configuración → Cortes de caja", async ({ page }) => {
+test("M-11: con cash.correct se corrige un corte desde Cortes de caja", async ({ page }) => {
   await login(page, correctorEmail);
   await openCashHistory(page);
   await page.screenshot({ path: "test-results/cash-history-light.png", fullPage: true });
 
   await page.getByRole("row", { name: /\$290\.00/ }).getByRole("button", { name: "Corregir" }).click();
-  await page.getByLabel(/Nuevo monto de cierre/).fill("300");
-  await page.locator("select").first().selectOption({ index: 1 });
-  await page.getByRole("button", { name: "Guardar" }).click();
+  const correction = page.getByRole("dialog", { name: "Corregir corte" });
+  await correction.getByLabel(/Monto contado correcto/).fill("300");
+  await correction.getByLabel(/Motivo/).selectOption({ index: 1 });
+  await correction.getByRole("button", { name: "Guardar" }).click();
+  // X-04: the correction is confirmed with the previous and the new counted amount.
+  const confirm = page.getByRole("dialog", { name: "Confirmar corrección del corte" });
+  await expect(confirm.getByText(/\$290\.00 → \$300\.00/)).toBeVisible();
+  await confirm.getByRole("button", { name: "Corregir" }).click();
 
   await expect.poll(async () => (await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionId } })).closingAmount?.toNumber())
     .toBe(300);

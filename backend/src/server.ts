@@ -5,7 +5,9 @@ import { PORT as port } from "./config/app";
 import { scheduleCashAutoClose } from "./jobs/cashAutoClose.job";
 import { scheduleCashReconciliation } from "./jobs/cashReconciliation.job";
 import { scheduleScheduledOrders } from "./jobs/orderScheduled.job";
-import { checkDatabaseConnection } from "./config/prisma";
+import cron from "node-cron";
+import { checkDatabaseConnection, disconnectDatabase } from "./config/prisma";
+import { ReadinessService } from "./services/readiness.service";
 
 /**
  * User, host and database of DATABASE_URL, never the password. The user carries the Supabase
@@ -44,6 +46,7 @@ const server = app.listen(port, () => {
   logEnvironment();
   logger.info({ port, healthCheck: `http://localhost:${port}/health` }, "Backend listo");
   void checkDatabaseConnection();
+  void ReadinessService.warnIfSchemaOutdated();
   scheduleCashAutoClose();
   scheduleCashReconciliation();
   scheduleScheduledOrders();
@@ -52,3 +55,22 @@ const server = app.listen(port, () => {
 server.on("error", (error) => {
   logger.error({ errorName: error.name, errorCode: (error as NodeJS.ErrnoException).code }, "Error del servidor");
 });
+/**
+ * C1 (2026-11-14): a redeploy sends SIGTERM. Stop accepting requests, let the in-flight ones
+ * (and their transactions) finish, stop the cron jobs and close the database pool, instead of
+ * cutting everything mid-write. Forced exit after 10 s.
+ */
+function shutdown(signal: string) {
+  logger.info({ signal }, "Cerrando el backend…");
+  const forced = setTimeout(() => process.exit(1), 10_000);
+  forced.unref();
+  for (const task of cron.getTasks().values()) task.stop();
+  server.close(async () => {
+    await disconnectDatabase();
+    logger.info("Backend cerrado");
+    process.exit(0);
+  });
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));

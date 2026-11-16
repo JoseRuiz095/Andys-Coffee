@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { InventoryService } from '../services/inventory.service';
+import { RecipeService } from '../services/recipe.service';
+import { InventorySettingsService } from '../services/inventory-settings.service';
+import { ReplenishmentService } from '../services/replenishment.service';
+import { replenishmentQuerySchema } from '../validators/inventory.validator';
 import { inventoryListSchema, inventoryMovementsSchema, inventoryExitSchema, ingredientCreateSchema, ingredientUpdateSchema } from '../validators/inventory.validator';
 import { searchQuerySchema } from '../validators/common.validator';
 import { AuthUser } from '../services/auth.service';
@@ -33,6 +37,23 @@ export const InventoryController = {
 
   async getLowStock(req: Request, res: Response) {
     res.json(await InventoryService.getLowStock(req.user as AuthUser));
+  },
+
+  async getReplenishment(req: Request, res: Response) {
+    const { days } = replenishmentQuerySchema.parse(req.query);
+    res.json(await ReplenishmentService.getSuggestions(days, req.user as AuthUser));
+  },
+
+  async getSettings(_req: Request, res: Response) {
+    res.json(await InventorySettingsService.get());
+  },
+
+  async updateSettings(req: Request, res: Response) {
+    res.json(await InventorySettingsService.update(req.body as { consumeOnSale?: boolean; lowStockNotify?: boolean }, req.user as AuthUser));
+  },
+
+  async getProductsWithoutRecipe(_req: Request, res: Response) {
+    res.json(await RecipeService.findProductsMissingRecipe());
   },
 
   async getSummary(req: Request, res: Response) {

@@ -3,11 +3,15 @@ import type { DayFinancialSummary } from '../api/income-statement.api';
 import { StatBlock } from './StatBlock';
 import { EditAccumulatedBalancesModal } from './EditAccumulatedBalancesModal';
 import { getTodayDateString } from '../../../shared/utils/dateUtils';
+import { useCurrentUser } from '../../auth/hooks/useCurrentUser';
+import { hasPermission, SETTINGS_PERMISSION } from '../../auth/utils/permissions';
 
 export function SaldosAcumuladosSection({ summary }: { summary: DayFinancialSummary }) {
   const { saldosAcumulados, date } = summary;
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const isToday = date === getTodayDateString();
+  // PATCH /income-statement/day/accumulated-balances requires settings.manage.
+  const canEdit = hasPermission(useCurrentUser(), SETTINGS_PERMISSION);
 
   return (
     <>
@@ -19,11 +23,12 @@ export function SaldosAcumuladosSection({ summary }: { summary: DayFinancialSumm
           <h3 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
             Saldos Acumulados
           </h3>
-          {isToday && (
+          {isToday && canEdit && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="rounded px-3 py-1 text-sm font-semibold transition hover:opacity-80"
-              style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+              type="button"
+              className="rounded-lg px-3 py-1 text-sm font-semibold transition hover:bg-[var(--color-surface-hover)]"
+              style={{ color: 'var(--color-primary)' }}
             >
               Editar
             </button>

@@ -1,10 +1,8 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
+import React, { useId } from 'react';
 import { useSettlePayment } from '../hooks/usePendingPayments';
 import type { PendingPayment, SettleMethod } from '../api/pending-payments.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency';
-import { useBodyScrollLock } from '../../../shared/hooks/useBodyScrollLock';
-import { useOverlayEscape } from '../../../shared/hooks/useOverlayEscape';
+import { Modal } from '../../../shared/components/Modal';
 
 interface SettlePaymentModalProps {
   isOpen: boolean;
@@ -16,10 +14,11 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
   const { mutate: settlePayment, isPending } = useSettlePayment();
   const [method, setMethod] = React.useState<SettleMethod>('cash');
   const [cashReceived, setCashReceived] = React.useState('');
-  useBodyScrollLock(isOpen);
-  useOverlayEscape(isOpen, () => {
+  const titleId = useId();
+  // Escape, the backdrop and "Cancelar" are ignored while the request is in flight.
+  const handleClose = () => {
     if (!isPending) onClose();
-  });
+  };
 
   // Default to cash each time the modal opens (adjusting state during render, not in an effect).
   const [wasOpen, setWasOpen] = React.useState(false);
@@ -48,20 +47,10 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
     );
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={() => {
-        if (!isPending) onClose();
-      }}
-      style={{ backdropFilter: 'blur(4px)' }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl p-6 shadow-lg"
-        style={{ backgroundColor: 'var(--color-surface)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+  return (
+    <Modal isOpen onClose={handleClose} ariaLabelledBy={titleId}>
+      <div className="p-6">
+        <h2 id={titleId} className="text-lg font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
           Liquidar Pago Pendiente
         </h2>
 
@@ -125,7 +114,7 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
 
         <div className="flex gap-2 justify-end">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
             className="rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
@@ -135,14 +124,13 @@ export function SettlePaymentModal({ isOpen, payment, onClose }: SettlePaymentMo
           <button
             onClick={handleConfirm}
             disabled={isPending || !canConfirm}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-button-text)] transition disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             {isPending ? 'Liquidando...' : 'Confirmar cobro'}
           </button>
         </div>
       </div>
-    </div>,
-    document.getElementById('modal-root') ?? document.body,
+    </Modal>
   );
 }

@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ExpenseService } from '../services/expense.service';
-import { incomeStatementRepository } from '../repositories/income-statement.repository';
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -36,18 +35,7 @@ export const createExpense = asyncHandler(async (req: Request, res: Response) =>
   }
   const expense = await ExpenseService.create(input, userId, idempotencyKey);
 
-  // Check if category matches nomina/servicios and fixed expenses are configured
-  let warning: string | null = null;
-  if (['nomina', 'servicios'].includes(input.category)) {
-    try {
-      const fixedExpenses = await incomeStatementRepository.getFixedExpenseConcepts();
-      if (fixedExpenses && Object.values(fixedExpenses).some((val) => val > 0)) {
-        warning = '⚠️ Aviso: Gastos fijos (nomina/servicios) ya se descuentan automáticamente. Verificar que no esté duplicando.';
-      }
-    } catch {
-      // Silently ignore error in warning check
-    }
-  }
+  const warning = await ExpenseService.fixedExpenseOverlapWarning(input.category);
 
   auditLog(
     {

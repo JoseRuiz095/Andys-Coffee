@@ -16,8 +16,8 @@ const CATEGORY_ID = '55555555-5555-4555-8555-555555555555';
 function catalog(overrides: Partial<SaleCatalog> = {}): SaleCatalog {
   return {
     products: [
-      { id: PRODUCT_ID, name: 'Bagel', temperature: null, jumboPrice: null, categoryId: CATEGORY_ID, category: { name: 'Bagels' }, price: money(50), cost: money(20) },
-      { id: OTHER_PRODUCT_ID, name: 'Latte Vainilla', temperature: 'BOTH', jumboPrice: money(70), categoryId: null, category: { name: 'Bebidas' }, price: money(60), cost: money(15) },
+      { id: PRODUCT_ID, name: 'Bagel', temperature: null, jumboPrice: null, categoryId: CATEGORY_ID, category: { name: 'Bagels', isBeverage: false }, price: money(50), cost: money(20) },
+      { id: OTHER_PRODUCT_ID, name: 'Latte Vainilla', temperature: 'BOTH', jumboPrice: money(70), categoryId: null, category: { name: 'Bebidas', isBeverage: true }, price: money(60), cost: money(15) },
     ],
     combos: [{
       id: COMBO_ID,
@@ -87,6 +87,9 @@ test('Jumbo usa su precio y la temperatura es obligatoria en bebidas que admiten
   assert.equal(jumbo.total.toNumber(), 70);
   assert.equal(jumbo.items[0].lines[0].productName, 'Latte Vainilla Jumbo');
   assert.equal(jumbo.items[0].lines[0].temperature, 'COLD');
+  assert.equal(jumbo.items[0].lines[0].size, 'JUMBO', 'the line records its size (its recipe)');
+  const regular = priceSale([{ productId: OTHER_PRODUCT_ID, quantity: 1, temperature: 'HOT' }], catalog());
+  assert.equal(regular.items[0].lines[0].size, 'REGULAR');
 
   assert.throws(() => priceSale([{ productId: OTHER_PRODUCT_ID, quantity: 1 }], catalog()), { name: 'ValidationError' });
   assert.throws(() => priceSale([{ productId: PRODUCT_ID, quantity: 1, size: 'JUMBO' }], catalog()), { name: 'ValidationError' });

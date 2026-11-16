@@ -10,6 +10,7 @@ import {
   getBusinessMidpointInstant,
   getZonedTimeOfDay,
   getCalendarDateAsUtc,
+  getBusinessDayEndAfter,
 } from '../src/utils/businessDate';
 
 const TZ = 'America/Mexico_City'; // UTC-6 (no DST in Mexico as of 2022+)
@@ -83,4 +84,18 @@ test('L-07: getCalendarDateAsUtc returns the calendar date as stored in date-onl
   const { date, weekday } = getCalendarDateAsUtc('2026-09-23');
   assert.equal(date.toISOString(), '2026-09-23T00:00:00.000Z');
   assert.equal(weekday, 3); // Wednesday, regardless of the server timezone
+});
+
+// F1 (estabilización 2026-11-14): the auto-close used to compare only the hour.
+test('getBusinessDayEndAfter: first closing time (hours and minutes) after the opening', () => {
+  // Opened 09:00 local (15:00Z); close 22:30 → 22:30 local the same day (04:30Z next day), not 22:00.
+  const opened = new Date('2026-11-14T15:00:00Z');
+  assert.equal(getBusinessDayEndAfter(opened, '22:30', TZ).toISOString(), '2026-11-15T04:30:00.000Z');
+  // Close after midnight: "01:30" ends the business day the next night, not 15 minutes after opening.
+  assert.equal(getBusinessDayEndAfter(opened, '01:30', TZ).toISOString(), '2026-11-15T07:30:00.000Z');
+  assert.equal(getBusinessDayEndAfter(opened, '00:00', TZ).toISOString(), '2026-11-15T06:00:00.000Z');
+  // A drawer opened after midnight but before the closing time closes that same night.
+  assert.equal(getBusinessDayEndAfter(new Date('2026-11-15T06:30:00Z'), '01:30', TZ).toISOString(), '2026-11-15T07:30:00.000Z');
+  // A drawer opened after the closing time (22:05 with close 22:00) is not closed 10 minutes later.
+  assert.equal(getBusinessDayEndAfter(new Date('2026-11-15T04:05:00Z'), '22:00', TZ).toISOString(), '2026-11-16T04:00:00.000Z');
 });
