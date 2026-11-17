@@ -41,6 +41,8 @@ export interface ReplenishmentSuggestion {
   coverageDays: number | null;
   target: number;
   suggestedQuantity: number;
+  /** With a product filter: the stock does not cover one unit of that product. */
+  shortForProduct?: boolean;
   lastSupplier: { id: string; name: string } | null;
   lastPurchasedAt: string | null;
   unitCost: number;
@@ -99,6 +101,34 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface ProductCoverageLine {
+  ingredientId: string;
+  name: string;
+  unit: string;
+  /** Per unit sold, in the ingredient's base unit. */
+  quantity: number;
+  currentStock: number;
+  /** Whole units this ingredient alone covers. */
+  units: number;
+}
+
+export interface ProductCoverageVariant {
+  size: 'REGULAR' | 'JUMBO';
+  temperature: 'HOT' | 'COLD' | null;
+  units: number;
+  limitingIngredientIds: string[];
+  lines: ProductCoverageLine[];
+}
+
+export interface ProductCoverage {
+  id: string;
+  name: string;
+  category: string | null;
+  /** Units of the variant that runs out first. */
+  units: number;
+  variants: ProductCoverageVariant[];
+}
+
 export const inventoryApi = {
   // Get summary stats
   getSummary: async () => {
@@ -114,8 +144,10 @@ export const inventoryApi = {
 
   // Get low stock ingredients
   /** Restock suggestions from the consumption of the last `days`. */
-  getReplenishment: async (days: number) => {
-    const response = await apiClient.get<ReplenishmentSuggestion[]>('/inventory/replenishment', { params: { days } });
+  getReplenishment: async (days: number, productId?: string) => {
+    const response = await apiClient.get<ReplenishmentSuggestion[]>('/inventory/replenishment', {
+      params: { days, ...(productId && { productId }) },
+    });
     return response.data;
   },
 
@@ -142,6 +174,12 @@ export const inventoryApi = {
     return response.data;
   },
 
+  /** How many units of each product with a recipe the current stock covers (shortest first). */
+  getProductCoverage: async () => {
+    const response = await apiClient.get<ProductCoverage[]>('/inventory/product-coverage');
+    return response.data;
+  },
+
   getLowStock: async () => {
     const response = await apiClient.get<InventoryIngredient[]>('/inventory/low-stock');
     return response.data;
@@ -154,6 +192,7 @@ export const inventoryApi = {
     search?: string;
     status?: 'all' | 'normal' | 'low_stock' | 'out_of_stock';
     isActive?: boolean;
+    productId?: string;
   } = {}) => {
     const response = await apiClient.get<PaginatedResponse<InventoryIngredient>>(
       '/inventory',

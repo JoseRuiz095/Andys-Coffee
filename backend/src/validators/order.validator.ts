@@ -26,6 +26,12 @@ export const orderItemSchema = z.strictObject({
   size: z.enum(['JUMBO']).optional(),
   note: z.string().trim().max(500).optional().nullable(),
   extras: z.array(orderItemExtraSchema).max(20).optional(),
+  // Combos: hot or cold for each of its drinks sold both ways (audit 2026-11-17, A3), so the
+  // line consumes the right cup and ice and the board shows it.
+  comboTemperatures: z.array(z.strictObject({
+    productId: z.string().uuid(),
+    temperature: z.enum(['HOT', 'COLD']),
+  })).max(20).optional(),
 }).refine((item) => Boolean(item.productId) !== Boolean(item.comboId), {
   message: 'Cada item debe contener exactamente un productId o comboId.',
 }).refine((item) => !item.comboId || !item.extras?.length, {
@@ -34,6 +40,8 @@ export const orderItemSchema = z.strictObject({
   message: 'Los combos no pueden tener una temperatura individual.',
 }).refine((item) => !item.comboId || item.size === undefined, {
   message: 'Los combos no pueden tener un tamaño individual.',
+}).refine((item) => !item.productId || item.comboTemperatures === undefined, {
+  message: 'La temperatura por bebida solo aplica a combos.',
 });
 
 const orderItemsSchema = z.array(orderItemSchema).min(1, 'El pedido debe tener al menos un producto.').max(100);

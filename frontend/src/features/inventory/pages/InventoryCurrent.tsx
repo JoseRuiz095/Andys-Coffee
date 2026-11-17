@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
-import { useInventoryList, useInventorySummary } from '../hooks/useInventory'
+import { useInventoryList, useInventorySummary, useProductCoverage } from '../hooks/useInventory'
+import { ProductCoverageCard } from '../components/ProductCoverageCard'
 import type { UseInventoryListParams } from '../hooks/useInventory'
 import { InventoryAttention } from '../components/InventoryAttention'
+import { ConsumptionOffNotice } from '../components/ConsumptionOffNotice'
 import { InventorySettingsMenu } from '../components/InventorySettingsCard'
 import { InventoryTable } from '../components/InventoryTable'
 import { PageHeader } from '../../../shared/components/PageHeader'
@@ -30,12 +32,18 @@ export function InventoryCurrent() {
   // One request once the user stops typing, not one per keystroke.
   const debouncedSearch = useDebouncedValue(search, 300)
   const [status, setStatus] = useState<StockStatusFilter>('all')
+  // Product filter: only the ingredients of its recipe, and how many units the stock covers.
+  const [productId, setProductId] = useState('')
+  const { data: coverage = [] } = useProductCoverage()
+  const selectedProduct = coverage.find((product) => product.id === productId)
+  const productOptions = [...coverage].sort((a, b) => a.name.localeCompare(b.name, 'es'))
 
   const queryParams: UseInventoryListParams = {
     page,
     limit: 20,
     search: debouncedSearch || undefined,
     status,
+    productId: productId || undefined,
   }
 
   const { data, isLoading, error, refetch, isFetching } = useInventoryList(queryParams)
@@ -55,7 +63,12 @@ export function InventoryCurrent() {
     setPage(1)
   }
 
-  const hasFilters = Boolean(search) || status !== 'all'
+  const handleProductChange = (id: string) => {
+    setProductId(id)
+    setPage(1)
+  }
+
+  const hasFilters = Boolean(search) || status !== 'all' || Boolean(productId)
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -76,6 +89,8 @@ export function InventoryCurrent() {
         isLoading={isSummaryLoading}
       />
 
+      <ConsumptionOffNotice onShowProducts={() => navigateTo('/dashboard?view=inventario&inv=management&gestion=products')} />
+
       <InventoryAttention
         onShowLowStock={() => handleStatusChange('low_stock')}
         onShowProducts={() => navigateTo('/dashboard?view=inventario&inv=management&gestion=products')}
@@ -86,6 +101,7 @@ export function InventoryCurrent() {
         onClear={() => {
           handleSearch('')
           handleStatusChange('all')
+          handleProductChange('')
         }}
       >
         <input
@@ -106,7 +122,22 @@ export function InventoryCurrent() {
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
+        <select
+          value={productId}
+          onChange={(e) => handleProductChange(e.target.value)}
+          aria-label="Filtrar por producto"
+          className={`${FILTER_FIELD_CLASS} w-full sm:w-72`}
+        >
+          <option value="">Todos los productos</option>
+          {productOptions.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name} — {product.units <= 0 ? 'no alcanza' : `alcanza para ${product.units}`}
+            </option>
+          ))}
+        </select>
       </FilterBar>
+
+      {selectedProduct && <ProductCoverageCard product={selectedProduct} onClear={() => handleProductChange('')} />}
 
       {error ? (
         <QueryErrorState error={error} subject="las existencias" onRetry={() => void refetch()} isRetrying={isFetching} />

@@ -17,8 +17,12 @@ export function useLowStock() {
   });
 }
 
-export function useReplenishment(days: number) {
-  return useQuery({ queryKey: ['inventory', 'replenishment', days], queryFn: () => inventoryApi.getReplenishment(days) });
+/** With a product, only its recipe's ingredients, including those that don't cover one unit. */
+export function useReplenishment(days: number, productId?: string) {
+  return useQuery({
+    queryKey: ['inventory', 'replenishment', days, productId ?? null],
+    queryFn: () => inventoryApi.getReplenishment(days, productId),
+  });
 }
 
 export function useInventorySettings() {
@@ -37,6 +41,14 @@ export function useProductsWithoutRecipe() {
   return useQuery({
     queryKey: ['inventory', 'products-without-recipe'],
     queryFn: () => inventoryApi.getProductsWithoutRecipe(),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProductCoverage() {
+  return useQuery({
+    queryKey: ['inventory', 'product-coverage'],
+    queryFn: () => inventoryApi.getProductCoverage(),
     staleTime: 60 * 1000,
   });
 }
@@ -99,6 +111,8 @@ export interface UseInventoryListParams {
   search?: string;
   status?: 'all' | 'normal' | 'low_stock' | 'out_of_stock';
   isActive?: boolean;
+  /** Only the ingredients of this product's recipe. */
+  productId?: string;
 }
 
 export function useInventoryList(params: UseInventoryListParams = {}) {

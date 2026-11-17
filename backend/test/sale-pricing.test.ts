@@ -24,8 +24,8 @@ function catalog(overrides: Partial<SaleCatalog> = {}): SaleCatalog {
       name: 'Desayuno',
       price: money(100),
       items: [
-        { productId: PRODUCT_ID, quantity: money(1), product: { id: PRODUCT_ID, name: 'Bagel', cost: money(20), isActive: true } },
-        { productId: OTHER_PRODUCT_ID, quantity: money(2), product: { id: OTHER_PRODUCT_ID, name: 'Latte Vainilla', cost: money(15), isActive: true } },
+        { productId: PRODUCT_ID, quantity: money(1), product: { id: PRODUCT_ID, name: 'Bagel', cost: money(20), isActive: true, temperature: null, category: { isBeverage: false } } },
+        { productId: OTHER_PRODUCT_ID, quantity: money(2), product: { id: OTHER_PRODUCT_ID, name: 'Latte Vainilla', cost: money(15), isActive: true, temperature: 'BOTH', category: { isBeverage: true } } },
       ],
     }],
     extras: [{ id: EXTRA_ID, name: 'Queso', price: money(10), cost: money(4) }],
@@ -72,7 +72,7 @@ test('los extras suman al total y a su costo, pero no reciben descuento', () => 
 });
 
 test('un combo se reparte entre sus productos y sus líneas suman su precio', () => {
-  const result = priceSale([{ comboId: COMBO_ID, quantity: 3 }], catalog());
+  const result = priceSale([{ comboId: COMBO_ID, quantity: 3, comboTemperatures: [{ productId: OTHER_PRODUCT_ID, temperature: 'HOT' }] }], catalog());
 
   assert.equal(result.total.toNumber(), 300);
   const lines = result.items[0].lines;
@@ -117,4 +117,15 @@ test('el extra es por unidad: dos productos con "2 de queso" llevan cuatro', () 
   assert.equal(extra.subtotal.toNumber(), 40);
   assert.equal(result.total.toNumber(), 100 + 40);
   assert.equal(result.totalCost.toNumber(), 40 + 16);
+});
+
+test('A3: la bebida fría/caliente de un combo lleva la temperatura elegida (su receta y su vaso)', () => {
+  const cold = priceSale([{ comboId: COMBO_ID, quantity: 1, comboTemperatures: [{ productId: OTHER_PRODUCT_ID, temperature: 'COLD' }] }], catalog());
+  const [bagel, latte] = cold.items[0].lines;
+  assert.equal(latte.temperature, 'COLD');
+  assert.equal(bagel.temperature, null, 'lo que no es bebida no lleva temperatura');
+  assert.throws(
+    () => priceSale([{ comboId: COMBO_ID, quantity: 1 }], catalog()),
+    /Selecciona caliente o frío para Latte Vainilla del combo Desayuno/,
+  );
 });

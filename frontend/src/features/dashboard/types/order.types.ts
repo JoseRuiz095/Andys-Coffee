@@ -1,5 +1,5 @@
 import type { OrderTemperature } from '../../../shared/utils/productTemperature'
-import type { SelectedExtra } from '../../menu/types/menu.types'
+import type { ComboTemperature, SelectedExtra } from '../../menu/types/menu.types'
 
 export interface OrderItemExtra {
   extraId: string;
@@ -14,6 +14,8 @@ export interface CreateOrderItem {
   size?: 'JUMBO';
   note?: string | null;
   extras?: OrderItemExtra[];
+  /** Combos: hot/cold of each drink sold both ways. */
+  comboTemperatures?: ComboTemperature[];
 }
 
 export interface CreateOrderPayload {
@@ -54,5 +56,7 @@ export interface OrderItem {
   type: 'product' | 'combo'
   /** Extras of each unit of the line (2 lattes with 1 shot = 2 shots). */
   extras?: SelectedExtra[]
+  /** Combos: hot/cold of each of its drinks sold both ways (names kept to show them). */
+  comboTemperatures?: (ComboTemperature & { name: string })[]
   }
 

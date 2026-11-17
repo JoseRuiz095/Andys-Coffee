@@ -20,6 +20,8 @@
     "images:build": "tsx scripts/build-menu-images.ts",
     "images:migrate": "tsx scripts/migrate-menu-images.ts",
     "images:migrate:prod": "cross-env NODE_ENV=production tsx scripts/migrate-menu-images.ts",
+    "seed:inventory": "tsx scripts/load-opening-stock.ts",
+    "seed:inventory:prod": "cross-env NODE_ENV=production tsx scripts/load-opening-stock.ts",
     "catalog:sync-menu:dev-to-prod": "tsx scripts/sync-sales-menu-dev-to-prod.ts",
     "db:replicate-prod-to-dev": "tsx scripts/replicate-prod-to-dev.ts",
     "db:reset-operations": "tsx scripts/reset-operational-data.ts",

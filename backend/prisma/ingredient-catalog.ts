@@ -2,7 +2,8 @@
  * Business ingredient list, in base units (gr, ml, pz). Loaded by
  * `scripts/normalize-catalog.ts --with-ingredients`: creates the ingredients that don't exist
  * yet (matched by normalized name), with a INS-### SKU and zero stock. It never touches
- * existing ingredients or stock — the opening balance comes from a physical count.
+ * existing ingredients or stock. The opening balance comes from prisma/opening-stock.ts
+ * (scripts/load-opening-stock.ts) or from a physical count.
  *
  * Replaces scripts/seed-inventory.ts (2026-11-11), which looked units up by names that don't
  * exist ("g", "L", "pieza"…), so it created duplicate units, and stocked cups, lids,
@@ -50,22 +51,22 @@ export const INGREDIENT_CATALOG: IngredientCatalogEntry[] = [
   { name: 'Crema para batir', unit: 'gr' },
 
   // Desechables y empaque
-  { name: 'Vaso café caliente', unit: 'pz', review: 'Antes en gramos.' },
+  { name: 'Vaso café caliente', unit: 'pz', review: 'Se pesa, pero la receta descuenta 1 pz: el saldo inicial usa PIECE_WEIGHT_GRAMS (opening-stock.ts).' },
   { name: 'Vaso café frio', unit: 'pz' },
   { name: 'Vaso chico con tapa', unit: 'pz' },
-  { name: 'Vaso mini con tapa', unit: 'pz', review: 'Antes en gramos.' },
+  { name: 'Vaso mini con tapa', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
   { name: 'Vaso espresso con tapa', unit: 'pz' },
-  { name: 'Tapa vaso caliente', unit: 'pz', review: 'Antes en gramos.' },
+  { name: 'Tapa vaso caliente', unit: 'pz', review: 'Se pesa, pero la receta descuenta 1 pz: el saldo inicial usa PIECE_WEIGHT_GRAMS (opening-stock.ts).' },
   { name: 'Tapa vaso frio', unit: 'pz' },
-  { name: 'Popotes', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Servilletas', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Sello para café', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Batidor para café', unit: 'pz', review: 'Antes en gramos.' },
+  { name: 'Popotes', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Servilletas', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Sello para café', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Batidor para café', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
   { name: 'Bandeja transportadora café', unit: 'pz' },
-  { name: 'Bolsa camiseta amarilla', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Bolsa celofan para cubiertos', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Fajo de carton', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Papel decorativo', unit: 'pz', review: 'Antes en gramos.' },
+  { name: 'Bolsa camiseta amarilla', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Bolsa celofan para cubiertos', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Fajo de carton', unit: 'pz', review: 'Se pesa, pero la receta descuenta 1 pz: el saldo inicial usa PIECE_WEIGHT_GRAMS (opening-stock.ts).' },
+  { name: 'Papel decorativo', unit: 'pz', review: 'Se pesa, pero la receta descuenta 1 pz: el saldo inicial usa PIECE_WEIGHT_GRAMS (opening-stock.ts).' },
   { name: 'Contenedor negro', unit: 'pz' },
   { name: 'Tapa contenedor negro', unit: 'pz' },
   { name: 'Contenedor transparente', unit: 'pz' },
@@ -77,14 +78,15 @@ export const INGREDIENT_CATALOG: IngredientCatalogEntry[] = [
   { name: 'Cubiertos (tenedor, cuchillo)', unit: 'pz' },
   { name: 'Sticker ANDYS', unit: 'pz' },
   { name: 'Sticker REDONDO', unit: 'pz' },
-  { name: 'Sobrecito azucar', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Sobrecito catsup', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Sobrecito crema en polvo', unit: 'pz', review: 'Antes en gramos.' },
-  { name: 'Desinfectante', unit: 'ml', review: 'Antes en gramos.' },
+  { name: 'Sobrecito azucar', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Sobrecito catsup', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Sobrecito crema en polvo', unit: 'gr', review: 'Se pesa (gr): son muchos para contarlos uno por uno.' },
+  { name: 'Desinfectante', unit: 'gr', review: 'Se pesa (gr).' },
 
   // Panadería y cocina
   { name: 'Bagels', unit: 'pz'},
   { name: 'Mini bagel', unit: 'pz' },
+  { name: 'Bagel congelado', unit: 'pz', review: 'Nuevo: lo usa la receta del Bagel americano.' },
   { name: 'Croissants', unit: 'pz' },
   { name: 'Pan frances', unit: 'pz' },
   { name: 'Pan blanco', unit: 'pz' },
@@ -130,7 +132,7 @@ export const INGREDIENT_CATALOG: IngredientCatalogEntry[] = [
   { name: 'Ajo', unit: 'gr' },
   { name: 'Ajo en polvo', unit: 'gr' },
   { name: 'Ensalada', unit: 'pz' },
-  { name: 'Aguacate', unit: 'pz' },
+  { name: 'Aguacate', unit: 'gr', review: 'Las recetas usan gr (50 gr); load-recipes.ts lo cambia de pz a gr.' },
   { name: 'Calabacita', unit: 'gr' },
   { name: 'Cebolla', unit: 'gr', review: 'Antes en kilogramos.' },
   { name: 'Chile chipotle', unit: 'gr' },

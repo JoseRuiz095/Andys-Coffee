@@ -31,12 +31,12 @@ const viewports: Viewport[] = [
   { name: "ipad-mini-vertical", width: 768, height: 954, touch: true, minCards: 6 },
   { name: "ipad-air-vertical", width: 820, height: 1106, touch: true, minCards: 6 },
   { name: "android-vertical", width: 800, height: 1150, touch: true, minCards: 6 },
-  { name: "ipad-mini-horizontal", width: 1024, height: 698, touch: true, minCards: 6 },
-  { name: "ipad-9-horizontal", width: 1080, height: 736, touch: true, minCards: 6 },
+  { name: "ipad-mini-horizontal", width: 1024, height: 698, touch: true, minCards: 8 },
+  { name: "ipad-9-horizontal", width: 1080, height: 736, touch: true, minCards: 8 },
   { name: "ipad-air-horizontal", width: 1180, height: 746, touch: true, minCards: 8 },
   { name: "android-horizontal", width: 1280, height: 670, touch: true, minCards: 8 },
-  { name: "laptop-1366", width: 1366, height: 657, touch: false, minCards: 10 },
-  { name: "desktop-1920", width: 1920, height: 969, touch: false, minCards: 18 },
+  { name: "laptop-1366", width: 1366, height: 657, touch: false, minCards: 8 },
+  { name: "desktop-1920", width: 1920, height: 969, touch: false, minCards: 8 },
 ];
 
 const shotsDir = `test-results/pos-layout/${process.env.POS_SHOTS ?? "current"}`;

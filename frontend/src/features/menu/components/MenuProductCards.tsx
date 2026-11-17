@@ -15,12 +15,14 @@ const cardStyle = (inOrder: boolean) => ({
 /**
  * The menu photos are square cut-outs (cups, bagels). They sit in a square tile centered in the
  * image band and are never cropped, so the product looks the same whatever the card width (a
- * fixed-height band with `object-cover` cut the lid or the base of the cups on wide cards).
+ * fixed-height band with `object-cover` cut the lid or the base of the cups on wide cards). The band
+ * keeps 16:9 with four columns (two rows fit on a tablet in landscape or a laptop) and 4:3 with
+ * three (portrait, where height is to spare), so the photo grows with the card and the cards of a row line up.
  */
 function CardImage({ src, alt, quantityInOrder, options }: { src: string | null | undefined; alt: string; quantityInOrder: number; options?: number }) {
   return (
-    <div className="relative flex h-28 shrink-0 items-center justify-center p-2" style={{ backgroundColor: 'var(--color-background)' }}>
-      <div className="aspect-square h-full overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-image-tile)' }}>
+    <div className="relative flex aspect-[4/3] @[36rem]:aspect-[16/9] w-full shrink-0 items-center justify-center overflow-hidden p-2" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="aspect-square h-full max-w-full overflow-hidden rounded-xl" style={{ backgroundColor: 'var(--color-image-tile)' }}>
         <ProductImage src={src} alt={alt} fit="contain" className="transition-transform group-hover:scale-105" />
       </div>
       {options !== undefined && (
@@ -93,16 +95,23 @@ interface ProductCardProps {
   onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
   /** Called instead of adding right away when the product offers extras. */
   onChooseExtras?: (product: MenuItem) => void
+  /** Called instead of adding right away when a combo has drinks sold hot and cold. */
+  onChooseComboTemperatures?: (combo: MenuItem) => void
   /** Units of this product already in the order. */
   quantityInOrder?: number
   caption?: string
 }
 
-export function ProductCard({ product, onAddToOrder, onChooseExtras, quantityInOrder = 0, caption }: ProductCardProps) {
+export function ProductCard({ product, onAddToOrder, onChooseExtras, onChooseComboTemperatures, quantityInOrder = 0, caption }: ProductCardProps) {
+  const handleClick = () => {
+    if (product.type === 'combo' && product.temperatureChoices?.length && onChooseComboTemperatures) return onChooseComboTemperatures(product)
+    if (product.extras?.length && onChooseExtras) return onChooseExtras(product)
+    onAddToOrder?.(product, 1)
+  }
   return (
     <button
       type="button"
-      onClick={() => (product.extras?.length && onChooseExtras ? onChooseExtras(product) : onAddToOrder?.(product, 1))}
+      onClick={handleClick}
       className={cardClassName}
       style={cardStyle(quantityInOrder > 0)}
     >

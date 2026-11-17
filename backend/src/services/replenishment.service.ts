@@ -1,4 +1,5 @@
 import { ReplenishmentRepository } from '../repositories/replenishment.repository';
+import { RecipeRepository } from '../repositories/recipe.repository';
 import { AuthorizationError } from '../utils/errors';
 import type { AuthUser } from './auth.service';
 
@@ -16,6 +17,9 @@ const round = (value: number, places = 2) => Math.round(value * 10 ** places) / 
  * - Suggested when the stock is at/below the minimum or covers less than LOW_COVERAGE_DAYS;
  *   quantity = what reaches the target (a week of consumption when the target is already met),
  *   never above the maximum stock.
+ * - With `perUnit` (the most a product's recipe uses of it, when filtering by product): also
+ *   suggested when the stock does not cover one unit of the product, buying at least the
+ *   shortfall, even with no minimum or consumption recorded yet.
  */
 export function suggestReplenishment(input: {
   current: number;
@@ -23,6 +27,7 @@ export function suggestReplenishment(input: {
   maximum: number | null;
   consumed: number;
   days: number;
+  perUnit?: number;
 }) {
   const dailyConsumption = input.consumed > 0 ? input.consumed / input.days : 0;
   const coverageDays = dailyConsumption > 0 ? Math.max(0, input.current) / dailyConsumption : null;
@@ -35,19 +40,21 @@ export function suggestReplenishment(input: {
   const toTarget = target - input.current;
   const raw = toTarget > 0 ? toTarget : dailyConsumption * COVERAGE_PURCHASE_DAYS - input.current;
   const capped = input.maximum !== null ? Math.min(raw, input.maximum - input.current) : raw;
-  const suggested = needed ? Math.max(0, capped) : 0;
+  const shortForProduct = input.perUnit !== undefined && input.perUnit > 0 && input.current < input.perUnit;
+  const suggested = Math.max(needed ? Math.max(0, capped) : 0, shortForProduct ? input.perUnit! - input.current : 0);
   return {
     dailyConsumption: round(dailyConsumption, 4),
     coverageDays: coverageDays === null ? null : round(coverageDays, 1),
     target: round(target, 4),
-    needed,
+    needed: needed || shortForProduct,
+    shortForProduct,
     suggestedQuantity: round(Math.ceil(suggested * 100) / 100),
   };
 }
 
 export const ReplenishmentService = {
   /** Ingredients to restock, most urgent first (lowest coverage, then most below the minimum). */
-  async getSuggestions(days: number, user: AuthUser) {
+  async getSuggestions(days: number, user: AuthUser, productId?: string) {
     if (!user.permissions?.includes('inventory.view')) {
       throw new AuthorizationError('No tienes permiso para ver el inventario.');
     }
@@ -57,7 +64,16 @@ export const ReplenishmentService = {
       ReplenishmentRepository.sumConsumptionSince(since),
     ]);
 
-    const rows = ingredients.map((ingredient) => {
+    // Filtering by product: only its recipe's ingredients, with the most one unit uses of each
+    // (any size or temperature).
+    const perUnit = productId ? new Map<string, number>() : null;
+    if (perUnit && productId) {
+      for (const line of await RecipeRepository.findProductRecipe(productId)) {
+        perUnit.set(line.ingredientId, Math.max(perUnit.get(line.ingredientId) ?? 0, line.quantity.toNumber()));
+      }
+    }
+
+    const rows = ingredients.filter((ingredient) => !perUnit || perUnit.has(ingredient.id)).map((ingredient) => {
       const net = consumption.get(ingredient.id);
       const suggestion = suggestReplenishment({
         current: ingredient.currentStock.toNumber(),
@@ -65,6 +81,7 @@ export const ReplenishmentService = {
         maximum: ingredient.maximumStock?.toNumber() ?? null,
         consumed: net ? -net.toNumber() : 0,
         days,
+        perUnit: perUnit?.get(ingredient.id),
       });
       return { ingredient, suggestion };
     }).filter(({ suggestion }) => suggestion.needed && suggestion.suggestedQuantity > 0);

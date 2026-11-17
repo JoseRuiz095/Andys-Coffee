@@ -1,12 +1,13 @@
 import React from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { XIcon } from '../../../components/ui/XIcon'
-import type { MenuCategory, MenuItem, SelectedExtra } from '../types/menu.types'
+import type { MenuCategory, MenuItem, SelectedExtra, ComboTemperature } from '../types/menu.types'
 import { normalizeProductName, familyOf, type DisplayProduct } from '../utils/productFamilies'
 import { menuItemKey, searchMenu } from '../utils/menuSearch'
 import { ProductCard, ProductFamilyCard } from './MenuProductCards'
 import { ProductFamilyModal } from './ProductFamilyModal'
 import { ProductExtrasModal } from './ProductExtrasModal'
+import { ComboTemperatureModal } from './ComboTemperatureModal'
 
 interface MenuSectionProps {
   menu?: MenuCategory[]
@@ -14,14 +15,15 @@ interface MenuSectionProps {
   isLoading?: boolean
   selectedCategory?: string
   onSelectCategory?: (category: string) => void
-  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[]) => void
+  onAddToOrder?: (product: MenuItem, quantity: number, extras?: SelectedExtra[], comboTemperatures?: ComboTemperature[]) => void
   /** Units already in the order per menu item (`menuItemKey`), shown on the cards. */
   quantities?: ReadonlyMap<string, number>
 }
 
-// Cards fill the width with as many columns as fit (2 on a tablet in portrait, 3–4 in
-// landscape, 5+ on a desktop), instead of a fixed count per window width.
-const gridClassName = 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2.5'
+// Fixed 4 columns: new products only add rows below. Sized by the menu panel (container
+// query), not the window: in portrait tablets the panel is ~450px wide and 4 columns would make
+// ~100px cards, so it drops to 3 (and 2 on a very narrow panel).
+const gridClassName = 'grid grid-cols-2 gap-3 @[24rem]:grid-cols-3 @[36rem]:grid-cols-4'
 
 /** Single products and families (several variants, or one product served hot and cold). */
 function groupDisplayProducts(products: MenuItem[]): DisplayProduct[] {
@@ -83,6 +85,7 @@ export function MenuSection({
   const [searchTerm, setSearchTerm] = React.useState('')
   // Single product with extras: chosen in a small dialog before adding it.
   const [productForExtras, setProductForExtras] = React.useState<MenuItem | null>(null)
+  const [comboForTemperatures, setComboForTemperatures] = React.useState<MenuItem | null>(null)
   const [selectedFamily, setSelectedFamily] = React.useState<{
     key: string
     title: string
@@ -126,7 +129,7 @@ export function MenuSection({
       <section
         aria-label="Menú"
         aria-busy="true"
-        className="flex flex-col overflow-hidden rounded-[1.25rem] border shadow-[var(--shadow-card)] pos-fit:min-h-0"
+        className="@container flex flex-col overflow-hidden rounded-[1.25rem] border shadow-[var(--shadow-card)] pos-fit:min-h-0"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <div className="flex flex-col gap-2 border-b p-3 lg:flex-row lg:items-center" style={{ borderColor: 'var(--color-border)' }}>
@@ -140,7 +143,7 @@ export function MenuSection({
         <div className={`${gridClassName} p-3`}>
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
-              <Skeleton className="h-28 w-full rounded-none" />
+              <Skeleton className="aspect-[4/3] @[36rem]:aspect-[16/9] h-auto w-full rounded-none" />
               <div className="space-y-2 p-3">
                 <Skeleton className="h-4 w-4/5" />
                 <Skeleton className="h-5 w-16" />
@@ -156,7 +159,7 @@ export function MenuSection({
     <>
       <section
         aria-label="Menú"
-        className="flex flex-col rounded-[1.25rem] border shadow-[var(--shadow-card)] pos-fit:min-h-0 pos-fit:overflow-hidden"
+        className="@container flex flex-col rounded-[1.25rem] border shadow-[var(--shadow-card)] pos-fit:min-h-0 pos-fit:overflow-hidden"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {/* Categories and search in one bar (side by side from 1024px). Categories wrap instead
@@ -245,6 +248,7 @@ export function MenuSection({
                   product={item.product}
                   onAddToOrder={onAddToOrder}
                   onChooseExtras={setProductForExtras}
+                  onChooseComboTemperatures={setComboForTemperatures}
                   quantityInOrder={quantityOf(item.product)}
                   caption={isSearching ? categoryOf.get(menuItemKey(item.product.type, item.product.id)) : undefined}
                 />
@@ -262,6 +266,14 @@ export function MenuSection({
           </div>
         </div>
       </section>
+
+      {comboForTemperatures && (
+        <ComboTemperatureModal
+          combo={comboForTemperatures}
+          onClose={() => setComboForTemperatures(null)}
+          onAddToOrder={onAddToOrder}
+        />
+      )}
 
       {productForExtras && (
         <ProductExtrasModal

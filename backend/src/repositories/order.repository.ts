@@ -147,7 +147,9 @@ export const OrderRepository = {
             select: {
               productId: true,
               quantity: true,
-              product: { select: { id: true, name: true, cost: true, isActive: true } },
+              product: {
+                select: { id: true, name: true, cost: true, isActive: true, temperature: true, category: { select: { isBeverage: true } } },
+              },
             },
           },
         },

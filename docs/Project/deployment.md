@@ -69,13 +69,20 @@ Cada paso que toca producción requiere **aprobación explícita**. Nunca ejecut
    - En producción el seed **ya no toca el catálogo**: no sobrescribe precios ni borra promociones, salvo con `SEED_CATALOG=true`.
    - Solo hace upsert de roles, permisos, el admin y las preferencias por defecto.
    - ADMIN recibe `settings.manage`. Los roles personalizados que configuraban el sistema con `users.update` ahora necesitan que se les asigne `settings.manage`.
-6. **Desplegar la imagen** (push a `master` → CI → deploy hook).
-7. **Smoke test:**
+6. **Saldo inicial de inventario** (opcional, una sola vez, después de normalizar el catálogo con `--with-ingredients`):
+   - **Qué carga:** el stock y el stock mínimo de `prisma/opening-stock.ts`, tomados de la columna "Stock Inicial" de la hoja de inventario de mayo de 2026. Son datos de hace meses: después hay que hacer un conteo físico.
+   - **Vista previa:** `npm run seed:inventory:prod -- --report=saldo-inicial.md`. Escribe solo el archivo del reporte.
+   - **Aplicar:** `npm run seed:inventory:prod -- --apply --confirm-host=<host de la BD>`.
+   - **Qué no toca:** los insumos que ya tienen stock, movimientos, compras o un mínimo configurado.
+   - **Qué registra:** cada saldo queda como movimiento `adjustment` con `referenceType = 'initial_balance'`.
+   - **Qué queda fuera:** Vaso café caliente, Tapa vaso caliente, Fajo de cartón, Papel decorativo y Aguacate no se cargan mientras `PIECE_WEIGHT_GRAMS` no tenga su peso por pieza. Tampoco el Aceite para freír, porque la hoja no dice la unidad.
+7. **Desplegar la imagen** (push a `master` → CI → deploy hook).
+8. **Smoke test:**
    - `GET /ready` → 200;
    - iniciar sesión;
    - abrir el menú;
    - una venta de prueba en una caja de prueba (o en horario sin operación), cancelarla, y revisar el corte.
-8. **Fotos del estado de resultados** (una sola vez, tras la estabilización del 14/11/2026):
+9. **Fotos del estado de resultados** (una sola vez, tras la estabilización del 14/11/2026):
    - **Por qué:** antes de la corrección IS‑0/IS‑1, las fotos congeladas se guardaban corridas un día y podían quedar calculadas con el filtro de una sola caja.
    - **Qué hacer:** borrar las fotos finales (`DELETE FROM income_statement_daily_snapshots WHERE "isFinal" = true;`). Son un caché derivado y se recalculan al consultarlas.
    - **Antes:** requiere aprobación y respaldo.
@@ -92,6 +99,7 @@ Cada paso que toca producción requiere **aprobación explícita**. Nunca ejecut
 | `prisma migrate reset/dev`, `db push` | Bloqueados en producción y cuando el `.env` apunta a producción (`prisma.config.ts`, test `production-guards`) |
 | `prisma/seed.ts` | En producción omite el catálogo salvo `SEED_CATALOG=true` |
 | `scripts/reset-operational-data.ts` (`db:reset-operations`) | Además de `--yes`, contra producción exige `--confirm-host=<host de la BD>` |
+| `scripts/load-opening-stock.ts` (`seed:inventory`) | Vista previa por defecto; `--apply` para escribir; contra producción exige `--confirm-host=<host de la BD>`; nunca pisa stock existente |
 | `scripts/sync-sales-menu-dev-to-prod.ts` | Vista previa por defecto; `--apply` para escribir; `--verify` para comparar |
 
 ## 6. Dependencias y seguridad

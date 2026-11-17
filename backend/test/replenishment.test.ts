@@ -30,3 +30,17 @@ test("stock negativo (D-1): se sugiere reponer lo faltante más el objetivo", ()
   assert.equal(result.coverageDays, 0);
   assert.equal(result.suggestedQuantity, 508);
 });
+
+test("con producto: sugiere lo que no alcanza para una pieza aunque no tenga mínimo ni consumo", () => {
+  const cup = suggestReplenishment({ current: 0, minimum: 0, maximum: null, consumed: 0, days: 14, perUnit: 1 });
+  assert.equal(cup.needed, true);
+  assert.equal(cup.shortForProduct, true);
+  assert.equal(cup.suggestedQuantity, 1);
+  const milk = suggestReplenishment({ current: 100, minimum: 0, maximum: null, consumed: 0, days: 14, perUnit: 250 });
+  assert.equal(milk.suggestedQuantity, 150);
+  const enough = suggestReplenishment({ current: 903, minimum: 300, maximum: null, consumed: 0, days: 14, perUnit: 12 });
+  assert.equal(enough.needed, false);
+  assert.equal(enough.shortForProduct, false);
+  // Below its minimum it keeps the normal suggestion (up to the target), not just the shortfall.
+  assert.equal(suggestReplenishment({ current: 0, minimum: 10, maximum: null, consumed: 0, days: 14, perUnit: 1 }).suggestedQuantity, 20);
+});

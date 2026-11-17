@@ -431,7 +431,7 @@ test("H-05: un usuario con inventory.create_ingredient puede activar y desactiva
 test("R-04: el detalle del producto sugiere el costo según receta × costo promedio", { skip: !integrationEnabled }, async () => {
   const detail = await ProductService.findOne(productId);
   assert.ok(detail);
-  assert.equal(detail!.cost.toNumber(), PRODUCT_COST, "the manual cost is untouched");
+  assert.equal(detail!.cost, PRODUCT_COST, "the manual cost is untouched");
   assert.equal(detail!.suggestedCost, 5); // 1 unit × averageCost 5
 
   // Averages move with purchases, and the suggestion follows them.

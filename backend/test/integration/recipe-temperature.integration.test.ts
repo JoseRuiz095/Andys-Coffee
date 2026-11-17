@@ -19,6 +19,7 @@ let categoryId: string;
 let registerId: string;
 let sessionId: string;
 let productId: string;
+let comboId: string | null = null;
 let previousConsume: string | null = null;
 const ids: Record<"coffee" | "milk" | "hotCup" | "coldCup" | "ice", string> = { coffee: "", milk: "", hotCup: "", coldCup: "", ice: "" };
 
@@ -75,6 +76,7 @@ after(async () => {
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.cashSession.deleteMany({ where: { id: sessionId } });
   await prisma.cashRegister.deleteMany({ where: { id: registerId } });
+  if (comboId) await prisma.combo.deleteMany({ where: { id: comboId } });
   if (productId) await prisma.product.deleteMany({ where: { id: productId } });
   await prisma.category.deleteMany({ where: { id: categoryId } });
   await prisma.ingredient.deleteMany({ where: { id: { in: ingredientIds } } });
@@ -124,4 +126,28 @@ test("la venta fría descuenta vaso frío, hielo y su leche; la caliente, vaso c
   const detail = await ProductService.findOne(productId);
   const lines = (detail as unknown as { recipe: { REGULAR: { lines: { ingredientId: string; temperature?: string }[] } } }).recipe.REGULAR.lines;
   assert.equal(lines.filter((line) => line.temperature === "COLD").length, 3);
+});
+
+test("A3: un combo con la bebida fría descuenta vaso frío y hielo; sin elegir temperatura no se vende", { skip: !integrationEnabled }, async () => {
+  assert.ok(productId, "depends on the previous test's product");
+  comboId = (await prisma.combo.create({
+    data: { name: `RTEMP combo ${tag}`, price: PRICE, isActive: true, activeOnDays: [], items: { create: [{ productId, quantity: 1 }] } },
+  })).id;
+  const sellCombo = (comboTemperatures?: { productId: string; temperature: "HOT" | "COLD" }[]) =>
+    OrderService.create(
+      { items: [{ comboId: comboId!, quantity: 1, ...(comboTemperatures && { comboTemperatures }) }], paymentMethod: "cash", cashReceived: PRICE, cashSessionId: sessionId },
+      admin.id,
+      `rtemp-${testId}-${++keyCounter}`,
+    );
+
+  await assert.rejects(sellCombo(), /Selecciona caliente o frío/);
+
+  const before = { hotCup: await stock(ids.hotCup), coldCup: await stock(ids.coldCup), ice: await stock(ids.ice), milk: await stock(ids.milk) };
+  const order = await sellCombo([{ productId, temperature: "COLD" }]);
+  assert.deepEqual(
+    [await stock(ids.hotCup), await stock(ids.coldCup), await stock(ids.ice), await stock(ids.milk)],
+    [before.hotCup, before.coldCup - 1, before.ice - 160, before.milk - 250],
+  );
+  const line = await prisma.orderItem.findFirstOrThrow({ where: { orderId: order.id } });
+  assert.equal(line.temperature, "COLD", "the board shows the drink as cold");
 });

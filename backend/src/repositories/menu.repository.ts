@@ -76,6 +76,12 @@ export const MenuRepository = {
             imageUrl: true,
             displayOrder: true,
             activeOnDays: true,
+            // Drinks of the combo: the POS asks hot/cold for those sold both ways.
+            items: {
+              select: {
+                product: { select: { id: true, name: true, temperature: true, category: { select: { isBeverage: true } } } },
+              },
+            },
           },
           orderBy: { displayOrder: 'asc' },
         },

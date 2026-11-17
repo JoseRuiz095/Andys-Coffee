@@ -49,8 +49,12 @@ export const MenuService = {
         };
       });
 
-      const combos = category.combos.map(combo => ({
+      const combos = category.combos.map(({ items: comboItems, ...combo }) => ({
         ...combo,
+        // Its drinks sold hot and cold: the sale needs the temperature of each (comboTemperatures).
+        temperatureChoices: [...new Map(comboItems
+          .filter(({ product }) => (product.temperature ?? getDrinkTemperature(product.name, product.category?.isBeverage ?? false)) === 'BOTH')
+          .map(({ product }) => [product.id, { productId: product.id, name: product.name }])).values()],
         imageUrl: resolveImageUrl(combo.imageUrl),
         price: combo.price.toNumber(),
         activeOnDays: combo.activeOnDays,

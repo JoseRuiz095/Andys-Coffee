@@ -25,6 +25,19 @@ export type PricedExtra = {
   costSnapshot: Prisma.Decimal;
 };
 
+/** Hot/cold of a combo's drink: its own temperature, or the one chosen when sold both ways. */
+function comboLineTemperature(
+  combo: { name: string },
+  product: { id: string; name: string; temperature?: DrinkTemperature | null; category?: { isBeverage: boolean } | null },
+  item: SaleItemInput,
+): Exclude<DrinkTemperature, 'BOTH'> | null {
+  const available = product.temperature ?? getDrinkTemperature(product.name, product.category?.isBeverage ?? false);
+  if (available !== 'BOTH') return available;
+  const chosen = item.comboTemperatures?.find((choice) => choice.productId === product.id)?.temperature;
+  if (!chosen) throw new ValidationError(`Selecciona caliente o frío para ${product.name} del combo ${combo.name}.`);
+  return chosen;
+}
+
 /** One OrderItem row to persist. A combo produces one line per product it contains. */
 export type PricedLine = {
   productId: string;
@@ -186,7 +199,7 @@ function priceComboItem(item: SaleItemInput & { comboId: string }, catalog: Sale
       productId: comboItem.productId,
       productName: `${comboItem.product.name} (Combo: ${combo.name})`,
       size: 'REGULAR',
-      temperature: null,
+      temperature: comboLineTemperature(combo, comboItem.product, item),
       quantity,
       // Informational, rounded to cents: `subtotal` is the line's amount (unitPrice × quantity
       // may differ from it by a cent; reports must sum subtotals).

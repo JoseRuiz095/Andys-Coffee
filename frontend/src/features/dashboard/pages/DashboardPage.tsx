@@ -16,7 +16,7 @@ const OrdersPage = lazyWithReload(() => import('../../orders/pages/OrdersPage').
 const InventoryLayout = lazyWithReload(() => import('../../inventory/pages/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
 const MetricsPage = lazyWithReload(() => import('../pages/MetricsPage').then((m) => ({ default: m.MetricsPage })))
 import type { CreateOrderItem, CreateOrderPayload, OrderItem } from '../types/order.types'
-import type { MenuItem, SelectedExtra } from '../../menu/types/menu.types'
+import type { MenuItem, SelectedExtra, ComboTemperature } from '../../menu/types/menu.types'
 import { extrasKey, extrasUnitPrice } from '../../menu/utils/extras'
 import { menuItemKey } from '../../menu/utils/menuSearch'
 import { QueryErrorState } from '../../../shared/components/QueryErrorState'
@@ -100,7 +100,7 @@ export function DashboardPage() {
   // Cart lines exactly as the API receives them: the quote and the sale send the same items.
   const saleItems = React.useMemo<CreateOrderItem[]>(
     () =>
-      orderItems.map(({ productId, comboId, quantity, note, type, temperature, size, extras }) => ({
+      orderItems.map(({ productId, comboId, quantity, note, type, temperature, size, extras, comboTemperatures }) => ({
         productId: type === 'product' ? productId : undefined,
         comboId: type === 'combo' ? comboId : undefined,
         quantity,
@@ -110,6 +110,10 @@ export function DashboardPage() {
         // Per unit of the line: the server multiplies them by the line quantity.
         extras: type === 'product' && extras?.length
           ? extras.map(({ extraId, quantity: perUnit }) => ({ extraId, quantity: perUnit }))
+          : undefined,
+        // Combos: hot/cold of each drink sold both ways (its recipe, cup and ice).
+        comboTemperatures: type === 'combo' && comboTemperatures?.length
+          ? comboTemperatures.map(({ productId: drinkId, temperature: drinkTemperature }) => ({ productId: drinkId, temperature: drinkTemperature }))
           : undefined,
       })),
     [orderItems],
@@ -244,7 +248,14 @@ export function DashboardPage() {
     }
   }, [categoryNames])
 
-  const handleAddToOrder = (menuItem: MenuItem, quantity: number, extras: SelectedExtra[] = []) => {
+  const handleAddToOrder = (menuItem: MenuItem, quantity: number, extras: SelectedExtra[] = [], comboTemperatures: ComboTemperature[] = []) => {
+    // Kept with the drink's name so the cart can show "Latte Andy's · frío".
+    const namedTemperatures = comboTemperatures.map((choice) => ({
+      ...choice,
+      name: menuItem.temperatureChoices?.find((drink) => drink.productId === choice.productId)?.name ?? '',
+    }))
+    const temperaturesKey = (choices?: ComboTemperature[]) =>
+      (choices ?? []).map((choice) => `${choice.productId}:${choice.temperature}`).sort().join('|')
     setOrderItems((prevItems) => {
       const key = menuItem.type === 'product' ? 'productId' : 'comboId'
       // Same product, temperature, size and extras, without a note: one more unit of that line.
@@ -254,6 +265,7 @@ export function DashboardPage() {
           item.temperature === menuItem.temperature &&
           item.size === menuItem.size &&
           extrasKey(item.extras) === extrasKey(extras) &&
+          temperaturesKey(item.comboTemperatures) === temperaturesKey(comboTemperatures) &&
           !item.note,
       )
 
@@ -278,6 +290,7 @@ export function DashboardPage() {
         image: menuItem.imageUrl ?? null,
         type: menuItem.type,
         ...(extras.length > 0 && { extras }),
+        ...(namedTemperatures.length > 0 && { comboTemperatures: namedTemperatures }),
       }
 
       if (menuItem.type === 'product') {

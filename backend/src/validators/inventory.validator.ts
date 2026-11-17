@@ -9,6 +9,8 @@ export const inventoryListSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['all', 'normal', 'low_stock', 'out_of_stock']).default('all'),
   isActive: queryBoolean.default(true),
+  // Only the ingredients of this product's recipe (any size or temperature).
+  productId: z.string().uuid().optional(),
 });
 
 export const inventoryMovementsSchema = z.object({
@@ -45,6 +47,8 @@ export const ingredientUpdateSchema = z.object({
 /** GET /inventory/replenishment: consumption window in days. */
 export const replenishmentQuerySchema = z.strictObject({
   days: z.coerce.number().int().min(1).max(90).default(14),
+  // Only this product's recipe ingredients, including those that don't cover one unit.
+  productId: z.string().uuid().optional(),
 });
 
 /** PATCH /inventory/settings: inventory switches (at least one). */

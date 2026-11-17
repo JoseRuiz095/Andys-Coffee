@@ -19,6 +19,14 @@ export interface MenuItem {
   family?: { id: string; name: string; displayOrder: number } | null;
   variantLabel?: string | null;
   options?: { name: string; value: string }[];
+  /** Combos: drinks sold hot and cold, whose temperature the sale needs. */
+  temperatureChoices?: { productId: string; name: string }[];
+}
+
+/** Hot/cold chosen for one drink of a combo. */
+export interface ComboTemperature {
+  productId: string;
+  temperature: 'HOT' | 'COLD';
 }
 
 export interface MenuExtra {

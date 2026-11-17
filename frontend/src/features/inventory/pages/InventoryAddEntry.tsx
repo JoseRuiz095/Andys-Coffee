@@ -77,7 +77,7 @@ export function InventoryAddEntry() {
     if (!selectedIngredient || !selectedIngredientData || !itemQuantity || !itemCost) {
       sileo.error({
         title: 'Campos incompletos',
-        description: 'Selecciona ingrediente, cantidad y costo unitario.',
+        description: 'Selecciona ingrediente, cantidad y costo total.',
       })
       return
     }

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { referenceUnitCost } from '../utils/purchaseLine'
 import { sileo } from 'sileo'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useDraftPurchases, useReceivePurchase, usePurchaseById, useDeletePurchase } from '../hooks/usePurchases'
@@ -269,7 +270,11 @@ export function InventoryEntries() {
                               {Number(item.quantity).toFixed(2)} {item.ingredient.unit.abbreviation}
                             </td>
                             <td className="px-2 py-3 text-right text-[var(--color-text-secondary)]">
-                              {formatCurrency(Number(item.unitCost))}
+                              {(() => {
+                                // Per kg/lt for gram and milliliter lines ($0.65 per gr reads $653 per kg).
+                                const reference = referenceUnitCost(Number(item.unitCost), item.ingredient.unit.abbreviation)
+                                return `${formatCurrency(reference.value)} / ${reference.unit}`
+                              })()}
                             </td>
                             <td className="px-2 py-3 text-right font-medium text-[var(--color-text-primary)]">
                               {formatCurrency((Number(item.quantity) * Number(item.unitCost)))}

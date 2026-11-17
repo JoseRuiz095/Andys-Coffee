@@ -93,6 +93,28 @@ export const RecipeRepository = {
    * Active products that consume inventory but can't be costed or consumed: no REGULAR recipe,
    * or a beverage with a Jumbo price and no JUMBO recipe.
    */
+  /** Active products with a recipe, with the current stock of each ingredient (coverage). */
+  async findProductsWithRecipeStock(client: DbClient = prisma) {
+    return client.product.findMany({
+      where: { isActive: true, recipes: { some: {} } },
+      select: {
+        id: true,
+        name: true,
+        temperature: true,
+        category: { select: { name: true } },
+        recipes: {
+          select: {
+            size: true,
+            temperature: true,
+            quantity: true,
+            ingredient: { select: { id: true, name: true, currentStock: true, unit: { select: { abbreviation: true } } } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  },
+
   async findProductsMissingRecipe(client: DbClient = prisma) {
     return client.product.findMany({
       where: {

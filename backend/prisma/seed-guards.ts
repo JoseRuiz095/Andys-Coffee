@@ -56,3 +56,20 @@ export function databaseHostOf(url: string | undefined): string | null {
     return null;
   }
 }
+
+/**
+ * Bulk writes that never delete (e.g. the opening stock) still need the database host typed
+ * (`--confirm-host=<host>`) when they target production. Elsewhere they run as is.
+ */
+export function assertProductionWriteConfirmed(
+  target: TargetDatabase & { argv: string[]; databaseHost: string | null },
+): void {
+  if (!targetsProduction(target)) return;
+  const confirmed = target.argv.find((arg) => arg.startsWith("--confirm-host="))?.slice("--confirm-host=".length);
+  if (!target.databaseHost || confirmed !== target.databaseHost) {
+    throw new Error(
+      "Esta es la base de datos de PRODUCCIÓN. Haz un respaldo y confirma escribiendo su host: " +
+        "--confirm-host=<host de la BD> (el que aparece en DATABASE_URL después de la @).",
+    );
+  }
+}

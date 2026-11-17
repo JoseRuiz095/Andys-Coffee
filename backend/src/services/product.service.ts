@@ -108,6 +108,9 @@ export const ProductService = {
       data: products.map((product) => ({
         ...product,
         imageUrl: resolveImageUrl(product.imageUrl),
+        // Amounts as numbers, as the frontend types them (Decimal serializes as a string).
+        price: product.price.toNumber(),
+        cost: product.cost.toNumber(),
         jumboPrice: product.jumboPrice?.toNumber() ?? null,
       })),
       pagination: paginationMeta(page, limit, total),
@@ -122,6 +125,8 @@ export const ProductService = {
     return {
       ...product,
       imageUrl: resolveImageUrl(product.imageUrl),
+      price: product.price.toNumber(),
+      cost: product.cost.toNumber(),
       jumboPrice: product.jumboPrice?.toNumber() ?? null,
       // Ingredients and quantities per size, with the cost at current average cost.
       recipe,

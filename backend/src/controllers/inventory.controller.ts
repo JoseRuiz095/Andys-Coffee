@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ProductCoverageService } from '../services/product-coverage.service';
 import { z } from 'zod';
 import { InventoryService } from '../services/inventory.service';
 import { RecipeService } from '../services/recipe.service';
@@ -40,8 +41,8 @@ export const InventoryController = {
   },
 
   async getReplenishment(req: Request, res: Response) {
-    const { days } = replenishmentQuerySchema.parse(req.query);
-    res.json(await ReplenishmentService.getSuggestions(days, req.user as AuthUser));
+    const { days, productId } = replenishmentQuerySchema.parse(req.query);
+    res.json(await ReplenishmentService.getSuggestions(days, req.user as AuthUser, productId));
   },
 
   async getSettings(_req: Request, res: Response) {
@@ -50,6 +51,10 @@ export const InventoryController = {
 
   async updateSettings(req: Request, res: Response) {
     res.json(await InventorySettingsService.update(req.body as { consumeOnSale?: boolean; lowStockNotify?: boolean }, req.user as AuthUser));
+  },
+
+  async getProductCoverage(req: Request, res: Response) {
+    res.json(await ProductCoverageService.list(req.user as AuthUser));
   },
 
   async getProductsWithoutRecipe(_req: Request, res: Response) {

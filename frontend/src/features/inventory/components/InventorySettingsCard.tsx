@@ -6,6 +6,7 @@ import { hasPermission, SETTINGS_PERMISSION } from '../../auth/utils/permissions
 import { useInventorySettings, useUpdateInventorySettings } from '../hooks/useInventory'
 import type { InventorySettings } from '../api/inventory.api'
 import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
+import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 
 const SWITCHES: { key: keyof InventorySettings; label: string; help: string }[] = [
   {
@@ -29,6 +30,8 @@ export function InventorySettingsMenu() {
   const { data: settings } = useInventorySettings()
   const update = useUpdateInventorySettings()
   const [isOpen, setIsOpen] = useState(false)
+  // Turning consumption off is confirmed: sales made meanwhile never discount their ingredients.
+  const [confirmingOff, setConfirmingOff] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   useOverlayEscape(isOpen, () => setIsOpen(false))
 
@@ -43,8 +46,12 @@ export function InventorySettingsMenu() {
 
   if (!settings) return null
 
-  const toggle = (key: keyof InventorySettings) => {
+  const toggle = (key: keyof InventorySettings, confirmed = false) => {
     const value = !settings[key]
+    if (key === 'consumeOnSale' && !value && !confirmed) {
+      setConfirmingOff(true)
+      return
+    }
     update.mutate({ [key]: value }, {
       onSuccess: () => sileo.success({ title: 'Configuración guardada' }),
       onError: (error) => sileo.error({ title: 'No se pudo cambiar', description: getErrorMessage(error, 'Intenta de nuevo.') }),
@@ -105,6 +112,20 @@ export function InventorySettingsMenu() {
           )}
         </div>
       )}
+      {/* Outside the popover: an outside click closes the popover but not this dialog. */}
+      <ConfirmDialog
+        isOpen={confirmingOff}
+        title="¿Apagar el descuento automático?"
+        message="Las ventas que se hagan mientras esté apagado no descontarán sus insumos, ni siquiera al volver a encenderlo. Tendrás que corregir el stock con un conteo físico."
+        confirmText="Apagar"
+        isDangerous
+        isLoading={update.isPending}
+        onConfirm={() => {
+          setConfirmingOff(false)
+          toggle('consumeOnSale', true)
+        }}
+        onCancel={() => setConfirmingOff(false)}
+      />
     </div>
   )
 }

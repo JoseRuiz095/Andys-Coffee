@@ -50,10 +50,11 @@ export const InventoryService = {
       throw new AuthorizationError('No tienes permiso para ver el inventario.');
     }
 
-    const { page, limit, search, status, isActive } = query;
+    const { page, limit, search, status, isActive, productId } = query;
 
     const where = {
       isActive: isActive !== undefined ? isActive : true,
+      ...(productId && { recipes: { some: { productId } } }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' as const } },

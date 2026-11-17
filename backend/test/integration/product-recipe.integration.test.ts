@@ -156,7 +156,7 @@ test("C-21: sin inventory.manage_recipes no se edita la receta, pero sí el rest
     (error: Error) => error.name === "AuthorizationError",
   );
   const renamed = await ProductService.update(latteId, { price: 66 }, cashier);
-  assert.equal(renamed.price.toNumber(), 66);
+  assert.equal(renamed.price, 66);
   assert.equal(renamed.recipe.REGULAR.lines.length, 3, "the recipe is untouched when not sent");
 });
 

@@ -54,6 +54,11 @@ export function OrderCartLine({ item, line, isProcessing = false, onRemove, onIn
             {formatCurrency(lineAmount)}
           </div>
         </div>
+        {item.comboTemperatures && item.comboTemperatures.length > 0 && (
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            {item.comboTemperatures.map((drink) => `${drink.name} ${drink.temperature === 'COLD' ? 'frío' : 'caliente'}`).join(', ')}
+          </p>
+        )}
         {item.extras && item.extras.length > 0 && (
           <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             {item.extras.map((extra) => `+ ${extra.name}${extra.quantity > 1 ? ` ×${extra.quantity}` : ''}`).join(', ')}

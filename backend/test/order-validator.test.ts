@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createOrderSchema } from "../src/validators/order.validator";
+import { createOrderSchema, orderItemSchema } from "../src/validators/order.validator";
 
 const validBase = { paymentMethod: "card" as const, items: [] };
 
@@ -120,4 +120,12 @@ test('Jumbo es un tamaño de producto válido y no puede agregarse a combos', ()
     ...validBase,
     items: [{ comboId, quantity: 1, size: 'JUMBO' }],
   }).success, false);
+});
+test("A3: la temperatura por bebida solo se acepta en combos", () => {
+  const comboId = "00000000-0000-4000-8000-000000000002";
+  const productId = "00000000-0000-4000-8000-000000000001";
+  const choice = [{ productId, temperature: "COLD" }];
+  assert.equal(orderItemSchema.safeParse({ comboId, quantity: 1, comboTemperatures: choice }).success, true);
+  assert.equal(orderItemSchema.safeParse({ productId, quantity: 1, comboTemperatures: choice }).success, false);
+  assert.equal(orderItemSchema.safeParse({ comboId, quantity: 1, comboTemperatures: [{ productId, temperature: "BOTH" }] }).success, false);
 });

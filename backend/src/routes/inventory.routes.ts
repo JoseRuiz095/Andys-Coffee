@@ -26,6 +26,8 @@ router.get('/value', canView, InventoryController.getTotalValue);
 router.get('/low-stock', canView, InventoryController.getLowStock);
 // Active products that consume inventory but miss their (regular or Jumbo) recipe.
 router.get('/products-without-recipe', canView, InventoryController.getProductsWithoutRecipe);
+// How many units of each product with a recipe the current stock covers.
+router.get('/product-coverage', canView, InventoryController.getProductCoverage);
 
 // Movements history
 router.get('/movements', canView, InventoryController.getMovements);

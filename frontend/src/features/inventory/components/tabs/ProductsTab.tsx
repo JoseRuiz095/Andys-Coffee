@@ -195,9 +195,11 @@ export function ProductsTab() {
         name: editingProduct.name,
         description: editingProduct.description || '',
         sku: editingProduct.sku,
-        price: editingProduct.price,
+        // Number(): older API responses sent Decimal amounts as strings ("45"), which the
+        // amount check below rejected unless the field was retyped.
+        price: Number(editingProduct.price),
         jumboPrice: editingProduct.jumboPrice ?? null,
-        cost: editingProduct.cost,
+        cost: Number(editingProduct.cost),
         categoryId: editingProduct.categoryId || '',
         temperature: editingProduct.temperature ?? getDrinkTemperature(
           editingProduct.name,
