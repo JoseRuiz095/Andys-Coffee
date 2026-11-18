@@ -92,6 +92,46 @@ Cada paso que toca producción requiere **aprobación explícita**. Nunca ejecut
 - **Migraciones:** no se revierten solas. Una migración aplicada se corrige con otra migración escrita a mano, ensayada en Docker (`ALTER … USING`, envuelta en `BEGIN/COMMIT`).
 - **Datos:** restaurar el respaldo del paso 1.
 
+## 4.1 Despliegue de `dev` a producción del 17/11/2026 (ensayado)
+
+Procedimiento ensayado de punta a punta sobre una copia de producción restaurada en Docker. Antes y después se comprobaron:
+- conteos y sumas de órdenes, partidas, pagos, caja y compras **idénticos**;
+- hash de las fotos del estado de resultados **idéntico**;
+- 44 migraciones aplicadas; `/ready` = 200.
+
+Cada paso requiere aprobación. Todo se ejecuta desde `backend/` y en una ventana sin ventas.
+
+1. **Respaldo verificado.**
+   - Comando: `docker run --rm -e PGURL postgres:17 sh -c 'pg_dump "$PGURL" --format=custom --no-owner --no-privileges' > <archivo>.dump`. Se usa la imagen 17 porque Supabase usa PostgreSQL 17. `PGURL` = `DIRECT_URL` de `.env.production`, pasado por variable, nunca escrito en consola.
+   - Verificar con `pg_restore --list` y una restauración de prueba.
+   - El archivo se guarda **fuera del repositorio**.
+2. **Solo la migración 1** (`20261111120000_inventory_realtime_catalog`).
+   - **Por qué:** la migración 2 aborta mientras el catálogo no esté normalizado.
+   - **Cómo:**
+     - copiar `prisma/schema.prisma` y `prisma/migrations` a una carpeta temporal fuera del repositorio;
+     - quitar ahí `20261111130000_*` y `20261116120000_*`;
+     - ejecutar `node <backend>/node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma` desde esa carpeta, con `DIRECT_URL` de producción.
+   - Es aditiva: el backend actual sigue funcionando.
+3. **Desactivar el duplicado BEV-009** "Chai Guayaba", que no tiene ventas: `UPDATE products SET "isActive" = false WHERE sku = 'BEV-009'`.
+4. **Normalizar:** `cross-env NODE_ENV=production npx tsx scripts/normalize-catalog.ts` (vista previa, 77 cambios en el ensayo) → `--apply`.
+5. **Migraciones 2 y 3:** `npm run prisma:migrate:deploy:prod`.
+6. **Seed de permisos:** `cross-env NODE_ENV=production ADMIN_SEED_PASSWORD=… npx tsx prisma/seed.ts`.
+   - Agrega `settings.manage` al ADMIN.
+   - Omite el catálogo y no cambia la contraseña del admin.
+7. **Desplegar el código:** merge `dev → master` y push. Render espera a CI y Vercel publica.
+   - Comprobar `GET /ready` = 200.
+   - Prueba rápida: iniciar sesión, POS (combo con temperatura), venta de prueba cancelada y un día histórico del estado de resultados sin cambios.
+8. **Insumos:** `npx tsx scripts/sync-inventory-dev-to-prod.ts` (vista previa) → `--apply --confirm-host=<host>`.
+   - Lleva la lista de insumos de dev con su stock mínimo y pone **todas las existencias en 0**, con un ajuste trazable por insumo.
+   - No copia costos. Empata por nombre y restaura los homónimos borrados.
+9. **Menú y recetas:** `npm run catalog:sync-menu:dev-to-prod -- --deactivate-missing-products` (vista previa) → `--apply --confirm-host=<host>` → `--verify`.
+   - Desactiva, sin borrarlos, los 9 productos que ya no existen en dev: las versiones "Frío/Iced" separadas y Chai-Vainilla. Sus ventas se conservan.
+10. **Descuento automático:** `inventory.consumeOnSale` se queda en `false`. Se enciende desde Inventario › Ajustes después del conteo físico.
+
+**Rollback específico:**
+- **Código:** se vuelve al deploy anterior en Render y Vercel. El esquema nuevo es compatible con el código viejo.
+- **Datos (pasos 3, 4, 8 y 9):** se restaura el respaldo del paso 1. La conversión de unidades de `normalize-catalog` no se puede deshacer de forma confiable.
+
 ## 5. Scripts que escriben datos
 
 | Script | Protección |
@@ -100,7 +140,8 @@ Cada paso que toca producción requiere **aprobación explícita**. Nunca ejecut
 | `prisma/seed.ts` | En producción omite el catálogo salvo `SEED_CATALOG=true` |
 | `scripts/reset-operational-data.ts` (`db:reset-operations`) | Además de `--yes`, contra producción exige `--confirm-host=<host de la BD>` |
 | `scripts/load-opening-stock.ts` (`seed:inventory`) | Vista previa por defecto; `--apply` para escribir; contra producción exige `--confirm-host=<host de la BD>`; nunca pisa stock existente |
-| `scripts/sync-sales-menu-dev-to-prod.ts` | Vista previa por defecto; `--apply` para escribir; `--verify` para comparar |
+| `scripts/sync-inventory-dev-to-prod.ts` | Vista previa por defecto; `--apply`; contra una BD remota exige `--confirm-host`; una sola transacción serializable con conteos de ventas, caja, gastos y compras comparados antes y después; idempotente |
+| `scripts/sync-sales-menu-dev-to-prod.ts` | Vista previa por defecto; `--apply` (contra una BD remota exige `--confirm-host`); `--verify` para comparar; `--deactivate-missing-products` desactiva (sin borrar) los productos activos que ya no existen en dev |
 
 ## 6. Dependencias y seguridad
 

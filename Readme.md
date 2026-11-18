@@ -12,12 +12,90 @@ Monorepo con dos aplicaciones independientes que se comunican por una API REST:
 
 ## Funciones
 
-- **Venta (POS):** productos, combos, extras y promociones; efectivo, transferencia o tarjeta; pagos pendientes y mandaditos.
-- **Pedidos:** `pendiente → en preparación → lista → completada`; cancelación con reversa de caja (las ventas completadas, con aprobación del admin).
-- **Caja:** apertura, cierre con conteo, corrección, reapertura auditada y cierre automático.
-- **Inventario:** ingredientes, recetas, compras, salidas manuales, conteos físicos y costo promedio.
-- **Finanzas:** gastos, gastos fijos y estado de resultados.
-- **Administración:** usuarios, roles y permisos, preferencias del negocio y tema claro/oscuro.
+### Venta (POS)
+- **Pensado para tableta y laptop.** La pantalla se ajusta a la ventana y el total y "Procesar orden" siempre quedan a la vista. Los controles táctiles miden 44 px.
+- **Menú:**
+  - rejilla de 4 columnas (3 en tableta vertical);
+  - categorías en píldoras;
+  - búsqueda en todo el menú, sin distinguir acentos;
+  - fotos de productos;
+  - indicador de cuántas unidades de cada producto lleva la orden.
+- **Productos:**
+  - familias con variantes (sabores);
+  - bebidas calientes, frías o de ambas formas;
+  - tamaño Jumbo;
+  - extras por unidad.
+- **Combos:** al venderlos se elige si cada bebida va caliente o fría.
+- **Promociones:** 2x1, precio por categoría y paquetes. El precio lo calcula siempre el servidor: el total que ve el cajero es el que se cobra.
+- **Cobro:**
+  - efectivo, con montos rápidos y cambio;
+  - transferencia o tarjeta;
+  - **pago pendiente**, que se liquida después.
+- **Pedidos:** **programados** para una hora futura, notas por orden y por línea, y **mandaditos** (quién cobra el envío y cómo se paga).
+- **Protección contra cobros dobles:** reintentar o dar doble clic nunca cobra dos veces (idempotencia).
+
+### Pedidos
+- **Tablero del día:** `pendiente → en preparación → lista → completada`, con tiempos objetivo por tamaño del pedido.
+- **Cancelación:** revierte la caja y el inventario. Si la venta ya se completó, requiere la aprobación de un administrador.
+- **Pagos pendientes y mandaditos:** tienen su propia vista, para liquidarlos y entregarlos.
+
+### Caja
+- **Ciclo de la caja:** apertura con fondo, movimientos de entrada y salida, y cierre con conteo y diferencia.
+- **Correcciones:** se pueden corregir cierres y reabrir cortes; ambas acciones quedan auditadas.
+- **Cierre automático:** al terminar el día de negocio, según el horario configurado.
+- **Integridad:** la suma de los movimientos siempre cuadra con el efectivo esperado.
+
+### Inventario
+- **Insumos:**
+  - se guardan en unidad base (gr, ml, pz); la compra se puede capturar en kg o lt;
+  - tienen stock mínimo y máximo y costo promedio.
+- **Recetas por producto**, por tamaño (Regular/Jumbo) y temperatura (líneas fría y caliente), con un costo sugerido según la receta.
+- **Descuento automático al vender** (se activa en Ajustes del inventario):
+  - cada venta descuenta su receta y sus extras, y se permite el stock negativo;
+  - cancelar devuelve los insumos o los registra como merma, según cuándo se cancele;
+  - mientras esté apagado, Existencias lo avisa.
+- **Existencias:**
+  - resumen y estado (normal, bajo, agotado);
+  - avisos de stock bajo y de productos sin receta;
+  - **filtro por producto, con para cuántas piezas alcanza el stock y qué insumo lo limita.**
+- **Compras:**
+  - proveedores;
+  - nueva compra con costo total por línea;
+  - borradores "Por recibir" que suman al inventario al recibirse.
+- **Sugerencias de compra:**
+  - se basan en el consumo real de los últimos 7, 14 o 30 días;
+  - filtro por producto, que incluye lo que no alcanza para una pieza;
+  - proveedor obligatorio por línea;
+  - crean un borrador por proveedor.
+- **Salidas manuales:** merma, muestra, consumo interno y donación.
+- **Conteo físico:** aplica la diferencia medida al contar.
+- **Historial de movimientos:** cada cambio de stock queda registrado con su saldo resultante.
+- **Saldo inicial:** script con vista previa (`npm run seed:inventory`).
+
+### Finanzas y administración
+- **Gastos:** los gastos en efectivo salen de la caja abierta. Los gastos fijos diarios (luz, sueldos) entran al estado de resultados.
+- **Estado de resultados:**
+  - por día, semana, mes o rango;
+  - los días cerrados quedan congelados;
+  - incluye saldos acumulados y la distribución de utilidades.
+- **Panel de administración:**
+  - **Resumen:** ventas, tendencia y movimientos de inventario;
+  - **Finanzas:** costos por producto, evolución de costos y gastos por categoría;
+  - **Pendientes.**
+- **Notificaciones:** pedidos nuevos y programados, stock bajo, solicitudes de cancelación (y su resultado) y eventos de caja.
+- **Configuración:**
+  - **Mi cuenta:** perfil y contraseña;
+  - **Negocio:** datos, horario y finanzas;
+  - **Accesos:** usuarios, roles y permisos granulares.
+  - Además: tema claro/oscuro.
+- **Seguridad:**
+  - sesión con JWT en una cookie HttpOnly;
+  - protección CSRF;
+  - límite de intentos de inicio de sesión;
+  - los permisos se revalidan en cada petición.
+
+### No incluido (planeado o fuera de alcance)
+Facturación CFDI, modo sin conexión, impresoras de tickets y cajón de dinero, respaldos automáticos, módulo de reportes con exportación a PDF/Excel, pantalla para administrar promociones (hoy solo por seed o BD) y rol de barista. Los roles existentes son `ADMIN` y `CAJERO`.
 
 ## Stack
 

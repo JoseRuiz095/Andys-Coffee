@@ -1,62 +1,17 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import dotenv from 'dotenv';
-import { Prisma, PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { appliedMigrations, assertRunFromBackend, createDatabase } from './lib/dev-prod-databases';
+import { assertProductionWriteConfirmed } from '../prisma/seed-guards';
 
-const backendRoot = process.cwd();
-if (!fs.existsSync(path.join(backendRoot, 'prisma/schema.prisma'))) {
-  throw new Error('Ejecuta este comando desde backend/.');
-}
+// Connections (and the local-only exception to SSL used to rehearse on a Docker copy of
+// production) live in scripts/lib/dev-prod-databases.ts, shared with sync-inventory-dev-to-prod.
+assertRunFromBackend();
 
-/** `--source-env <file>` / `--target-env <file>` replace .env.development / .env.production. */
-function envFileFor(mode: 'development' | 'production') {
-  const flag = mode === 'development' ? '--source-env' : '--target-env';
-  const index = process.argv.indexOf(flag);
-  return index >= 0 && process.argv[index + 1] ? path.resolve(backendRoot, process.argv[index + 1]) : path.join(backendRoot, `.env.${mode}`);
-}
-
-function readDatabaseConfig(mode: 'development' | 'production') {
-  const envPath = envFileFor(mode);
-  if (!fs.existsSync(envPath)) throw new Error(`No existe ${path.basename(envPath)}.`);
-  const env = dotenv.parse(fs.readFileSync(envPath));
-  const rawUrl = env.DIRECT_URL || env.DATABASE_URL;
-  if (!rawUrl) throw new Error(`${path.basename(envPath)} no define DIRECT_URL ni DATABASE_URL.`);
-
-  const url = new URL(rawUrl);
-  const sslmode = url.searchParams.get('sslmode');
-  if (!sslmode || !['require', 'verify-ca', 'verify-full'].includes(sslmode)) {
-    throw new Error(`${path.basename(envPath)} debe usar una conexión PostgreSQL con SSL.`);
-  }
-  for (const key of ['sslmode', 'pgbouncer', 'connection_limit', 'pool_timeout']) url.searchParams.delete(key);
-
-  const caPath = env.DATABASE_SSL_CA_PATH
-    ? path.resolve(backendRoot, env.DATABASE_SSL_CA_PATH)
-    : path.join(backendRoot, 'certs/prod-ca-2021.crt');
-  const ca = env.DATABASE_SSL_CA || fs.readFileSync(caPath, 'utf8');
-  const identity = `${decodeURIComponent(url.username)}@${url.hostname}:${url.port || '5432'}${url.pathname}`;
-  return { connectionString: url.toString(), ca, identity };
-}
-
-function createDatabase(mode: 'development' | 'production') {
-  const config = readDatabaseConfig(mode);
-  const pool = new Pool({
-    connectionString: config.connectionString,
-    ssl: { rejectUnauthorized: true, ca: config.ca },
-  });
-  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
-  return { prisma, pool, identity: config.identity };
-}
-
-async function appliedMigrations(db: PrismaClient) {
-  return db.$queryRaw<{ migration_name: string }[]>`
-    SELECT migration_name
-    FROM _prisma_migrations
-    WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-    ORDER BY migration_name
-  `;
-}
+/**
+ * `--deactivate-missing-products`: active production products whose SKU development no longer
+ * has (e.g. the separate "… Frio" drinks, now one product sold hot or cold) are deactivated —
+ * never deleted, so their sales, reports and cash cuts stay intact. Off by default.
+ */
+const DEACTIVATE_MISSING = process.argv.includes('--deactivate-missing-products');
 
 async function readMenu(db: PrismaClient) {
   const [categories, products, extras, productExtras, combos, promotions, families, ingredients, recipes, extraRecipes] = await Promise.all([
@@ -314,6 +269,16 @@ async function syncMenu(source: Awaited<ReturnType<typeof readMenu>>, production
         await tx.productVariantOption.createMany({ data: product.options.map((option) => ({ productId: saved.id, ...option })) });
       }
     }
+    if (DEACTIVATE_MISSING) {
+      const missing = await tx.product.findMany({
+        where: { isActive: true, sku: { notIn: source.products.map(({ sku }) => sku) } },
+        select: { id: true, sku: true, name: true },
+      });
+      if (missing.length) {
+        await tx.product.updateMany({ where: { id: { in: missing.map(({ id }) => id) } }, data: { isActive: false } });
+        console.log(`Productos desactivados (no existen en development): ${missing.map(({ sku, name }) => `${sku} ${name}`).join(', ')}`);
+      }
+    }
 
     // Ingredients by SKU (scripts/normalize-catalog.ts assigns one to each). Name, minimum,
     // maximum and status are copied; stock and average cost are never touched, and a unit change
@@ -509,6 +474,15 @@ async function main() {
     });
     console.log(`Líneas de receta en development: ${devMenu.recipes.length} de productos, ${devMenu.extraRecipes.length} de extras`);
     console.log(`Relaciones de extras en development: ${devMenu.productExtras.length}`);
+    const devSkus = new Set(devMenu.products.map(({ sku }) => sku));
+    const missingInDev = prodMenu.products.filter((product) => product.isActive && !devSkus.has(product.sku));
+    if (missingInDev.length) {
+      console.log(
+        `Productos activos de producción que no existen en development (${missingInDev.length}): ` +
+          `${missingInDev.map(({ sku, name }) => `${sku} ${name}`).join(', ')}` +
+          (DEACTIVATE_MISSING ? ' → se desactivarán.' : ' → se conservan (usa --deactivate-missing-products para desactivarlos).'),
+      );
+    }
 
     if (process.argv.includes('--verify')) {
       assertMenuMatches(devMenu, prodMenu);
@@ -521,6 +495,10 @@ async function main() {
       return;
     }
 
+    // Writing to a remote production database asks for its host (a local copy does not).
+    if (production.hostname !== 'localhost' && production.hostname !== '127.0.0.1') {
+      assertProductionWriteConfirmed({ envMode: 'production', usesProductionDatabase: true, argv: process.argv, databaseHost: production.hostname });
+    }
     await syncMenu(devMenu, production.prisma);
   assertMenuMatches(devMenu, await readMenu(production.prisma));
     console.log('Sincronización del menú finalizada. No se borraron registros exclusivos de producción.');
