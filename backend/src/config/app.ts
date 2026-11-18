@@ -29,3 +29,9 @@ export const CASH_TIMEZONE = process.env.CASH_TIMEZONE || 'America/Mexico_City';
 // closingReason of cash cuts closed by the end-of-day job instead of a real count. Reports
 // treat those cuts as "SIN_CONTEO" until someone corrects them with the counted cash.
 export const AUTO_CLOSE_REASON = 'Cierre automático sin conteo';
+
+// Interactive transactions (runInTransaction). Prisma's default 5 s timeout is too short for the
+// hosted database: each query is a ~200 ms round trip and a combo sale (several lines, ~15
+// ingredients to consume one by one) runs dozens of them, so it expired mid-sale (P2028 → 500).
+export const TRANSACTION_MAX_WAIT_MS = Number(process.env.TRANSACTION_MAX_WAIT_MS || 10_000);
+export const TRANSACTION_TIMEOUT_MS = Number(process.env.TRANSACTION_TIMEOUT_MS || 30_000);

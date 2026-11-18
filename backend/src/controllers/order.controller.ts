@@ -13,6 +13,7 @@ import {
   reviewCancellationSchema,
 } from '../validators/order.validator';
 import { AuthUser } from '../services/auth.service';
+import { withMoneyAsFixed } from '../utils/moneyJson';
 
 const getAuthenticatedUser = (req: Request): AuthUser => {
   if (!req.user) {
@@ -26,7 +27,7 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
   const user = getAuthenticatedUser(req);
   const query = await filterQuerySchema.parseAsync(req.query);
   const result = await OrderService.findAll(query, user);
-  res.status(200).json(result);
+  res.status(200).json(withMoneyAsFixed(result));
 });
 
 export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
@@ -36,7 +37,7 @@ export const getOrderById = asyncHandler(async (req: Request, res: Response) => 
   if (!order) {
     return res.status(404).json({ message: 'Pedido no encontrado.' });
   }
-  res.status(200).json(order);
+  res.status(200).json(withMoneyAsFixed(order));
 });
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
@@ -46,7 +47,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'X-Idempotency-Key es requerido y debe tener como máximo 100 caracteres.' });
   }
   const order = await OrderService.create(req.body, user.id, idempotencyKey, 0, req.id);
-  res.status(201).json(order);
+  res.status(201).json(withMoneyAsFixed(order));
 });
 
 export const quoteOrder = asyncHandler(async (req: Request, res: Response) => {
@@ -61,7 +62,7 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
 
   // StateTransitionError -> 409 and NotFoundError -> 404 are mapped by the global errorHandler.
   const order = await OrderService.updateStatus(id, statusData, user, req.id);
-  res.status(200).json(order);
+  res.status(200).json(withMoneyAsFixed(order));
 });
 
 export const requestOrderCancellation = asyncHandler(async (req: Request, res: Response) => {
@@ -72,12 +73,12 @@ export const requestOrderCancellation = asyncHandler(async (req: Request, res: R
     user,
     req.id,
   );
-  res.status(201).json(request);
+  res.status(201).json(withMoneyAsFixed(request));
 });
 
 export const getPendingCancellationRequests = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
-  res.status(200).json(await OrderService.getPendingCancellationRequests(user));
+  res.status(200).json(withMoneyAsFixed(await OrderService.getPendingCancellationRequests(user)));
 });
 
 const reviewCancellation = (decision: 'approve' | 'reject') => asyncHandler(async (req: Request, res: Response) => {
@@ -89,7 +90,7 @@ const reviewCancellation = (decision: 'approve' | 'reject') => asyncHandler(asyn
     user,
     req.id,
   );
-  res.status(200).json(request);
+  res.status(200).json(withMoneyAsFixed(request));
 });
 
 export const approveOrderCancellation = reviewCancellation('approve');
@@ -98,7 +99,7 @@ export const rejectOrderCancellation = reviewCancellation('reject');
 export const getPendingPayments = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const payments = await OrderService.getPendingPayments(user);
-  res.status(200).json(payments);
+  res.status(200).json(withMoneyAsFixed(payments));
 });
 
 export const settleOrderPayment = asyncHandler(async (req: Request, res: Response) => {
@@ -106,20 +107,20 @@ export const settleOrderPayment = asyncHandler(async (req: Request, res: Respons
   const paymentId = String(req.params.paymentId);
   const { method, cashReceived } = req.body as z.infer<typeof settlePaymentSchema>;
   const payment = await OrderService.settlePayment(paymentId, method, user, cashReceived);
-  res.status(200).json(payment);
+  res.status(200).json(withMoneyAsFixed(payment));
 });
 
 export const getPendingDeliveries = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const deliveries = await OrderService.getPendingDeliveries(user);
-  res.status(200).json(deliveries);
+  res.status(200).json(withMoneyAsFixed(deliveries));
 });
 
 export const handoffOrderDelivery = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const id = String(req.params.id);
   const order = await OrderService.handoffDelivery(id, user);
-  res.status(200).json(order);
+  res.status(200).json(withMoneyAsFixed(order));
 });
 
 export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
@@ -127,12 +128,12 @@ export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const data = req.body as z.infer<typeof updateOrderSchema>;
   const order = await OrderService.updateOrder(id, data, user);
-  res.status(200).json(order);
+  res.status(200).json(withMoneyAsFixed(order));
 });
 
 export const getOrdersByDate = asyncHandler(async (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   const { date } = await orderByDateQuerySchema.parseAsync(req.query);
   const orders = await OrderService.findByDate(date, user);
-  res.status(200).json(orders);
+  res.status(200).json(withMoneyAsFixed(orders));
 });

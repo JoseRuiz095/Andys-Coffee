@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { CashRepository } from '../repositories/cash.repository';
-import { runInTransaction } from '../repositories/transaction';
+import { runSerializableWithRetry } from '../repositories/transaction';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { CashBusinessRuleError } from './cash.service';
 import { ConflictError, NotFoundError } from '../utils/errors';
@@ -79,7 +79,7 @@ export const ExpenseService = {
   async create(input: CreateExpenseInput, createdById: string, idempotencyKey?: string) {
     const expenseDate = input.expenseDate ? await resolveExpenseInstant(input.expenseDate) : undefined;
     try {
-      const result = await runInTransaction(
+      const result = await runSerializableWithRetry(
         async (tx) => {
           const amount = new Prisma.Decimal(input.amount);
           if (idempotencyKey) {
@@ -151,8 +151,7 @@ export const ExpenseService = {
           cashSessionId,
           cashSession: cashSessionId ? { id: cashSessionId, status: 'open' } : null,
         };
-        },
-        { serializable: true }
+        }
       );
 
       // Invalidate snapshot for the expense date (if it has a final snapshot, it will be recalculated)
@@ -174,7 +173,7 @@ export const ExpenseService = {
   },
 
   async update(id: string, input: UpdateExpenseInput, updatedById: string) {
-    const result = await runInTransaction(
+    const result = await runSerializableWithRetry(
       async (tx) => {
         const existing = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!existing) throw new NotFoundError('Gasto no encontrado.');
@@ -276,8 +275,7 @@ export const ExpenseService = {
           cashSessionId: newCashSessionId,
         });
         return { updated, previousDateStr };
-      },
-      { serializable: true }
+      }
     );
 
     // Invalidate snapshots for both the old and the new expense dates
@@ -290,7 +288,7 @@ export const ExpenseService = {
   },
 
   async remove(id: string, deletedById: string) {
-    const existing = await runInTransaction(
+    const existing = await runSerializableWithRetry(
       async (tx) => {
         const exp = await ExpenseRepository.findByIdInTransaction(tx, id);
         if (!exp) throw new NotFoundError('Gasto no encontrado.');
@@ -324,8 +322,7 @@ export const ExpenseService = {
 
         // Return the expense so we can invalidate its snapshot
         return exp;
-      },
-      { serializable: true }
+      }
     );
 
     // Invalidate snapshot for the deleted expense date (if it has a final snapshot, it will be recalculated)

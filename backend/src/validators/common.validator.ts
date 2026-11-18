@@ -1,4 +1,28 @@
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
+
+const PLAIN_DECIMAL = /^\d+(\.\d+)?$/;
+
+/**
+ * Non-negative decimal sent as a number or a string ("12.5", " 3 "), returned as a plain
+ * decimal string that Prisma.Decimal always accepts. Number() alone let " 5" and "" through and
+ * Prisma.Decimal then threw a 500 (QA audit 2026-11-18, D-03); hex, exponents and commas are
+ * rejected with the field message instead.
+ */
+export function decimalInput({ min = 0, max, exclusiveMin = false, message }: { min?: number; max: number; exclusiveMin?: boolean; message: string }) {
+  return z.union([z.string(), z.number()]).transform((value, ctx) => {
+    const text = typeof value === 'number'
+      ? (Number.isFinite(value) ? new Prisma.Decimal(value).toFixed() : '')
+      : value.trim();
+    const amount = Number(text);
+    const inRange = exclusiveMin ? amount > min : amount >= min;
+    if (!PLAIN_DECIMAL.test(text) || !inRange || amount > max) {
+      ctx.addIssue({ code: 'custom', message });
+      return z.NEVER;
+    }
+    return text;
+  });
+}
 
 /** Body of every PATCH /:id/active endpoint. */
 export const setActiveSchema = z.object({

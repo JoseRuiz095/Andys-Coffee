@@ -4,6 +4,11 @@ import { paginationMeta, paginationOffset } from '../utils/pagination';
 
 export const SupplierRepository = {
 
+  /** Name and active flag only (purchase validation; findById also loads its purchases). */
+  async findActiveState(id: string) {
+    return prisma.supplier.findUnique({ where: { id }, select: { id: true, name: true, isActive: true } });
+  },
+
   async findById(id: string) {
     return prisma.supplier.findUnique({
       where: { id },

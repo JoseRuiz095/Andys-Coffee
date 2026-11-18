@@ -2,7 +2,7 @@ import { NotificationType, Prisma } from '@prisma/client';
 import { AUTO_CLOSE_REASON } from '../config/app';
 import { CashRepository, type CashSessionWithDetails } from '../repositories/cash.repository';
 import { AuditLogRepository } from '../repositories/audit-log.repository';
-import { runInTransaction, type Tx } from '../repositories/transaction';
+import { runSerializableWithRetry, type Tx } from '../repositories/transaction';
 import { PreferenceRepository } from '../repositories/preference.repository';
 import { UserRepository } from '../repositories/user.repository';
 import type { CloseCashSessionInput, CorrectCashClosingInput, OpenCashSessionInput, CashSessionHistoryQuery } from '../validators/cash.validator';
@@ -221,7 +221,7 @@ export const CashService = {
 
 // Cash open/close/correct/reopen race with each other and with sales: always Serializable.
 function prismaTransaction<T>(callback: (tx: Tx) => Promise<T>) {
-  return runInTransaction(callback, { serializable: true });
+  return runSerializableWithRetry(callback);
 }
 
 /**

@@ -14,7 +14,7 @@ import { UserRepository } from '../repositories/user.repository';
 import { CashRepository } from '../repositories/cash.repository';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { AuditLogRepository } from '../repositories/audit-log.repository';
-import { runInTransaction, type Tx } from '../repositories/transaction';
+import { isSerializationConflict, runInTransaction, runSerializableWithRetry, SERIALIZATION_ATTEMPTS, waitBeforeRetry, type Tx } from '../repositories/transaction';
 import { NotificationService } from './notification.service';
 import { AuthUser } from './auth.service';
 import { auditLog, logger } from '../utils/logger';
@@ -716,7 +716,8 @@ export const OrderService = {
 
       return result.order;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) {
+      if (isSerializationConflict(error) && attempt < SERIALIZATION_ATTEMPTS - 1) {
+        await waitBeforeRetry(attempt);
         return OrderService.create(orderData, userId, idempotencyKey, attempt + 1, requestId);
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -902,7 +903,9 @@ export const OrderService = {
       throw businessRuleError('El monto recibido debe cubrir el pago pendiente.');
     }
 
-    const updatedPayment = await runInTransaction(async (tx) => {
+    // Retried on serialization conflicts (D-01): a settle racing a sale on the same drawer used to
+    // fail; a retry of an already-settled payment fails claimPendingPayment below instead.
+    const updatedPayment = await runSerializableWithRetry(async (tx) => {
       // Conditional update: only one of two concurrent settle requests can flip the
       // payment from 'pending', so the cash movement below is never recorded twice.
       if (!(await OrderRepository.claimPendingPayment(tx, paymentId, settleMethod))) {
@@ -929,7 +932,7 @@ export const OrderService = {
       }
 
       return OrderRepository.findPayment(tx, paymentId);
-    }, { serializable: true });
+    });
 
     // A settled payment now counts as revenue for the day the order was created.
     await invalidateSnapshotSafely(getZonedCalendarDate(payment.order.createdAt));

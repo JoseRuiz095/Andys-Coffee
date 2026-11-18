@@ -8,7 +8,7 @@ import { ProductFamilyRepository } from '../repositories/product-family.reposito
 import { ExtraRepository } from '../repositories/extra.repository';
 import { runInTransaction, type Tx } from '../repositories/transaction';
 import { AuthUser } from './auth.service';
-import { AuthorizationError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
+import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
 import { paginationMeta, paginationOffset } from '../utils/pagination';
 import { resolveImageUrl } from '../utils/imageKeys';
 import { isJumboAvailable } from '../utils/productTemperature';
@@ -36,6 +36,18 @@ async function ensureNameAvailable(name: string, exceptId?: string) {
   const existing = await ProductRepository.findActiveByName(name);
   if (existing && existing.id !== exceptId) {
     throw new DuplicateError('PRODUCT', `Ya existe un producto activo llamado "${existing.name}".`, existing.id);
+  }
+}
+
+/**
+ * SKUs can't repeat ignoring case and spaces (products_sku_normalized_unique, D-06): "CAF-01" and
+ * "caf-01" used to be two products. A blank SKU means "none" (the server assigns one).
+ */
+async function ensureSkuAvailable(sku: string | null | undefined, exceptId?: string) {
+  if (!sku) return;
+  const existing = await ProductRepository.findBySkuNormalized(sku);
+  if (existing && existing.id !== exceptId) {
+    throw new DuplicateError('PRODUCT', `El SKU "${sku}" ya lo usa el producto "${existing.name}".`, existing.id);
   }
 }
 
@@ -145,6 +157,7 @@ export const ProductService = {
     ensureUserHasPermission(user, 'products.create');
     if (productData.recipe) ensureCanManageRecipes(user);
     await ensureNameAvailable(productData.name);
+    await ensureSkuAvailable(productData.sku);
 
     const columns = productColumns(productData);
     const newProductId = await runInTransaction(async (tx) => {
@@ -163,7 +176,7 @@ export const ProductService = {
       const created = await ProductRepository.create({
         ...columns,
         categoryId: columns.categoryId ?? undefined,
-        sku: columns.sku ?? `SKU-${randomUUID()}`,
+        sku: columns.sku || `SKU-${randomUUID()}`,
       }, tx);
       await writeProductLists(tx, created.id, productData, recipe, user);
       return created.id;
@@ -195,6 +208,7 @@ export const ProductService = {
       throw new NotFoundError('Producto no encontrado.');
     }
     if (productData.name !== undefined) await ensureNameAvailable(productData.name, id);
+    await ensureSkuAvailable(productData.sku, id);
 
     const columns = productColumns(productData);
     await runInTransaction(async (tx) => {
@@ -231,7 +245,8 @@ export const ProductService = {
       await ProductRepository.update(id, {
         ...columns,
         categoryId: columns.categoryId === null ? null : columns.categoryId ?? undefined,
-        sku: columns.sku ?? undefined,
+        // Blank = keep the current SKU (a product always has one).
+        sku: columns.sku || undefined,
       }, tx);
       await writeProductLists(tx, id, productData, recipe, user);
     });
@@ -273,6 +288,14 @@ export const ProductService = {
       throw new NotFoundError('Producto no encontrado.');
     }
 
+    // S-02: say why and what to do instead of the generic FK conflict (order_items Restrict).
+    const sold = await ProductRepository.countOrderItems(id);
+    if (sold > 0) {
+      throw new ConflictError(`No se puede eliminar: el producto aparece en ${sold} venta(s). Desactívalo para que deje de venderse.`);
+    }
+
+    await ProductRepository.delete(id);
+    // S-01: logged only once the row is really gone (it used to be logged before a failed delete).
     auditLog({
       requestId,
       actor: { id: user.id, name: user.name },
@@ -280,8 +303,6 @@ export const ProductService = {
       entity: 'product',
       entityId: id,
     }, 'Product deleted');
-
-    await ProductRepository.delete(id);
     // After the row is gone: its file is deleted only if nothing else references it.
     await ProductImageService.release(productToDelete.imageUrl);
   },

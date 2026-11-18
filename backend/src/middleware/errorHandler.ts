@@ -6,6 +6,7 @@ import { productImageConfig } from '../config/productImages';
 import { logger } from '../utils/logger';
 import { DuplicateError } from '../utils/errors';
 import { sendDuplicateErrorResponse } from '../utils/controllerErrors';
+import { validationErrorBody } from '../utils/validationErrors';
 
 // Errors reaching Express can be anything; these are the fields this handler inspects.
 type HandledError = Error & { code?: string };
@@ -33,10 +34,7 @@ export const errorHandler = (
   }, 'Request failed');
 
   if (err instanceof ZodError) {
-    return res.status(400).json({
-      message: 'Error de validación.',
-      errors: err.flatten().fieldErrors,
-    });
+    return res.status(400).json(validationErrorBody(err));
   }
 
   if (err.name === 'ValidationError') {
@@ -106,6 +104,10 @@ export const errorHandler = (
     }
     if (err.code === 'P2003' || err.code === 'P2004' || err.code === 'P2014') {
       return res.status(409).json({ message: 'La operación entra en conflicto con datos existentes.' });
+    }
+    if (err.code === 'P2028') {
+      // Interactive transaction expired or could not start (slow database): nothing was saved.
+      return res.status(503).json({ message: 'La base de datos tardó demasiado en responder y la operación no se guardó. Intenta de nuevo.' });
     }
     if (err.code === 'P2034') {
       return res.status(409).json({ message: 'La operación no pudo completarse por un conflicto de concurrencia. Intenta de nuevo.' });

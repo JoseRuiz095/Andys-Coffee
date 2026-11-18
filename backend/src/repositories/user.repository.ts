@@ -22,8 +22,10 @@ export const UserRepository = {
 
   /** User by email with what login needs: password hash, role name, permissions, session version. */
   async findForLogin(email: string) {
-    return prisma.user.findUnique({
-      where: { email },
+    // Ignoring case (D-02): accounts created before e-mails were lowercased still match.
+    // users_email_normalized_unique guarantees at most one row.
+    return prisma.user.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
       include: {
         role: { select: { name: true, permissions: { select: { permission: { select: { name: true } } } } } },
       },

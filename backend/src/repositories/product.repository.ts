@@ -99,6 +99,18 @@ export const ProductRepository = {
     });
   },
 
+  /** Product with this SKU ignoring case and spaces (products_sku_normalized_unique). */
+  async findBySkuNormalized(sku: string) {
+    return prisma.product.findFirst({
+      where: { sku: { equals: sku.trim(), mode: 'insensitive' } },
+      select: { id: true, name: true, sku: true },
+    });
+  },
+
+  async countOrderItems(id: string) {
+    return prisma.orderItem.count({ where: { productId: id } });
+  },
+
   async create(data: Prisma.ProductUncheckedCreateInput, client: DbClient = prisma) {
     return client.product.create({ data });
   },

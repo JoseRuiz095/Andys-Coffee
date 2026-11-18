@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPurchaseLine, getEditableValues, referenceQuantity, referenceUnitCost, toPurchaseItemPayload, unitCostFromTotal } from './purchaseLine'
+import { buildPurchaseLine, getEditableValues, purchaseLineProblem, referenceQuantity, referenceUnitCost, toPurchaseItemPayload, unitCostFromTotal } from './purchaseLine'
 
 describe('buildPurchaseLine', () => {
   it('keeps base-unit lines as typed, the unit cost being total / quantity', () => {
@@ -61,5 +61,19 @@ describe('reference units (restock suggestions)', () => {
     expect(referenceUnitCost(4, 'pz')).toEqual({ value: 4, unit: 'pz' })
     expect(referenceQuantity(18500, 'ml')).toEqual({ value: 18.5, unit: 'lt' })
     expect(referenceQuantity(6, 'pz')).toBeNull()
+  })
+})
+
+describe('purchaseLineProblem (D-09)', () => {
+  it('accepts a 200 kg line (200,000 gr) and rejects one over 10,000,000 base units', () => {
+    const big = buildPurchaseLine({ ingredientId: 'i1', baseUnit: 'gr', captureUnit: 'kg', quantity: 200, totalCost: 5600 })
+    expect(purchaseLineProblem(big)).toBeNull()
+    const tooBig = buildPurchaseLine({ ingredientId: 'i1', baseUnit: 'gr', captureUnit: 'kg', quantity: 10_001, totalCost: 1 })
+    expect(purchaseLineProblem(tooBig)).toMatch(/cantidad máxima/)
+  })
+
+  it('rejects a line whose total exceeds the API cap', () => {
+    const line = buildPurchaseLine({ ingredientId: 'i1', baseUnit: 'pz', quantity: 10, totalCost: 200_000_000 })
+    expect(purchaseLineProblem(line)).toMatch(/total de un renglón/)
   })
 })

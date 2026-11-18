@@ -172,7 +172,8 @@ test("compra: se recibe una sola vez aunque lleguen dos recepciones simultáneas
 
   await assert.rejects(
     PurchaseService.receivePurchase(purchase.id, admin),
-    (error: Error) => error.name === "ValidationError",
+    // S-03 (QA 2026-11-18): an already-received purchase is a state conflict (409), not bad input.
+    (error: Error) => error.name === "ConflictError",
   );
   await assert.rejects(
     PurchaseService.deletePurchase(purchase.id, admin),

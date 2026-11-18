@@ -13,10 +13,11 @@ export const changePasswordSchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido.').max(255),
+  name: z.string().trim().min(1, 'El nombre es requerido.').max(255),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('El email debe ser válido.').min(1, 'El email es requerido.'),
+  // D-02: the address is matched ignoring case and surrounding spaces.
+  email: z.string().trim().toLowerCase().min(1, 'El email es requerido.').email('El email debe ser válido.'),
   password: z.string().min(1, 'La contraseña es requerida.').max(72),
 });

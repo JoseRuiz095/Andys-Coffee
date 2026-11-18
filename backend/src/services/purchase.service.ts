@@ -7,7 +7,7 @@ import { InventoryRepository } from '../repositories/inventory.repository';
 import { createPurchaseSchema } from '../validators/purchase.validator';
 import { AuthUser } from './auth.service';
 import { AuthorizationError, ConflictError, DuplicateError, NotFoundError, ValidationError } from '../utils/errors';
-import { getZonedCalendarDate } from '../utils/businessDate';
+import { getTodayInZone, getZonedCalendarDate } from '../utils/businessDate';
 import { invalidateSnapshotSafely } from './snapshot-invalidation';
 
 export const PurchaseService = {
@@ -46,6 +46,16 @@ export const PurchaseService = {
       if (existing) return existing;
     }
 
+    // D-05 (QA 2026-11-18): a deactivated supplier no longer takes new purchases; a missing one
+    // used to surface as a generic 404 from the relation connect.
+    if (data.supplierId) {
+      const supplier = await SupplierRepository.findActiveState(data.supplierId);
+      if (!supplier) throw new ValidationError('El proveedor seleccionado no existe.');
+      if (!supplier.isActive) {
+        throw new ValidationError(`El proveedor "${supplier.name}" está desactivado. Actívalo o elige otro para registrar la compra.`);
+      }
+    }
+
     // Validate supplier if supplierName is provided without supplierId
     if (data.supplierName && !data.supplierId) {
       const existingSupplier = await SupplierRepository.findByNameNormalized(data.supplierName);
@@ -79,13 +89,10 @@ export const PurchaseService = {
 
     const total = subtotal;
 
-    // Generate invoice number: FAC-YYYY/MM/DD-NNNNN (with random suffix)
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    // Invoice number FAC-YYYY/MM/DD-NNNNN with the BUSINESS day (CASH_TIMEZONE): the server clock
+    // (UTC on Render) dated evening purchases with the next day (S-04, QA 2026-11-18).
     const randomSuffix = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-    const invoiceNumber = `FAC-${year}/${month}/${day}-${randomSuffix}`;
+    const invoiceNumber = `FAC-${getTodayInZone().split('-').join('/')}-${randomSuffix}`;
 
     // Create purchase with items
     try {
@@ -136,7 +143,8 @@ export const PurchaseService = {
       }
 
       if (purchase.status !== 'draft') {
-        throw new ValidationError(`No se puede recibir una compra con estado: ${purchase.status}`);
+        // S-03: a state conflict (already received), not invalid input.
+        throw new ConflictError('Esta compra ya fue recibida y su inventario ya se sumó.');
       }
 
       if (purchase.items.length === 0) {

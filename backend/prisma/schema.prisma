@@ -37,6 +37,7 @@ model User {
 
   @@index([roleId])
   @@index([isActive])
+  // Raw SQL (20261118120000): users_email_normalized_unique UNIQUE (LOWER(TRIM(email)))
   @@map("users")
 }
 
@@ -131,6 +132,7 @@ model Product {
   @@index([categoryId], map: "products_category_idx")
   @@index([familyId], map: "products_family_idx")
   // Raw SQL (expression index): products_name_normalized_unique UNIQUE (LOWER(TRIM(name))) WHERE "isActive" = true
+  // Raw SQL (20261118120000): products_sku_normalized_unique UNIQUE (UPPER(TRIM(sku)))
   @@map("products")
 }
 
@@ -275,7 +277,8 @@ model Ingredient {
   minimumStock  Decimal              @default(0) @db.Decimal(14, 4)
   // Target level for restock suggestions; null = 2 × minimumStock.
   maximumStock  Decimal?             @db.Decimal(14, 4)
-  averageCost   Decimal              @default(0) @db.Decimal(14, 4)
+  // Cost per base unit (gr, ml): 8 decimals since 20261118120000 (D-11).
+  averageCost   Decimal              @default(0) @db.Decimal(18, 8)
   isActive      Boolean              @default(true)
   deletedAt     DateTime?            @db.Timestamptz(6)
   createdAt     DateTime             @default(now()) @db.Timestamptz(6)
@@ -342,7 +345,7 @@ model InventoryMovement {
   ingredientId  String
   type          String
   quantity      Decimal    @db.Decimal(14, 4)
-  unitCost      Decimal    @default(0) @db.Decimal(14, 4)
+  unitCost      Decimal    @default(0) @db.Decimal(18, 8)
   referenceType String?
   referenceId   String?
   reason        String?
@@ -418,7 +421,7 @@ model PurchaseItem {
   purchaseId   String
   ingredientId String
   quantity     Decimal    @db.Decimal(14, 4)
-  unitCost     Decimal    @db.Decimal(14, 4)
+  unitCost     Decimal    @db.Decimal(18, 8)
   total        Decimal?   @db.Decimal(14, 2)
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onUpdate: NoAction)
