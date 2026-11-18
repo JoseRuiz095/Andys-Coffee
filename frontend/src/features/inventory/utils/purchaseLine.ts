@@ -1,5 +1,25 @@
 import { convertQuantity, convertUnitCost } from './unitConversion'
 
+/**
+ * Highest quantity of one line in the ingredient's BASE unit (10,000,000 gr = 10 t); mirrors
+ * MAX_PURCHASE_QUANTITY in backend/src/validators/purchase.validator.ts.
+ */
+export const MAX_PURCHASE_QUANTITY = 10_000_000
+
+/** Highest total of one line; mirrors MAX_LINE_TOTAL in the backend validator. */
+export const MAX_LINE_TOTAL = 100_000_000
+
+/** Why a built line would be rejected by the API, in the user's terms; null when it is valid. */
+export function purchaseLineProblem(line: PurchaseLine): string | null {
+  if (line.quantity > MAX_PURCHASE_QUANTITY) {
+    return `La cantidad máxima por renglón es ${MAX_PURCHASE_QUANTITY.toLocaleString('es-MX')} ${line.unitAbbreviation ?? ''}. Divide la compra en varios renglones.`.trim()
+  }
+  if (line.quantity * line.unitCost > MAX_LINE_TOTAL) {
+    return `El total de un renglón no puede superar $${MAX_LINE_TOTAL.toLocaleString('es-MX')}.`
+  }
+  return null
+}
+
 /** A purchase line as captured on screen and as sent to the API (base unit). */
 export interface PurchaseLine {
   ingredientId: string

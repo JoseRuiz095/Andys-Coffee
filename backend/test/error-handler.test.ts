@@ -70,6 +70,16 @@ test('L-02: validate() responde con el mismo formato que el handler global', asy
   await validate(z.object({ amount: z.number() }))({ body: { amount: 'x' } } as any, recorder.response, next);
   const { statusCode, body } = recorder.result() as { statusCode: number; body: { message: string; errors: Record<string, string[]> } };
   assert.equal(statusCode, 400);
-  assert.equal(body.message, 'Error de validación.');
+  // D-10 (QA 2026-11-18): the message names the field and the reason, in Spanish.
+  assert.match(body.message, /^Monto: Entrada inválida/);
   assert.ok(Array.isArray(body.errors.amount), 'errors must be field errors, not a serialized string');
+});
+
+test('D-10: un mensaje propio de la regla llega tal cual en message', async () => {
+  const { z } = await import('zod');
+  const { validate } = await import('../src/middleware/validate');
+  const recorder = responseRecorder();
+  await validate(z.object({ name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.') }))({ body: { name: 'a' } } as any, recorder.response, next);
+  const { body } = recorder.result() as { body: { message: string } };
+  assert.equal(body.message, 'El nombre debe tener al menos 3 caracteres.');
 });

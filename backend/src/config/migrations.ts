@@ -4,4 +4,4 @@
  * expects; test/migrations-sync.test.ts fails when a new migration is added without updating it.
  * See docs/Project/deployment.md: production gets `prisma migrate deploy` BEFORE the new image.
  */
-export const LATEST_REQUIRED_MIGRATION = "20261116120000_recipe_temperature";
+export const LATEST_REQUIRED_MIGRATION = "20261118120000_qa_audit_precision_and_normalized_keys";

@@ -132,6 +132,33 @@ Cada paso requiere aprobación. Todo se ejecuta desde `backend/` y en una ventan
 - **Código:** se vuelve al deploy anterior en Render y Vercel. El esquema nuevo es compatible con el código viejo.
 - **Datos (pasos 3, 4, 8 y 9):** se restaura el respaldo del paso 1. La conversión de unidades de `normalize-catalog` no se puede deshacer de forma confiable.
 
+## 4.2 Correcciones de la auditoría QA del 18/11/2026 (pendiente de aprobación)
+
+Detalle: [`AUDIT/auditoria-qa-integral-2026-11-18.md`](AUDIT/auditoria-qa-integral-2026-11-18.md). Hay una migración nueva, `20261118120000_qa_audit_precision_and_normalized_keys`, ya ensayada en Docker.
+- **No modifica datos.** Amplía tres columnas de costo de `NUMERIC(14,4)` a `NUMERIC(18,8)` y crea dos índices únicos normalizados: correo de usuario y SKU de producto.
+- **Va en una transacción.** Si falla un índice, se revierte completa.
+- **El código nuevo la exige.** `/ready` devuelve 503 sin ella, así que debe aplicarse **antes** del deploy.
+
+Cada paso requiere aprobación y se ejecuta desde `backend/`.
+
+1. **Respaldo verificado**, igual que el paso 1 de la sección 4.1.
+2. **Verificaciones previas.** Ambas consultas deben devolver 0 filas; si devuelven algo, hay que corregir esos registros antes, porque si no la migración se revierte:
+   ```sql
+   SELECT LOWER(TRIM(email)), COUNT(*) FROM users GROUP BY 1 HAVING COUNT(*) > 1;
+   SELECT UPPER(TRIM(sku)), COUNT(*) FROM products GROUP BY 1 HAVING COUNT(*) > 1;
+   ```
+3. **Listar pendientes:** `cross-env NODE_ENV=production npx prisma migrate status`. Solo debe aparecer `20261118120000_*`.
+4. **Aplicar:** `npm run prisma:migrate:deploy:prod`.
+5. **Desplegar el código** y comprobar que `GET /ready` responde 200.
+6. **Prueba rápida:**
+   - iniciar sesión escribiendo el correo con otras mayúsculas;
+   - crear una compra de más de 100 kg y luego eliminar el borrador;
+   - registrar una venta de prueba y cancelarla.
+
+**Rollback:**
+- **Código:** se vuelve al deploy anterior. Es compatible con el esquema nuevo, porque columnas más amplias e índices extra no rompen el código viejo.
+- **Esquema:** no hace falta revertirlo. Si se quisiera, sería `DROP INDEX` de los dos índices, y las columnas pueden quedarse con la precisión nueva.
+
 ## 5. Scripts que escriben datos
 
 | Script | Protección |

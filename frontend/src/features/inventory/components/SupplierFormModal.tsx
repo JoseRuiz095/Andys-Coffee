@@ -61,8 +61,9 @@ export function SupplierFormModal({
       return
     }
 
-    if (phone.trim() && !/^[+\d\s\-()]+$/.test(phone.trim())) {
-      sileo.error({ title: 'Teléfono inválido', description: 'Ingresa un teléfono válido.' })
+    // Same rule as the API (supplier.validator.ts): digits and separators, 7 to 20 characters.
+    if (phone.trim() && !/^\+?[0-9()\-.\s]{7,20}(\s*(ext\.?|x)\s*\d{1,6})?$/i.test(phone.trim())) {
+      sileo.error({ title: 'Teléfono inválido', description: 'Usa solo números, espacios, guiones o paréntesis (7 a 20 caracteres).' })
       return
     }
 

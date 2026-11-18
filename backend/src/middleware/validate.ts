@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z, ZodError } from 'zod';
+import { validationErrorBody } from '../utils/validationErrors';
 
 /**
  * Validates and replaces req.body with the parsed value. Uses parseAsync so schemas with
@@ -14,10 +15,7 @@ export const validate = <T>(schema: z.ZodSchema<T>) => async function validateBo
   } catch (error) {
     if (error instanceof ZodError) {
       // Same shape as the global errorHandler's ZodError branch.
-      return res.status(400).json({
-        message: 'Error de validación.',
-        errors: error.flatten().fieldErrors,
-      });
+      return res.status(400).json(validationErrorBody(error));
     }
     next(error);
   }

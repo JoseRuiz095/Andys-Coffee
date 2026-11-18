@@ -10,16 +10,22 @@ export const userListSchema = z.object({
   roleId: z.string().uuid().optional(),
 });
 
+// QA audit 2026-11-18: e-mails are stored trimmed and in lowercase (D-02: "Ana@Cafe.mx" could
+// not log in as "ana@cafe.mx") and a name of only spaces is rejected before it is trimmed to ""
+// (D-04: the length used to be checked on the untrimmed value).
+export const userEmailSchema = z.string().trim().toLowerCase().email('El correo no es válido.').max(255);
+const userNameSchema = z.string().trim().min(1, 'El nombre es requerido.').max(255);
+
 export const userCreateSchema = z.object({
-  name: z.string().min(1).max(255),
-  email: z.string().email().max(255),
+  name: userNameSchema,
+  email: userEmailSchema,
   roleId: z.string().uuid('El roleId debe ser un UUID válido.'),
   password: passwordSchema,
 });
 
 export const userUpdateSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  email: z.string().email().max(255).optional().or(z.literal('')),
+  name: userNameSchema.optional(),
+  email: userEmailSchema.optional().or(z.literal('')),
   roleId: z.string().uuid().optional(),
 });
 

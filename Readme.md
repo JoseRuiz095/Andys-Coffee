@@ -146,6 +146,7 @@ Ejemplo: `feat: agregar liquidación de pagos pendientes`.
 
 - [`docs/GPS/`](docs/GPS/): entregables de ingeniería del proyecto (alcance, EDT, casos de uso).
 - [`docs/Project/AUDIT/`](docs/Project/AUDIT/): auditorías técnicas.
+- [`docs/Project/AUDIT/auditoria-qa-integral-2026-11-18.md`](docs/Project/AUDIT/auditoria-qa-integral-2026-11-18.md): auditoría QA integral (18/11/2026): 673 pruebas automatizadas sobre Docker, matriz por módulo, 11 defectos (4 altos) con causa y solución propuesta, y plan de estabilización. Corregidos en código; el despliegue está en `deployment.md` § 4.2.
 - [`docs/Project/FIXED/`](docs/Project/FIXED/): hallazgos resueltos y cambios realizados (p. ej. la auditoría del flujo de ventas y el nuevo flujo de imágenes de productos, ambos del 20/10/2026).
 - [`docs/Project/FIXED/[FIXED] auditoria-ux-inventario 13-11-26.md`](<docs/Project/FIXED/[FIXED] auditoria-ux-inventario 13-11-26.md>): auditoría UX/UI y simplificación del módulo de Inventario (13/11/2026): navegación en 5 secciones, existencias sin saturación, formularios por secciones y pruebas E2E del módulo.
 - [`docs/Project/FIXED/[FIXED] auditoria-ux-administracion 14-11-26.md`](<docs/Project/FIXED/[FIXED] auditoria-ux-administracion 14-11-26.md>): auditoría UX/UI de Administración y Configuración (14/11/2026): 3 secciones en Administración, Configuración agrupada, permisos legibles y alineados con el backend, reapertura de cortes y pruebas E2E del módulo.

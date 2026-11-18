@@ -19,3 +19,15 @@ describe('getErrorStatus', () => {
     expect(getErrorStatus(null)).toBeUndefined()
   })
 })
+
+describe('getErrorMessage with field errors (D-10)', () => {
+  it('uses the first field reason when the message is the generic validation one', () => {
+    const error = { response: { status: 400, data: { message: 'Error de validación.', errors: { items: ['La cantidad máxima es 10,000,000.'] } } } }
+    expect(getErrorMessage(error, 'fallback')).toBe('La cantidad máxima es 10,000,000.')
+  })
+
+  it('keeps a specific message as is', () => {
+    const error = { response: { data: { message: 'Cantidad: muy grande', errors: { items: ['otra'] } } } }
+    expect(getErrorMessage(error, 'fallback')).toBe('Cantidad: muy grande')
+  })
+})

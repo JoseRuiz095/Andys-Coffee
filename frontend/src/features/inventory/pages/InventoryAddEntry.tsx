@@ -11,7 +11,7 @@ import { useSearchIngredients } from '../hooks/useInventory'
 import { IngredientFormModal } from '../components/IngredientFormModal'
 import { SupplierFormModal } from '../components/SupplierFormModal'
 import { getCompatibleUnits } from '../utils/unitConversion'
-import { buildPurchaseLine, getEditableValues, toPurchaseItemPayload, type PurchaseLine } from '../utils/purchaseLine'
+import { buildPurchaseLine, getEditableValues, purchaseLineProblem, toPurchaseItemPayload, type PurchaseLine } from '../utils/purchaseLine'
 import { getErrorMessage } from '../../../shared/utils/errors'
 import type { InventoryIngredient } from '../api/inventory.api'
 import type { Supplier } from '../api/purchases.api'
@@ -85,10 +85,11 @@ export function InventoryAddEntry() {
     const qty = parseFloat(itemQuantity)
     const cost = parseFloat(itemCost)
 
-    if (qty <= 0 || cost <= 0) {
+    // A cost of 0 is allowed (samples or gifts from the supplier), like the API accepts.
+    if (!Number.isFinite(qty) || !Number.isFinite(cost) || qty <= 0 || cost < 0) {
       sileo.error({
         title: 'Valores inválidos',
-        description: 'Cantidad y costo deben ser mayores a cero.',
+        description: 'La cantidad debe ser mayor a cero y el costo no puede ser negativo.',
       })
       return
     }
@@ -111,6 +112,12 @@ export function InventoryAddEntry() {
         title: 'Error de conversión',
         description: `No se puede convertir de ${captureUnit} a ${baseUnit}`,
       })
+      return
+    }
+
+    const problem = purchaseLineProblem(newItem)
+    if (problem) {
+      sileo.error({ title: 'Renglón no válido', description: problem })
       return
     }
 

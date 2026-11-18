@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { queryBoolean } from './common.validator';
+import { decimalInput, queryBoolean } from './common.validator';
 
 export const inventoryListSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -24,8 +24,7 @@ export const inventoryMovementsSchema = z.object({
   orderId: z.string().trim().min(1).max(64).optional(),
 });
 
-const stockAmount = z.string().or(z.number()).transform((v) => String(v))
-  .refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1_000_000_000, 'Debe ser un número entre 0 y 1,000,000,000.');
+const stockAmount = decimalInput({ max: 1_000_000_000, message: 'Debe ser un número entre 0 y 1,000,000,000.' });
 
 export const ingredientCreateSchema = z.object({
   name: z.string().trim().min(1).max(255),
@@ -62,8 +61,8 @@ export const inventoryExitReasons = ['waste', 'damaged', 'expired', 'sample', 'i
 export const inventoryExitSchema = z.object({
   ingredientId: z.string().uuid(),
   // V2 (2026-11-14): a non-numeric quantity used to reach Prisma.Decimal and answer 500.
-  quantity: z.string().or(z.number()).transform((v) => String(v))
-    .refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) > 0 && Number(v) <= 100_000, 'La cantidad debe ser un número mayor a 0.'),
+  // Base unit, like purchases (D-09): up to 10,000,000 (10 t / 10,000 lt).
+  quantity: decimalInput({ exclusiveMin: true, max: 10_000_000, message: 'La cantidad debe ser un número mayor a 0 y hasta 10,000,000 (en la unidad base del insumo).' }),
   reason: z.enum(inventoryExitReasons),
   notes: z.string().max(500).optional(),
 });
