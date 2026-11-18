@@ -132,7 +132,7 @@ export function IngredientsTab() {
             className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-[var(--color-button-text)] font-medium flex items-center gap-2 transition-colors hover:bg-[var(--color-primary-hover)]"
           >
             <PlusIcon size={18} />
-            Crear Ingrediente
+            Nuevo ingrediente
           </button>
         )
         }

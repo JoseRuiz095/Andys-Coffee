@@ -130,7 +130,7 @@ test("catálogo de ingredientes: crear y desactivar con confirmación", async ({
   await login(page, managerEmail, users.password);
   await openInventory(page, "management", "&gestion=ingredients");
 
-  await page.getByRole("button", { name: /Crear Ingrediente/ }).click();
+  await page.getByRole("button", { name: /Nuevo ingrediente/ }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nombre del ingrediente").fill(name);
   await dialog.locator("select").first().selectOption({ index: 1 });

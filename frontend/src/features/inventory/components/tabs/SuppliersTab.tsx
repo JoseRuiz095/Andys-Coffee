@@ -135,7 +135,7 @@ export function SuppliersTab() {
             }}
           >
             <PlusIcon size={18} />
-            Crear Proveedor
+            Nuevo proveedor
           </button>
         )
         }
