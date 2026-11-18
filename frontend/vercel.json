@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://andys-coffee-dev.onrender.com/api/:path*"
+      "destination": "https://andys-coffee-api.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
