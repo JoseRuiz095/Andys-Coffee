@@ -15,7 +15,7 @@ interface SegmentedTabsProps<T extends string> {
 }
 
 /**
- * Secondary tabs inside a section (e.g. Compras: Por recibir · Nueva compra · Sugerencias).
+ * Secondary tabs inside a section (e.g. Compras: Nueva compra · Por recibir · Sugerencias).
  * Keyboard: ←/→ move between tabs, Home/End jump to the ends (only the active tab is in the
  * Tab order, as in a WAI-ARIA tablist).
  */

@@ -188,11 +188,11 @@ export function SuppliersTab() {
           <table className="w-full text-sm">
             <thead className="bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Proveedor</th>
-                <th className="px-4 py-3 text-left font-semibold">Email</th>
-                <th className="px-4 py-3 text-left font-semibold">Teléfono</th>
-                <th className="px-4 py-3 text-center font-semibold">Estado</th>
-                <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Proveedor</th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Email</th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Teléfono</th>
+                <th className="px-4 py-2.5 text-center font-semibold whitespace-nowrap">Estado</th>
+                <th className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -218,17 +218,17 @@ export function SuppliersTab() {
                 }
                 return (
                   <tr key={supplier.id} className="hover:bg-[var(--color-surface-hover)]">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <div className="font-medium text-[var(--color-text-primary)]">{supplier.name}</div>
                       {/* The address is kept, below the name, instead of a wide column. */}
-                      {supplier.address && <div className="text-xs text-[var(--color-text-secondary)]">{supplier.address}</div>}
+                      {supplier.address && <div className="text-[0.8125rem] text-[var(--color-text-secondary)]">{supplier.address}</div>}
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{supplier.email || '—'}</td>
-                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{supplier.phone || '—'}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-2.5 text-[var(--color-text-secondary)]">{supplier.email || '—'}</td>
+                    <td className="px-4 py-2.5 text-[var(--color-text-secondary)]">{supplier.phone || '—'}</td>
+                    <td className="px-4 py-2.5 text-center">
                       <StatusBadge tone={supplier.isActive ? 'success' : 'neutral'}>{supplier.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <RowActions actions={actions} />
                     </td>
                   </tr>

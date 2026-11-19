@@ -11,6 +11,8 @@ import { EXIT_REASON_LABELS, type ExitReason } from '../api/inventory-exits.api'
 import { Pagination } from '../../../shared/components/Pagination'
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { formatDayAndTime } from '../../../shared/utils/dateUtils'
+import { CELL_SECONDARY_CLASS, NUMERIC_CLASS, TABLE_CARD_CLASS, TABLE_CLASS, TABLE_HEAD_CLASS, TD_CLASS, TH_CLASS, TR_CLASS } from '../../../shared/constants/tableStyles'
 import { getMovementTypeColor, getMovementTypeLabel, MOVEMENT_TYPES } from '../constants/movementTypes'
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -123,25 +125,25 @@ export function InventoryMovements() {
       {error ? (
         <QueryErrorState error={error} subject="los movimientos" onRetry={() => void refetch()} isRetrying={isFetching} />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className={TABLE_CARD_CLASS}>
           {isLoading ? (
             <TableSkeleton rows={6} columns={6} />
           ) : movements.length === 0 ? (
-            <p className="p-8 text-center text-[var(--color-text-secondary)]">
+            <p className="px-4 py-8 text-center text-sm text-[var(--color-text-secondary)]">
               {hasFilters ? 'Ningún movimiento coincide con los filtros.' : 'Aún no hay movimientos de inventario.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]">
+              <table className={TABLE_CLASS}>
+                <thead className={TABLE_HEAD_CLASS}>
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Fecha</th>
-                    <th className="px-4 py-3 text-left font-semibold">Ingrediente</th>
-                    <th className="px-4 py-3 text-center font-semibold">Tipo</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cantidad</th>
-                    <th className="px-4 py-3 text-right font-semibold">Saldo</th>
-                    <th className="px-4 py-3 text-left font-semibold">Origen</th>
-                    <th className="px-2 py-3"><span className="sr-only">Detalle</span></th>
+                    <th className={`${TH_CLASS} text-left`}>Fecha</th>
+                    <th className={`${TH_CLASS} text-left`}>Ingrediente</th>
+                    <th className={`${TH_CLASS} text-center`}>Tipo</th>
+                    <th className={`${TH_CLASS} text-right`}>Cantidad</th>
+                    <th className={`${TH_CLASS} text-right`}>Saldo</th>
+                    <th className={`${TH_CLASS} text-left`}>Origen</th>
+                    <th className="px-2 py-2.5"><span className="sr-only">Detalle</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
@@ -150,47 +152,41 @@ export function InventoryMovements() {
                     const isExpanded = expandedId === movement.id;
                     return (
                       <Fragment key={movement.id}>
-                        <tr className="transition-colors hover:bg-[var(--color-surface-hover)]">
-                          <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                            {new Date(movement.createdAt).toLocaleDateString('es-MX', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                        <tr className={TR_CLASS} style={isExpanded ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}>
+                          <td className={`${TD_CLASS} whitespace-nowrap text-[var(--color-text-secondary)]`}>
+                            {formatDayAndTime(movement.createdAt)}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className={TD_CLASS}>
                             <p className="font-medium text-[var(--color-text-primary)]">{movement.ingredient.name}</p>
-                            {movement.ingredient.sku && <p className="text-xs text-[var(--color-text-secondary)]">{movement.ingredient.sku}</p>}
+                            {movement.ingredient.sku && <p className={CELL_SECONDARY_CLASS}>{movement.ingredient.sku}</p>}
                           </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getMovementTypeColor(movement.type)}`}>
+                          <td className={`${TD_CLASS} text-center`}>
+                            <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.8125rem] font-medium ${getMovementTypeColor(movement.type)}`}>
                               {getMovementTypeLabel(movement.type)}
                             </span>
                           </td>
-                          <td className={`px-4 py-3 text-right ${Number(movement.quantity) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
+                          <td className={`${TD_CLASS} ${NUMERIC_CLASS} font-medium ${Number(movement.quantity) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>
                             {Number(movement.quantity) > 0 ? '+' : ''}
                             {Number(movement.quantity).toFixed(2)}{' '}
-                            <span className="text-[var(--color-text-secondary)]">{movement.ingredient.unit.abbreviation}</span>
+                            <span className="font-normal text-[var(--color-text-secondary)]">{movement.ingredient.unit.abbreviation}</span>
                           </td>
                           <td
-                            className="px-4 py-3 text-right"
+                            className={`${TD_CLASS} ${NUMERIC_CLASS}`}
                             style={{ color: movement.balanceAfter !== null && Number(movement.balanceAfter) < 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}
                           >
                             {movement.balanceAfter === null ? '—' : Number(movement.balanceAfter).toFixed(2)}
                           </td>
-                          <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                          <td className={`${TD_CLASS} text-[var(--color-text-secondary)]`}>
                             <p className="font-medium">{origin.title}</p>
                             {origin.detail && <p>{origin.detail}</p>}
                           </td>
-                          <td className="px-2 py-3 text-right">
+                          <td className="px-2 py-2.5 text-right">
                             <button
                               type="button"
                               aria-expanded={isExpanded}
                               aria-label={`${isExpanded ? 'Ocultar' : 'Ver'} detalle del movimiento de ${movement.ingredient.name}`}
                               onClick={() => setExpandedId(isExpanded ? null : movement.id)}
-                              className="rounded px-2 py-1 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface-hover)]"
+                              className="min-h-9 rounded px-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface-hover)] pointer-coarse:min-h-11"
                             >
                               {isExpanded ? 'Ocultar' : 'Detalle'}
                             </button>
@@ -198,7 +194,7 @@ export function InventoryMovements() {
                         </tr>
                         {isExpanded && (
                           <tr className="bg-[var(--color-surface-hover)]">
-                            <td colSpan={7} className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                            <td colSpan={7} className="px-4 pb-3 pt-1 text-sm text-[var(--color-text-secondary)]">
                               <span className="mr-6">
                                 Costo unitario: <strong className="text-[var(--color-text-primary)]">{formatCurrency(Number(movement.unitCost))}</strong>
                               </span>

@@ -141,7 +141,7 @@ export function SupplierFormModal({
               ) : similarResults && similarResults.length > 0 ? (
                 <ul className="space-y-1">
                   {similarResults.map((supplier) => (
-                    <li key={supplier.id} className="flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
+                    <li key={supplier.id} className="flex items-center justify-between gap-3 text-sm text-[var(--color-text-secondary)]">
                       <span>{supplier.name}</span>
                       <button
                         type="button"
@@ -149,7 +149,7 @@ export function SupplierFormModal({
                           handleClose()
                           onSuccess?.(supplier)
                         }}
-                        className="rounded bg-[var(--color-info)] px-2 py-1 text-xs font-medium text-[var(--color-button-text)] hover:opacity-90"
+                        className="min-h-9 shrink-0 rounded-lg border border-[color-mix(in_srgb,var(--color-info)_45%,var(--color-border))] px-3 font-medium text-[var(--color-info)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-info)_10%,var(--color-surface))] pointer-coarse:min-h-11"
                       >
                         Usar este
                       </button>

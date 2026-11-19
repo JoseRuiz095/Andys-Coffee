@@ -33,8 +33,8 @@ const SECTIONS: InventorySection[] = [
     id: 'purchases',
     label: 'Compras',
     views: [
-      { id: 'entries', label: 'Por recibir', render: () => <InventoryEntries /> },
       { id: 'add-entry', label: 'Nueva compra', render: () => <InventoryAddEntry /> },
+      { id: 'entries', label: 'Por recibir', render: () => <InventoryEntries /> },
       { id: 'replenishment', label: 'Sugerencias', render: () => <InventoryReplenishment /> },
     ],
   },

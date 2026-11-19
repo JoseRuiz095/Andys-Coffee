@@ -1,6 +1,7 @@
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import type { InventoryIngredient } from '../api/inventory.api';
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
+import { CELL_SECONDARY_CLASS, NUMERIC_CLASS, TABLE_CARD_CLASS, TABLE_CLASS, TABLE_HEAD_CLASS, TD_CLASS, TH_CLASS, TR_CLASS } from '../../../shared/constants/tableStyles'
 
 interface InventoryTableProps {
   ingredients: InventoryIngredient[];
@@ -53,13 +54,13 @@ export function InventoryTable({ ingredients, isLoading, emptyMessage = 'No hay 
     );
   }
 
-  const headerCell = 'px-4 py-3 font-semibold'
+  const headerCell = TH_CLASS
 
   return (
-    <div className="rounded-lg border overflow-hidden" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+    <div className={TABLE_CARD_CLASS}>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}>
+        <table className={TABLE_CLASS}>
+          <thead className={TABLE_HEAD_CLASS}>
             <tr>
               <th className={`${headerCell} text-left`}>Ingrediente</th>
               <th className={`${headerCell} text-right`}>Stock actual</th>
@@ -69,7 +70,7 @@ export function InventoryTable({ ingredients, isLoading, emptyMessage = 'No hay 
               <th className={`${headerCell} text-center`}>Estado</th>
             </tr>
           </thead>
-          <tbody style={{ borderColor: 'var(--color-border)' }} className="divide-y">
+          <tbody className="divide-y divide-[var(--color-border)]">
             {ingredients.map((ingredient) => {
               const status = getInventoryStatus(ingredient.currentStock, ingredient.minimumStock);
               const inventoryValue = Math.max(0, Number(ingredient.currentStock)) * Number(ingredient.averageCost);
@@ -77,25 +78,28 @@ export function InventoryTable({ ingredients, isLoading, emptyMessage = 'No hay 
               const unit = ingredient.unit.abbreviation;
 
               return (
-                <tr key={ingredient.id} className="transition-colors hover:bg-[var(--color-surface-hover)]">
-                  <td className="px-4 py-3">
+                <tr key={ingredient.id} className={TR_CLASS}>
+                  <td className={TD_CLASS}>
                     <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{ingredient.name}</div>
-                    {ingredient.sku && <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.sku}</div>}
+                    {ingredient.sku && <div className={CELL_SECONDARY_CLASS}>{ingredient.sku}</div>}
                   </td>
-                  <td className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                    {formatQuantity(ingredient.currentStock)} <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{unit}</span>
+                  <td
+                    className={`${TD_CLASS} ${NUMERIC_CLASS} font-semibold`}
+                    style={{ color: isNegative(ingredient.currentStock) ? 'var(--color-danger)' : 'var(--color-text-primary)' }}
+                  >
+                    {formatQuantity(ingredient.currentStock)} <span className="font-normal" style={{ color: 'var(--color-text-secondary)' }}>{unit}</span>
                   </td>
-                  <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>
-                    {formatQuantity(ingredient.minimumStock)} <span className="text-xs">{unit}</span>
+                  <td className={`${TD_CLASS} ${NUMERIC_CLASS}`} style={{ color: 'var(--color-text-secondary)' }}>
+                    {formatQuantity(ingredient.minimumStock)} {unit}
                   </td>
-                  <td className="hidden px-4 py-3 text-right lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>
+                  <td className={`${TD_CLASS} ${NUMERIC_CLASS} hidden lg:table-cell`} style={{ color: 'var(--color-text-secondary)' }}>
                     {formatCurrency(Number(ingredient.averageCost))}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  <td className={`${TD_CLASS} ${NUMERIC_CLASS} font-semibold`} style={{ color: 'var(--color-text-primary)' }}>
                     {formatCurrency(inventoryValue)}
                   </td>
                   <td
-                    className="px-4 py-3 text-center"
+                    className={`${TD_CLASS} text-center`}
                     title={`${margin >= 0 ? '+' : ''}${formatQuantity(margin)} ${unit} respecto al mínimo`}
                   >
                     <StatusBadge tone={status}>{isNegative(ingredient.currentStock) ? 'Negativo' : STATUS_LABEL[status]}</StatusBadge>

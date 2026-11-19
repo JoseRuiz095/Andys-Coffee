@@ -200,13 +200,13 @@ export function IngredientsTab() {
           <table className="w-full text-sm">
             <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Ingrediente</th>
-                <th className="px-4 py-3 text-left font-semibold">Unidad</th>
-                <th className="px-4 py-3 text-right font-semibold">Mínimo</th>
-                <th className="hidden px-4 py-3 text-right font-semibold lg:table-cell">Stock actual</th>
-                <th className="px-4 py-3 text-right font-semibold">Costo prom.</th>
-                <th className="px-4 py-3 text-center font-semibold">Estado</th>
-                <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Ingrediente</th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Unidad</th>
+                <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Mínimo</th>
+                <th className="hidden px-4 py-2.5 text-right font-semibold whitespace-nowrap lg:table-cell">Stock actual</th>
+                <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Costo prom.</th>
+                <th className="px-4 py-2.5 text-center font-semibold whitespace-nowrap">Estado</th>
+                <th className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody style={{ borderColor: 'var(--color-border)' }} className="divide-y">
@@ -232,18 +232,18 @@ export function IngredientsTab() {
                 }
                 return (
                   <tr key={ingredient.id} className="transition-colors hover:bg-[var(--color-surface-hover)]">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{ingredient.name}</div>
-                      {ingredient.sku && <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.sku}</div>}
+                      {ingredient.sku && <div className="text-[0.8125rem]" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.sku}</div>}
                     </td>
-                    <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.unit.abbreviation}</td>
-                    <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.minimumStock).toFixed(2)}</td>
-                    <td className="hidden px-4 py-3 text-right lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.currentStock).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(Number(ingredient.averageCost))}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-2.5" style={{ color: 'var(--color-text-secondary)' }}>{ingredient.unit.abbreviation}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.minimumStock).toFixed(2)}</td>
+                    <td className="hidden px-4 py-2.5 text-right tabular-nums whitespace-nowrap lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>{Number(ingredient.currentStock).toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap" style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(Number(ingredient.averageCost))}</td>
+                    <td className="px-4 py-2.5 text-center">
                       <StatusBadge tone={ingredient.isActive ? 'success' : 'neutral'}>{ingredient.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <RowActions actions={actions} />
                     </td>
                   </tr>

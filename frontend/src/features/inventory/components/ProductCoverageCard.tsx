@@ -79,7 +79,7 @@ export function ProductCoverageCard({ product, onClear }: ProductCoverageCardPro
                       <td className="py-1.5" style={limiting ? { fontWeight: 600 } : undefined}>
                         {line.name}
                         {limiting && (
-                          <span className="ml-1.5 text-xs font-medium" style={{ color: unitsColor(variant.units) }}>limita</span>
+                          <span className="ml-1.5 text-[0.8125rem] font-medium" style={{ color: unitsColor(variant.units) }}>limita</span>
                         )}
                       </td>
                       <td className="py-1.5 text-right tabular-nums">{formatQuantity(line.quantity)} {line.unit}</td>

@@ -10,6 +10,9 @@ import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
 import { navigateTo } from '../../../app/navigation'
 import { PageHeader } from '../../../shared/components/PageHeader'
 import { referenceQuantity, referenceUnitCost, unitCostFromTotal } from '../utils/purchaseLine'
+import { FILTER_FIELD_CLASS } from '../../../shared/constants/fieldStyles'
+import { ACTION_PRIMARY_CLASS } from '../../../shared/constants/actionStyles'
+import { CELL_SECONDARY_CLASS, TABLE_CARD_CLASS, TABLE_CLASS, TABLE_HEAD_CLASS, TD_CLASS, TH_CLASS, TR_CLASS } from '../../../shared/constants/tableStyles'
 
 const PERIODS = [7, 14, 30] as const
 
@@ -18,6 +21,10 @@ const inputStyle = {
   backgroundColor: 'var(--color-input-bg)',
   color: 'var(--color-input-text)',
 }
+
+/** Inputs and selects inside the suggestion rows (36 px; 44 px on touch screens). */
+const ROW_FIELD_CLASS =
+  'min-h-9 rounded-lg border px-2 text-sm tabular-nums outline-none transition focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-primary)_25%,transparent)] disabled:opacity-60 pointer-coarse:min-h-11'
 
 const formatQuantity = (value: number) => value.toLocaleString('es-MX', { maximumFractionDigits: 2 })
 const roundMoney = (value: number) => Math.round(value * 100) / 100
@@ -139,13 +146,12 @@ export function InventoryReplenishment() {
         title="Sugerencias de compra"
         description="Insumos en su mínimo o con menos de 3 días de existencia, según el consumo real."
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div role="search" className="flex flex-wrap items-center gap-3">
           <select
             value={productId}
             onChange={(event) => setProductId(event.target.value)}
             aria-label="Filtrar por producto"
-            className="max-w-72 rounded-lg border px-2 py-1 text-sm"
-            style={inputStyle}
+            className={`${FILTER_FIELD_CLASS} max-w-72`}
           >
             <option value="">Todos los productos</option>
             {productOptions.map((product) => (
@@ -154,13 +160,12 @@ export function InventoryReplenishment() {
               </option>
             ))}
           </select>
-          <label className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            Consumo de los últimos{' '}
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Consumo de los últimos
             <select
               value={days}
               onChange={(event) => setDays(Number(event.target.value) as (typeof PERIODS)[number])}
-              className="rounded-lg border px-2 py-1"
-              style={inputStyle}
+              className={FILTER_FIELD_CLASS}
             >
               {PERIODS.map((period) => <option key={period} value={period}>{period} días</option>)}
             </select>
@@ -174,44 +179,50 @@ export function InventoryReplenishment() {
       ) : error ? (
         <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{getErrorMessage(error, 'No se pudieron cargar las sugerencias.')}</p>
       ) : visibleSuggestions.length === 0 ? (
-        <p className="rounded-lg border p-6 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
           {selectedProduct ? `Ningún insumo de ${selectedProduct.name} necesita reabastecerse.` : 'No hay insumos por reabastecer.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
-                <th className="px-3 py-2" aria-label="Incluir" />
-                <th className="px-3 py-2 text-left font-medium">Insumo</th>
-                <th className="px-3 py-2 text-right font-medium">Cobertura</th>
-                <th className="px-3 py-2 text-left font-medium">Comprar</th>
-                <th className="px-3 py-2 text-left font-medium" title="Lo que pagas por toda la cantidad, no el precio por gramo o mililitro">Costo total</th>
-                <th className="px-3 py-2 text-left font-medium">Proveedor</th>
+        <div className={TABLE_CARD_CLASS}>
+         <div className="overflow-x-auto">
+          <table className={TABLE_CLASS}>
+            <thead className={TABLE_HEAD_CLASS}>
+              <tr>
+                <th className={`${TH_CLASS} w-10`} aria-label="Incluir" />
+                <th className={`${TH_CLASS} text-left`}>Insumo</th>
+                <th className={`${TH_CLASS} text-right`}>Cobertura</th>
+                <th className={`${TH_CLASS} text-left`}>Comprar</th>
+                <th className={`${TH_CLASS} text-left`} title="Lo que pagas por toda la cantidad, no el precio por gramo o mililitro">Costo total</th>
+                <th className={`${TH_CLASS} text-left`}>Proveedor</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[var(--color-border)]">
               {visibleSuggestions.map((row) => {
                 const state = rowState(row)
                 return (
-                  <tr key={row.ingredientId} style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}>
-                    <td className="px-3 py-2 text-center">
+                  <tr
+                    key={row.ingredientId}
+                    className={`${TR_CLASS} align-top`}
+                    style={{ color: 'var(--color-text-primary)', ...(!state.selected && { opacity: 0.7 }) }}
+                  >
+                    <td className={`${TD_CLASS} text-center`}>
                       <input
                         type="checkbox"
                         checked={state.selected}
                         onChange={(event) => edit(row.ingredientId, { selected: event.target.checked })}
                         aria-label={`Incluir ${row.name}`}
+                        className="mt-2 size-4 accent-[var(--color-primary)]"
                       />
                     </td>
-                    <td className="px-3 py-2">
-                      {row.name}
-                      <span className="ml-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>{row.sku}</span>
-                      <div className="text-sm" style={{ color: row.currentStock <= 0 ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+                    <td className={TD_CLASS}>
+                      <span className="font-medium">{row.name}</span>
+                      <span className={`ml-1 ${CELL_SECONDARY_CLASS}`}>{row.sku}</span>
+                      <div className="text-sm tabular-nums" style={{ color: row.currentStock <= 0 ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
                         Hay {formatQuantity(row.currentStock)} {row.unit}
                       </div>
                       {row.shortForProduct && selectedProduct && (
                         <span
-                          className="mr-2 mt-0.5 inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                          className="mr-2 mt-0.5 inline-block rounded-full px-2 py-0.5 text-[0.8125rem] font-medium"
                           style={{
                             backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))',
                             color: 'var(--color-danger)',
@@ -221,7 +232,7 @@ export function InventoryReplenishment() {
                         </span>
                       )}
                       {draftedIds.has(row.ingredientId) && (
-                        <span className="ml-2 rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+                        <span className="ml-2 rounded-full px-2 py-0.5 text-[0.8125rem]" style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
                           borrador creado ·{' '}
                           <button
                             type="button"
@@ -235,16 +246,16 @@ export function InventoryReplenishment() {
                       )}
                     </td>
                     <td
-                      className="px-3 py-2 text-right"
+                      className={`${TD_CLASS} text-right tabular-nums`}
                       title={`Consumo: ${formatQuantity(row.dailyConsumption)} ${row.unit}/día · Mín ${formatQuantity(row.minimumStock)} / Máx ${row.maximumStock === null ? '—' : formatQuantity(row.maximumStock)}`}
                     >
-                      <div>{row.coverageDays === null ? '—' : `${row.coverageDays} días`}</div>
+                      <div className="font-medium">{row.coverageDays === null ? '—' : `${row.coverageDays} días`}</div>
                       <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                         {formatQuantity(row.dailyConsumption)} {row.unit}/día · mín {formatQuantity(row.minimumStock)}
                         {row.maximumStock === null ? '' : ` · máx ${formatQuantity(row.maximumStock)}`}
                       </div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className={`${TD_CLASS} whitespace-nowrap`}>
                       <input
                         type="number"
                         min="0"
@@ -252,19 +263,19 @@ export function InventoryReplenishment() {
                         value={state.quantity}
                         disabled={!canCreate}
                         onChange={(event) => edit(row.ingredientId, { quantity: event.target.value })}
-                        className="w-24 rounded-lg border px-2 py-1"
+                        className={`${ROW_FIELD_CLASS} w-24`}
                         style={inputStyle}
                         aria-label={`Cantidad a comprar de ${row.name}`}
                       />
-                      <span className="ml-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>{row.unit}</span>
+                      <span className={`ml-1 ${CELL_SECONDARY_CLASS}`}>{row.unit}</span>
                       {(() => {
                         const reference = referenceQuantity(Number(state.quantity) || 0, row.unit)
                         return reference && (
-                          <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>= {formatQuantity(reference.value)} {reference.unit}</div>
+                          <div className={`mt-0.5 tabular-nums ${CELL_SECONDARY_CLASS}`}>= {formatQuantity(reference.value)} {reference.unit}</div>
                         )
                       })()}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className={TD_CLASS}>
                       <input
                         type="number"
                         min="0"
@@ -272,25 +283,25 @@ export function InventoryReplenishment() {
                         value={state.totalCost}
                         disabled={!canCreate}
                         onChange={(event) => edit(row.ingredientId, { totalCost: event.target.value })}
-                        className="w-28 rounded-lg border px-2 py-1"
+                        className={`${ROW_FIELD_CLASS} w-28`}
                         style={inputStyle}
                         aria-label={`Costo total de ${row.name}`}
                       />
                       {state.unitCost > 0 && (() => {
                         const reference = referenceUnitCost(state.unitCost, row.unit)
                         return (
-                          <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                          <div className={`mt-0.5 tabular-nums ${CELL_SECONDARY_CLASS}`}>
                             {formatCurrency(reference.value)} por {reference.unit}
                           </div>
                         )
                       })()}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className={TD_CLASS}>
                       <select
                         value={state.supplierId}
                         disabled={!canCreate}
                         onChange={(event) => edit(row.ingredientId, { supplierId: event.target.value })}
-                        className="w-44 rounded-lg border px-2 py-1"
+                        className={`${ROW_FIELD_CLASS} w-48`}
                         style={{
                           ...inputStyle,
                           // A selected line without supplier can't become a purchase.
@@ -303,7 +314,7 @@ export function InventoryReplenishment() {
                           <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
                         ))}
                       </select>
-                      <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <div className={`mt-0.5 ${CELL_SECONDARY_CLASS}`}>
                         {row.lastSupplier ? `Último: ${row.lastSupplier.name}` : 'Sin compras previas'}
                       </div>
                     </td>
@@ -312,20 +323,21 @@ export function InventoryReplenishment() {
               })}
             </tbody>
           </table>
+         </div>
         </div>
       )}
 
       {visibleSuggestions.length > 0 && canCreate && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            {selected.length} insumo(s) · estimado {formatCurrency(total)}
+        <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
+          <span style={{ color: 'var(--color-text-secondary)' }}>
+            {selected.length} insumo(s) · estimado{' '}
+            <strong className="text-base tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{formatCurrency(total)}</strong>
           </span>
           <button
             type="button"
             onClick={handleCreateDrafts}
             disabled={selected.length === 0 || isCreating}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-button-text)] disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className={ACTION_PRIMARY_CLASS}
           >
             {isCreating ? 'Creando…' : 'Crear borradores de compra'}
           </button>

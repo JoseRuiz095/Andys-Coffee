@@ -51,12 +51,12 @@ export function ProductsTable({
       <table className="w-full text-sm">
         <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}>
           <tr>
-            <th className="px-4 py-3 text-left font-semibold">Producto</th>
-            <th className="hidden px-4 py-3 text-left font-semibold lg:table-cell">Temperatura</th>
-            <th className="px-4 py-3 text-right font-semibold">Precio</th>
-            <th className="px-4 py-3 text-right font-semibold">Costo</th>
-            <th className="px-4 py-3 text-center font-semibold">Estado</th>
-            <th className="px-4 py-3 text-right font-semibold"><span className="sr-only">Acciones</span></th>
+            <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Producto</th>
+            <th className="hidden px-4 py-2.5 text-left font-semibold whitespace-nowrap lg:table-cell">Temperatura</th>
+            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Precio</th>
+            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Costo</th>
+            <th className="px-4 py-2.5 text-center font-semibold whitespace-nowrap">Estado</th>
+            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap"><span className="sr-only">Acciones</span></th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
@@ -83,26 +83,26 @@ export function ProductsTable({
             }
             return (
               <tr key={product.id} className="transition-colors hover:bg-[var(--color-surface-hover)]">
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
                       <ProductImage src={product.imageUrl} alt="" />
                     </div>
                     <div className="min-w-0">
                       <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{product.name}</div>
-                      <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <div className="text-[0.8125rem]" style={{ color: 'var(--color-text-secondary)' }}>
                         {getCategoryName(product.categoryId)} · {product.sku}
                       </div>
                     </div>
                   </div>
                 </td>
-                <td className="hidden px-4 py-3 lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>{temperature ?? '—'}</td>
-                <td className="px-4 py-3 text-right font-medium" style={{ color: 'var(--color-text-primary)' }}>{formatCurrency(product.price)}</td>
-                <td className="px-4 py-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(product.cost)}</td>
-                <td className="px-4 py-3 text-center">
+                <td className="hidden px-4 py-2.5 lg:table-cell" style={{ color: 'var(--color-text-secondary)' }}>{temperature ?? '—'}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap font-medium" style={{ color: 'var(--color-text-primary)' }}>{formatCurrency(product.price)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap" style={{ color: 'var(--color-text-secondary)' }}>{formatCurrency(product.cost)}</td>
+                <td className="px-4 py-2.5 text-center">
                   <StatusBadge tone={product.isActive ? 'success' : 'neutral'}>{product.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <RowActions actions={actions} />
                 </td>
               </tr>

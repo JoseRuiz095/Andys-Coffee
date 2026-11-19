@@ -200,7 +200,8 @@ test("navegación: secciones agrupadas y enlaces antiguos compatibles", async ({
   // Keyboard on the segmented control.
   await openInventory(page, "entries");
   await page.getByRole("tab", { name: "Por recibir", exact: true }).focus();
-  await page.keyboard.press("ArrowRight");
+  // Order: Nueva compra · Por recibir · Sugerencias.
+  await page.keyboard.press("ArrowLeft");
   await expect(page).toHaveURL(/inv=add-entry/);
 });
 

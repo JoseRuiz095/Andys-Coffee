@@ -13,7 +13,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        <h1 className="text-[1.375rem] font-semibold leading-tight" style={{ color: 'var(--color-text-primary)' }}>
           {title}
         </h1>
         {description && (

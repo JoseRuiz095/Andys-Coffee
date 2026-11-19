@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../../shared/utils/errors'
 import { sileo } from 'sileo'
 import type { Category } from '../../products/types/product.types'
 import { useCurrentUser } from '../../auth/hooks/useCurrentUser'
+import { ACTION_DANGER_CLASS, ACTION_PRIMARY_CLASS, ACTION_SECONDARY_CLASS } from '../../../shared/constants/actionStyles'
 
 interface CategoryManagerModalProps {
   isOpen: boolean
@@ -197,12 +198,11 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                   />
                 </div>
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-2 pt-2 text-sm">
                   <button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
+                    className={`${ACTION_PRIMARY_CLASS} flex-1`}
                   >
                     {isSaving ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear'}
                   </button>
@@ -210,8 +210,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                     <button
                       onClick={resetForm}
                       disabled={isSaving}
-                      className="flex-1 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
-                      style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                      className={`${ACTION_SECONDARY_CLASS} flex-1`}
                     >
                       Cancelar
                     </button>
@@ -241,39 +240,34 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                 {categories.map((category) => (
                   <div
                     key={category.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
                     style={{ borderColor: 'var(--color-border)' }}
                   >
-                    <div className="flex-1">
-                      <p className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
                         {category.name}
                       </p>
-                      {category.description && (
-                        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                          {category.description}
-                        </p>
-                      )}
-                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                        Orden: {category.displayOrder}
+                      <p className="text-[0.8125rem]" style={{ color: 'var(--color-text-secondary)' }}>
+                        {category.description ? `${category.description} · ` : ''}Orden: {category.displayOrder}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {/* The status toggle reads as a status (dot + label); delete is outlined in red. */}
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-sm">
                       <button
                         onClick={() => handleToggleActive(category)}
                         disabled={!canUpdate || isLoadingActive}
-                        className="rounded px-2 py-1 text-xs font-semibold text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{
-                          backgroundColor: category.isActive ? 'var(--color-success)' : 'var(--color-warning)',
-                        }}
+                        title={canUpdate ? (category.isActive ? 'Desactivar categoría' : 'Activar categoría') : undefined}
+                        className={ACTION_SECONDARY_CLASS}
+                        style={{ color: category.isActive ? 'var(--color-success)' : 'var(--color-warning)' }}
                       >
+                        <span aria-hidden="true" className="size-2 rounded-full" style={{ backgroundColor: 'currentColor' }} />
                         {category.isActive ? 'Activo' : 'Inactivo'}
                       </button>
                       {canUpdate && (
                         <button
                           onClick={() => handleEdit(category)}
-                          className="rounded px-2 py-1 text-xs font-semibold transition"
-                          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-button-text)' }}
+                          className={ACTION_SECONDARY_CLASS}
                         >
                           Editar
                         </button>
@@ -282,8 +276,7 @@ export function CategoryManagerModal({ isOpen, onClose }: CategoryManagerModalPr
                         <button
                           onClick={() => setCategoryToDelete(category)}
                           disabled={isDeleting}
-                          className="rounded px-2 py-1 text-xs font-semibold text-[var(--color-button-text)] transition disabled:cursor-not-allowed disabled:opacity-60"
-                          style={{ backgroundColor: 'var(--color-danger)' }}
+                          className={ACTION_DANGER_CLASS}
                         >
                           Eliminar
                         </button>

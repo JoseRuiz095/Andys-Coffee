@@ -109,36 +109,36 @@ export function ExtrasTab() {
       ) : error ? (
         <QueryErrorState error={error} subject="los extras" />
       ) : extras.length === 0 ? (
-        <p className="rounded-xl border p-6 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
           Aún no hay extras. Crea uno para ofrecerlo con tus productos.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
           <table className="w-full text-sm">
-            <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+            <thead style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-primary)' }}>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Extra</th>
-                <th className="px-4 py-3 text-right font-semibold">Precio</th>
-                <th className="px-4 py-3 text-right font-semibold">Costo</th>
-                <th className="px-4 py-3 text-right font-semibold">Productos</th>
-                <th className="px-4 py-3 text-center font-semibold">Estado</th>
-                <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
+                <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Extra</th>
+                <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Precio</th>
+                <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Costo</th>
+                <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">Productos</th>
+                <th className="px-4 py-2.5 text-center font-semibold whitespace-nowrap">Estado</th>
+                <th className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
               {extras.map((extra) => (
                 <tr key={extra.id} className="border-t transition-colors hover:bg-[var(--color-surface-hover)]" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <div className="font-medium">{extra.name}</div>
-                    {extra.description && <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{extra.description}</div>}
+                    {extra.description && <div className="text-[0.8125rem]" style={{ color: 'var(--color-text-secondary)' }}>{extra.description}</div>}
                   </td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(Number(extra.price))}</td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(Number(extra.cost))}</td>
-                  <td className="px-4 py-3 text-right">{extra._count.products}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">{formatCurrency(Number(extra.price))}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">{formatCurrency(Number(extra.cost))}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">{extra._count.products}</td>
+                  <td className="px-4 py-2.5 text-center">
                     <StatusBadge tone={extra.isActive ? 'success' : 'neutral'}>{extra.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <RowActions
                       actions={[
                         ...(canUpdate
@@ -221,7 +221,7 @@ export function ExtrasTab() {
             <legend className="px-1 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Receta del extra (por unidad del producto)
             </legend>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-[0.8125rem]" style={{ color: 'var(--color-text-secondary)' }}>
               Cantidad positiva = agrega el insumo; negativa = lo quita (ej. "Sin azúcar" o sustituir leche).
             </p>
             <RecipeEditor rows={recipeRows} onChange={setRecipeRows} allowNegative readOnly={!canManageRecipes} />
@@ -229,7 +229,7 @@ export function ExtrasTab() {
               <button
                 type="button"
                 onClick={() => setForm({ ...form, cost: String(Math.max(0, recipeCost(recipeRows, units))) })}
-                className="text-xs font-semibold underline"
+                className="min-h-9 text-sm font-semibold underline underline-offset-2"
                 style={{ color: 'var(--color-primary)' }}
               >
                 Usar el costo de la receta como costo
