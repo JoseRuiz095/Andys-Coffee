@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { paginationFields } from './pagination.validator';
-import { decimalInput } from './common.validator';
+import { catalogIdSchema, decimalInput } from './common.validator';
 
 // Quantities arrive in the ingredient's BASE unit (the form converts kg → gr and lt → ml), so the
 // cap is 10,000,000 base units (10 t / 10,000 lt). It used to be 100,000, which blocked any line
@@ -24,7 +24,7 @@ const nonNegativeDecimal = decimalInput({
 });
 
 const purchaseItemSchema = z.object({
-  ingredientId: z.string().uuid(),
+  ingredientId: catalogIdSchema,
   quantity: positiveDecimal,
   unitCost: nonNegativeDecimal,
 }).refine((item) => Number(item.quantity) * Number(item.unitCost) <= MAX_LINE_TOTAL, {
@@ -44,14 +44,14 @@ export const purchaseListSchema = z.object({
 });
 
 export const createPurchaseSchema = z.object({
-  supplierId: z.string().uuid().optional(),
+  supplierId: catalogIdSchema.optional(),
   supplierName: z.string().trim().max(120).optional(),
   notes: z.string().max(1000).optional(),
   items: purchaseItemsSchema,
 });
 
 export const updatePurchaseSchema = z.object({
-  supplierId: z.string().uuid().optional(),
+  supplierId: catalogIdSchema.optional(),
   notes: z.string().max(1000).optional(),
   items: purchaseItemsSchema.optional(),
 });

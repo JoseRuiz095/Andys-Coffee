@@ -24,6 +24,13 @@ export function decimalInput({ min = 0, max, exclusiveMin = false, message }: { 
   });
 }
 
+/**
+ * Id of a catalog row (ingredient, supplier, product family…). New rows get uuids, but the
+ * original production catalog kept text ids (ingredients PROD-001…, suppliers PROV-01…), so
+ * z.string().uuid() rejected every purchase, exit and count of those rows (2026-11-19).
+ */
+export const catalogIdSchema = z.string().trim().min(1).max(64);
+
 /** Body of every PATCH /:id/active endpoint. */
 export const setActiveSchema = z.object({
   isActive: z.boolean(),

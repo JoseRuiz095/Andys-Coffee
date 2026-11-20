@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { decimalInput, queryBoolean } from './common.validator';
+import { catalogIdSchema, decimalInput, queryBoolean } from './common.validator';
 
 export const inventoryListSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -16,7 +16,7 @@ export const inventoryListSchema = z.object({
 export const inventoryMovementsSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  ingredientId: z.string().uuid().optional(),
+  ingredientId: catalogIdSchema.optional(),
   type: z.string().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
@@ -59,7 +59,7 @@ export const inventorySettingsSchema = z.strictObject({
 export const inventoryExitReasons = ['waste', 'damaged', 'expired', 'sample', 'internal_consumption', 'donation', 'other'] as const;
 
 export const inventoryExitSchema = z.object({
-  ingredientId: z.string().uuid(),
+  ingredientId: catalogIdSchema,
   // V2 (2026-11-14): a non-numeric quantity used to reach Prisma.Decimal and answer 500.
   // Base unit, like purchases (D-09): up to 10,000,000 (10 t / 10,000 lt).
   quantity: decimalInput({ exclusiveMin: true, max: 10_000_000, message: 'La cantidad debe ser un número mayor a 0 y hasta 10,000,000 (en la unidad base del insumo).' }),

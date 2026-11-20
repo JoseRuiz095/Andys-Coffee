@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { calendarDateSchema } from './common.validator';
+import { calendarDateSchema, catalogIdSchema } from './common.validator';
 import { paginationFields } from './pagination.validator';
 
 export const inventoryCountValidator = {
   addItem: z.object({
-    ingredientId: z.string().uuid('ID de ingrediente inválido'),
+    ingredientId: catalogIdSchema,
     // Bounded so it fits Decimal(14,4); without max, 1e20 reached Prisma and answered 500.
     countedQuantity: z
       .number()

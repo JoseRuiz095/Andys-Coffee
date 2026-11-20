@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { catalogIdSchema } from './recipe.validator';
+import { catalogIdSchema } from './common.validator';
 
 /** A group of products shown together in the POS (e.g. "Latte" with its flavors). */
 export const createProductFamilySchema = z.strictObject({

@@ -1,7 +1,5 @@
 import { z } from 'zod';
-
-/** Catalog ids are uuids, but some legacy ingredients were seeded with text ids (PROD-001…). */
-export const catalogIdSchema = z.string().trim().min(1).max(64);
+import { catalogIdSchema } from './common.validator';
 
 const MAX_QUANTITY = 1_000_000;
 const MAX_LINES = 50;

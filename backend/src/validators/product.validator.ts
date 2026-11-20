@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizedSearchSchema, paginationFields } from './pagination.validator';
-import { catalogIdSchema, productRecipeSchema } from './recipe.validator';
+import { catalogIdSchema } from './common.validator';
+import { productRecipeSchema } from './recipe.validator';
 
 /** Attribute of a product inside its family (e.g. Salsa = Roja). Names can't repeat. */
 const variantOptionsSchema = z

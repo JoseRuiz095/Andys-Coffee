@@ -45,16 +45,16 @@ test("la vista inicial y los enlaces respetan permisos; recargar y Atrás conser
   // Tabs live in the URL: reload keeps them, Back walks them back.
   await page.getByRole("button", { name: "Inventario", exact: true }).click();
   await expect(page).toHaveURL(/view=inventario/);
-  // Purchases group "Por recibir · Nueva compra · Sugerencias" under one section.
+  // Purchases group "Nueva compra · Por recibir · Sugerencias" under one section; it opens on its first view.
   await page.getByRole("tab", { name: "Compras", exact: true }).click();
-  await expect(page).toHaveURL(/inv=entries/);
-  await page.getByRole("tab", { name: "Nueva compra", exact: true }).click();
   await expect(page).toHaveURL(/inv=add-entry/);
+  await page.getByRole("tab", { name: "Por recibir", exact: true }).click();
+  await expect(page).toHaveURL(/inv=entries/);
   await page.reload();
-  await expect(page.getByRole("tab", { name: "Nueva compra", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Por recibir", exact: true })).toHaveAttribute("aria-selected", "true");
 
   await page.goBack();
-  await expect(page.getByRole("tab", { name: "Por recibir", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Nueva compra", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.goBack();
   await expect(page.getByRole("tab", { name: "Existencias", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.goBack();
